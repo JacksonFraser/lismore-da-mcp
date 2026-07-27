@@ -9,6 +9,22 @@ An MCP server and knowledge base for assisting with Development Applications (DA
 - **DA Checklists**: Get required documents based on development type
 - **Offline PDFs**: 67MB of official planning documents stored locally
 
+## Public Server
+
+A hosted, public instance is running at **https://lismore-da-mcp.onrender.com** — no install
+required. Add it as a remote MCP connector in any MCP-compatible client (Claude, etc.) using its
+Streamable HTTP endpoint:
+
+```
+https://lismore-da-mcp.onrender.com/mcp
+```
+
+This is an open, unauthenticated endpoint (no API key) — it only serves public NSW planning
+guidance, not private data. It's hosted on Render's free tier, so the first request after a period
+of inactivity may take 30-60 seconds to wake up.
+
+To run your own copy instead (locally or self-hosted), see Quick Start below.
+
 ## Quick Start
 
 ### 1. Install Dependencies
