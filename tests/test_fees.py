@@ -19,11 +19,12 @@ class TestBrackets:
             (0, 144.00),
             (1, 144.00),
             (5_000, 144.00),  # top of the flat bracket
-            (5_001, 220.00),  # base fee, effectively no increment yet
-            (250_001, 1_509.00),
-            (500_001, 2_272.00),
-            (1_000_001, 3_404.00),
-            (10_000_001, 20_667.00),
+            # $1 above a floor is "part $1,000", so one whole increment applies.
+            (5_001, 220.00 + 3.00),
+            (250_001, 1_509.00 + 2.34),
+            (500_001, 2_272.00 + 1.64),
+            (1_000_001, 3_404.00 + 1.44),
+            (10_000_001, 20_667.00 + 1.19),
         ],
     )
     def test_bracket_floor(self, cost, expected):
@@ -77,30 +78,32 @@ class TestCostEstimateRequirement:
 
 class TestPartThousandRounding:
     """Schedule 4 charges the increment 'for each $1,000, or part $1,000' by which
-    the cost exceeds the bracket floor. The current implementation interpolates
-    linearly instead, which under-charges any cost that isn't a whole number of
-    thousands above the floor.
+    the cost exceeds the bracket floor, so a partial thousand is charged whole.
 
-    See IMPROVEMENT_PLAN.md — this is a known defect, not a test bug. The xfail is
-    strict so it flips to a failure the moment the calculation is corrected,
-    prompting these expectations to become the real assertions.
+    Fixed in IMPROVEMENT_PLAN 1.8; previously interpolated linearly, which
+    under-charged every cost that wasn't a round number of thousands.
     """
 
-    @pytest.mark.xfail(strict=True, reason="linear interpolation; Schedule 4 says 'or part $1,000'")
     @pytest.mark.parametrize(
         "cost,expected",
         [
             (5_500, 220.00 + 3.00 * 1),      # $500 over → 1 part-thousand
             (5_001, 220.00 + 3.00 * 1),      # $1 over → still 1 part-thousand
             (51_500, 459.00 + 3.64 * 2),     # $1,500 over → 2
+            (250_500, 1_509.00 + 2.34 * 1),
         ],
     )
     def test_part_thousand_rounds_up(self, cost, expected):
         assert calculate_da_fee(cost)["estimated_fee"] == pytest.approx(expected, abs=0.01)
 
-    def test_current_behaviour_is_linear(self):
-        """Pin the present behaviour so the change above is deliberate and visible."""
-        assert calculate_da_fee(5_500)["estimated_fee"] == pytest.approx(221.50, abs=0.01)
+    def test_whole_thousands_are_not_rounded_up_further(self):
+        """An exact multiple must charge exactly that many, not one extra."""
+        assert calculate_da_fee(6_000)["estimated_fee"] == pytest.approx(220.00 + 3.00, abs=0.01)
+
+    def test_never_undercharges_against_linear(self):
+        for cost in range(5_001, 50_000, 137):
+            linear = 220.00 + 3.00 * ((cost - 5_000) / 1000)
+            assert calculate_da_fee(cost)["estimated_fee"] >= linear - 0.01
 
 
 class TestResponseShape:
@@ -111,7 +114,9 @@ class TestResponseShape:
     def test_echoes_cost(self):
         assert calculate_da_fee(123_456)["development_cost"] == 123_456
 
-    @pytest.mark.xfail(strict=True, reason="responses carry no effective date; IMPROVEMENT_PLAN U10")
     def test_states_which_schedule_year(self):
-        blob = str(calculate_da_fee(250_000)).lower()
-        assert "2024" in blob or "schedule" in blob
+        result = calculate_da_fee(250_000)
+        assert result["fee_schedule_year"] == "2024-25"
+
+    def test_warns_that_fees_reset_annually(self):
+        assert "july" in calculate_da_fee(250_000)["currency_warning"].lower()

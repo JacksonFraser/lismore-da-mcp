@@ -211,6 +211,168 @@ ZONES = {
     },
 
     # Rural Zone
+    "RU1": {
+        "name": "Primary Production",
+        "objectives": [
+            "To encourage sustainable primary industry production by maintaining and enhancing the natural resource base.",
+            "To encourage diversity in primary industry enterprises and systems appropriate for the area.",
+            "To minimise the fragmentation and alienation of resource lands.",
+            "To minimise conflict between land uses within this zone and land uses within adjoining zones.",
+            "To preserve rural resources by ensuring that the viability of rural land is not extinguished by inappropriate development or incompatible uses.",
+            "To enable a range of other uses to occur on rural land providing such uses do not conflict with existing or potential agriculture and do not detract from the scenic amenity and character of the rural environment.",
+        ],
+        "permitted_without_consent": [
+            "Environmental protection works",
+            "Extensive agriculture",
+            "Forestry",
+            "Home occupations",
+            "Home occupations (sex services)",
+            "Intensive plant agriculture",
+        ],
+        "permitted_with_consent": [
+            "Agritourism",
+            "Airstrips",
+            "Animal boarding or training establishments",
+            "Aquaculture",
+            "Artisan food and drink industries",
+            "Boat launching ramps",
+            "Boat sheds",
+            "Building identification signs",
+            "Business identification signs",
+            "Camping grounds",
+            "Caravan parks",
+            "Cellar door premises",
+            "Cemeteries",
+            "Community facilities",
+            "Creative industries",
+            "Dual occupancies",
+            "Dwelling houses",
+            "Eco-tourist facilities",
+            "Environmental facilities",
+            "Extractive industries",
+            "Farm buildings",
+            "Flood mitigation works",
+            "Garden centres",
+            "Helipads",
+            "Home-based child care",
+            "Home businesses",
+            "Home industries",
+            "Information and education facilities",
+            "Intensive livestock agriculture",
+            "Jetties",
+            "Kiosks",
+            "Landscaping material supplies",
+            "Mooring pens",
+            "Open cut mining",
+            "Plant nurseries",
+            "Recreation areas",
+            "Recreation facilities (outdoor)",
+            "Restaurants or cafes",
+            "Roads",
+            "Roadside stalls",
+            "Rural industries",
+            "Rural supplies",
+            "Tourist and visitor accommodation",
+            "Turf farming",
+            "Water recreation structures",
+        ],
+        "prohibited": [
+            "Backpackers’ accommodation",
+            "Hotel or motel accommodation",
+            "Local distribution premises",
+            "Serviced apartments",
+            "Any other development not specified in item 2 or 3",
+        ],
+    },
+    "RU2": {
+        "name": "Rural Landscape",
+        "objectives": [
+            "To encourage sustainable primary industry production by maintaining and enhancing the natural resource base.",
+            "To maintain the rural landscape character of the land.",
+            "To provide for a range of compatible land uses, including extensive agriculture.",
+            "To enable a range of other uses that are compatible with the flood hazard associated with the land.",
+            "To provide for a limited range of development that does not have an adverse effect on the ecological values of the land.",
+        ],
+        "permitted_without_consent": [
+            "Environmental protection works",
+            "Extensive agriculture",
+            "Forestry",
+            "Home occupations",
+            "Home occupations (sex services)",
+            "Intensive plant agriculture",
+        ],
+        "permitted_with_consent": [
+            "Agritourism",
+            "Airstrips",
+            "Animal boarding or training establishments",
+            "Aquaculture",
+            "Bed and breakfast accommodation",
+            "Boat launching ramps",
+            "Boat sheds",
+            "Building identification signs",
+            "Business identification signs",
+            "Camping grounds",
+            "Cellar door premises",
+            "Cemeteries",
+            "Community facilities",
+            "Dwelling houses",
+            "Eco-tourist facilities",
+            "Environmental facilities",
+            "Farm buildings",
+            "Farm stay accommodation",
+            "Flood mitigation works",
+            "Garden centres",
+            "Helipads",
+            "Home-based child care",
+            "Home businesses",
+            "Information and education facilities",
+            "Intensive livestock agriculture",
+            "Jetties",
+            "Kiosks",
+            "Landscaping material supplies",
+            "Light industries",
+            "Mooring pens",
+            "Plant nurseries",
+            "Recreation areas",
+            "Recreation facilities (outdoor)",
+            "Restaurants or cafes",
+            "Roads",
+            "Roadside stalls",
+            "Rural industries",
+            "Turf farming",
+            "Vehicle repair stations",
+            "Water recreation structures",
+        ],
+        "prohibited": [
+            "Any development not specified in item 2 or 3",
+        ],
+    },
+    "RU3": {
+        "name": "Forestry",
+        "objectives": [
+            "To enable development for forestry purposes.",
+            "To enable other development that is compatible with forestry land uses.",
+        ],
+        "permitted_without_consent": [
+            "Environmental facilities",
+            "Environmental protection works",
+            "Extensive agriculture",
+            "Uses authorised under the Forestry Act 2012 or under Part 5B (Private native forestry) of the Local Land Services Act 2013",
+        ],
+        "permitted_with_consent": [
+            "Aquaculture",
+            "Boat launching ramps",
+            "Farm buildings",
+            "Flood mitigation works",
+            "Jetties",
+            "Recreation areas",
+            "Roads",
+            "Water recreation structures",
+        ],
+        "prohibited": [
+            "Any development not specified in item 2 or 3",
+        ],
+    },
     "RU5": {
         "name": "Village",
         "notes": "Applies to Nimbin, Dunoon, Clunes and other villages",
@@ -308,6 +470,55 @@ ZONES = {
         "permitted_without_consent": ["Environmental protection works"],
         "permitted_with_consent": ["Aquaculture", "Boat launching ramps", "Boat sheds", "Building identification signs", "Business identification signs", "Emergency services facilities", "Environmental facilities", "Flood mitigation works", "Information and education facilities", "Jetties", "Mooring pens", "Moorings", "Recreation areas", "Research stations", "Roads", "Water recreation structures", "Water supply systems"],
         "prohibited": ["Business premises", "Hotel or motel accommodation", "Industries", "Local distribution premises", "Multi dwelling housing", "Recreation facilities (major)", "Residential flat buildings", "Restricted premises", "Retail premises", "Seniors housing", "Service stations", "Warehouse or distribution centres", "Any other development not specified in item 2 or 3"],
+    },
+    "W2": {
+        "name": "Recreational Waterways",
+        "objectives": [
+            "To protect the ecological, scenic and recreation values of recreational waterways.",
+            "To allow for water-based recreation and related uses.",
+            "To provide for sustainable fishing industries and recreational fishing.",
+            "To provide for activities that are compatible with, and complement, the scenic and ecological qualities of the waterway.",
+        ],
+        "permitted_without_consent": [
+            "Environmental protection works",
+            "Moorings",
+        ],
+        "permitted_with_consent": [
+            "Aquaculture",
+            "Boat building and repair facilities",
+            "Boat launching ramps",
+            "Boat sheds",
+            "Building identification signs",
+            "Business identification signs",
+            "Car parks",
+            "Charter and tourism boating facilities",
+            "Community facilities",
+            "Emergency services facilities",
+            "Environmental facilities",
+            "Flood mitigation works",
+            "Information and education facilities",
+            "Jetties",
+            "Kiosks",
+            "Marinas",
+            "Markets",
+            "Mooring pens",
+            "Recreation areas",
+            "Recreation facilities (outdoor)",
+            "Registered clubs",
+            "Restaurants or cafes",
+            "Roads",
+            "Water recreation structures",
+            "Water supply systems",
+        ],
+        "prohibited": [
+            "Industries",
+            "Local distribution premises",
+            "Multi dwelling housing",
+            "Residential flat buildings",
+            "Seniors housing",
+            "Warehouse or distribution centres",
+            "Any other development not specified in item 2 or 3",
+        ],
     },
 
     # Legacy zone codes (for backwards compatibility with older references)
@@ -695,24 +906,34 @@ FLOOD_PLANNING = {
 }
 
 # Fee calculation based on NSW EP&A Regulation Schedule 4
+# EP&A Regulation 2021 Schedule 4, as published for 2024-25 in
+# documents/fees/nsw-planning-fees-2024-25.pdf (p2). Each bracket is
+# (upper bound of estimated cost, base fee, increment per $1,000 above the
+# bracket floor). Bases are stepped, not continuous — that is how the schedule
+# is written, so the fee jumps at each boundary.
+DA_FEE_SCHEDULE_YEAR = "2024-25"
+DA_FEE_BRACKETS = [
+    (5_000,      144.00, 0.00,       0),
+    (50_000,     220.00, 3.00,       5_000),
+    (250_000,    459.00, 3.64,      50_000),
+    (500_000,  1_509.00, 2.34,     250_000),
+    (1_000_000, 2_272.00, 1.64,    500_000),
+    (10_000_000, 3_404.00, 1.44, 1_000_000),
+    (math.inf, 20_667.00, 1.19,  10_000_000),
+]
+
+
 def calculate_da_fee(development_cost: float) -> dict:
     """Calculate DA fee based on estimated development cost."""
-    fee_unit = 111.32  # 2024-25 fee unit
-
-    if development_cost <= 5000:
-        fee = 144.00
-    elif development_cost <= 50000:
-        fee = 220.00 + (3.00 * ((development_cost - 5000) / 1000))
-    elif development_cost <= 250000:
-        fee = 459.00 + (3.64 * ((development_cost - 50000) / 1000))
-    elif development_cost <= 500000:
-        fee = 1509.00 + (2.34 * ((development_cost - 250000) / 1000))
-    elif development_cost <= 1000000:
-        fee = 2272.00 + (1.64 * ((development_cost - 500000) / 1000))
-    elif development_cost <= 10000000:
-        fee = 3404.00 + (1.44 * ((development_cost - 1000000) / 1000))
-    else:
-        fee = 20667.00 + (1.19 * ((development_cost - 10000000) / 1000))
+    for upper, base, per_thousand, floor in DA_FEE_BRACKETS:
+        if development_cost <= upper:
+            # Schedule 4 charges the increment "for each $1,000, or part $1,000,
+            # by which estimated cost exceeds" the bracket floor — so a partial
+            # thousand is charged as a whole one. Interpolating linearly here
+            # under-charged every cost that wasn't a round number of thousands.
+            excess = max(0.0, development_cost - floor)
+            fee = base + per_thousand * math.ceil(excess / 1000)
+            break
 
     cost_estimate_requirement = "Applicant estimate"
     if development_cost > 100000:
@@ -724,7 +945,13 @@ def calculate_da_fee(development_cost: float) -> dict:
         "estimated_fee": round(fee, 2),
         "development_cost": development_cost,
         "cost_estimate_requirement": cost_estimate_requirement,
-        "note": "This is the statutory DA lodgement fee only. Additional fees may apply for advertising, referrals, long service levy, and Section 7.11 contributions."
+        "fee_schedule_year": DA_FEE_SCHEDULE_YEAR,
+        "note": "This is the statutory DA lodgement fee only. Additional fees may apply for advertising, referrals, long service levy, and Section 7.11 contributions.",
+        "currency_warning": (
+            f"Calculated from the {DA_FEE_SCHEDULE_YEAR} EP&A Regulation Schedule 4 scale. "
+            "Statutory fees are re-set each July — confirm against Council's current fees and "
+            "charges before relying on this figure."
+        ),
     }
 
 
@@ -2987,6 +3214,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
     elif name == "get_da_checklist":
         dev_type = arguments.get("development_type", "").lower()
+        # Keywords the branches below actually test for, surfaced so a rejected
+        # call can name them instead of leaving the caller to guess.
+        DA_CHECKLIST_TYPES = {
+            "dwelling", "residential", "commercial", "subdivision", "change_of_use",
+        }
 
         base_documents = [
             "Development Application form (via NSW Planning Portal)",
@@ -3028,6 +3260,24 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 "Fire safety upgrade report (if required)",
                 "Parking assessment"
             ]
+
+        # Nothing matched, so there is no type-specific advice to give. Returning the
+        # generic list anyway made 'nuclear reactor' and 'spaceship' look like
+        # recognised development types with a considered answer behind them.
+        if not additional:
+            return [TextContent(
+                type="text",
+                text=json.dumps({
+                    "error": f"No checklist available for development type '{dev_type}'.",
+                    "recognised_types": sorted(DA_CHECKLIST_TYPES),
+                    "note": (
+                        "Only the types above have type-specific document requirements. "
+                        "Every DA needs the standard documents listed under "
+                        "'documents_required_for_every_da' regardless of type."
+                    ),
+                    "documents_required_for_every_da": base_documents,
+                }, indent=2)
+            )]
 
         conditional = [
             {"condition": "If flood-affected land", "document": "Flood Risk Assessment"},
@@ -3182,6 +3432,23 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             similar = [u for u in all_uses if any(w in canonical_use(u) for w in words)]
             if similar:
                 result["similar_uses"] = similar[:5]
+
+        # This tool reads the LEP land use table and nothing else. A State
+        # Environmental Planning Policy can permit a use the table omits, and
+        # prevails over the LEP where they conflict — most commonly for secondary
+        # dwellings ("granny flats"), which are absent from several Lismore
+        # residential tables but are generally permissible with consent under the
+        # Housing SEPP. Without this note, a catch-all miss reads as a settled "no".
+        if permissibility in ("likely_prohibited", "prohibited", "not_found"):
+            result["scope_of_this_answer"] = (
+                "Based on the Lismore LEP 2012 land use table only. State Environmental "
+                "Planning Policies (Housing, Exempt and Complying Development Codes, "
+                "Transport and Infrastructure, Primary Production) can independently permit "
+                "a use that the LEP table does not list, and prevail over the LEP where they "
+                "conflict. A use shown here as prohibited may still have a SEPP pathway — "
+                "secondary dwellings are the common example. Check with the Duty Planner "
+                "before treating this as a refusal."
+            )
 
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
 

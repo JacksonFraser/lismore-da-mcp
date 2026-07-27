@@ -379,18 +379,55 @@ bracket base fees themselves ($220 / $459 / $1,509 / $2,272) match the official 
 only the rounding is wrong. Verified against `documents/fees/nsw-planning-fees-2024-25.pdf`, p2.
 Pinned as a strict xfail in `test_fees.py::TestPartThousandRounding`. Added below as **1.8**.
 
-## Phase 1 — Correctness (highest user impact)
+## Phase 1 — Correctness (highest user impact) — **mostly complete**
 
-| # | Task | Effort | Notes |
+| # | Task | Status | Notes |
 |---|---|---|---|
-| 1.1 | Transcribe the 10 missing zones from `lep-2012-nsw-full.txt` | 4h | U1. Rural zones first (RU1, RU2) |
-| 1.2 | Reconcile `CLAUDE.md`'s "tools are authoritative" claim with reality | 0.5h | Do with 1.1 so they stop disagreeing |
-| 1.3 | Add SEPP caveat to catch-all prohibition results | 2h | U2. Minimum viable fix |
-| 1.4 | Encode high-traffic SEPP pathways (secondary dwellings, exempt/complying) | 6h | U2. Needs planner review |
-| 1.5 | Tag documents with planning instrument; label LEP 2000 hits as superseded | 2h | U8 |
-| 1.6 | `get_da_checklist` refuses unknown types | 1h | U4 |
-| 1.7 | Add effective dates to fee/zone/DCP responses | 2h | U10 |
-| 1.8 | Round the fee increment up per part-$1,000, per Schedule 4 | 0.5h | Found in Phase 0; xfail already written |
+| 1.1 | Transcribe the missing zones from `lep-2012-nsw-full.txt` | ✅ | **4 zones, not 10** — see correction below |
+| 1.2 | Reconcile `CLAUDE.md` with reality | ✅ | Removed RU4/RU6/C4/E5; recorded the 21-zone set |
+| 1.3 | Add SEPP caveat to prohibited/not-found results | ✅ | `scope_of_this_answer`, on refusals only |
+| 1.4 | Encode high-traffic SEPP pathways | ⏸️ **deferred** | Needs planner review — see below |
+| 1.5 | Tag documents with instrument; label LEP 2000 as superseded | ☐ | U8, still open |
+| 1.6 | `get_da_checklist` refuses unknown types | ✅ | Still returns the universal documents |
+| 1.7 | Add effective dates to responses | ◐ partial | Done for fees; zone/DCP responses still undated |
+| 1.8 | Round the fee increment up per part-$1,000 | ✅ | Schedule now data-driven, not a chain of `elif` |
+
+**Suite: 216 passing, 6 xfailed** (was 159/22). The 10 zone xfails became 42 real assertions.
+
+### Correction to U1 — the evaluation over-claimed
+
+U1 said ten zones were missing. **Four were.** The other six — RU4, RU6, R4, E5, C4, SP1 — exist in
+the Standard Instrument and get name-checked in passing by LEP clauses, but have no land use table
+in Lismore LEP 2012 and do not apply in this LGA. The LEP says so itself in a note to clause 4.2:
+*"When this Plan was made it did not include Zone RU4 Primary Production Small Lots or Zone RU6
+Transition."*
+
+The error came from comparing `ZONES` against a generic Standard Instrument zone list rather than
+against Lismore's actual LEP. **Lismore LEP 2012 has exactly 21 zones**, derived by extracting the
+headings above each "Objectives of zone" block. `ZONES` was missing `RU1`, `RU2`, `RU3`, `W2`.
+
+The impact claim in U1 stands regardless: those four included **every rural zone except RU5
+Village**, in an LGA where RU1 and RU2 cover most of the land area.
+
+`CLAUDE.md` carried the same over-claim (it listed RU6, C4 and E5 as Lismore zones) and has been
+corrected. `tests/test_tools.py::TestZoneData` now fails in *both* directions — if a Lismore zone
+goes missing, and if a non-Lismore zone is added back.
+
+### Data-quality note
+
+`documents/lep/lep-2012-nsw-full.txt` has at least one join defect: RU3's permitted-with-consent
+list reads `"Aquaculture Boat launching ramps"` with the separating semicolon missing, evidently
+lost when the page was scraped. Both are standard defined terms, so it was split on transcription.
+**Assume other extracts may carry similar defects** — transcribe by reading, not by trusting the
+delimiter.
+
+### Why 1.4 is deferred
+
+Encoding SEPP pathways means taking on an ongoing obligation to track amendments to at least four
+policies, and getting it wrong produces confident advice that a use is permitted when it isn't —
+strictly worse than the current gap, which at least errs toward "check with Council". 1.3 closes
+the dangerous half (a refusal that reads as settled) at a fraction of the cost. Recommend leaving
+1.4 until a planner can review the encoding, per open question 1.
 
 **Exit criteria:** no tool returns a confident answer outside its data coverage; every rural zone
 resolves; the four `test_tools.py::TestKnownGaps` and `test_fees.py` xfails flip to passing.
