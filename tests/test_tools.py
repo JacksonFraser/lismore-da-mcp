@@ -13,6 +13,17 @@ from lismore_da_mcp.server import TOOLS, TOOL_SCHEMAS, ZONES, validate_arguments
 
 TOOL_NAMES = sorted(t.name for t in TOOLS)
 
+# The zones that have a land use table in Lismore LEP 2012, read off the LEP text
+# (documents/lep/lep-2012-nsw-full.txt). This is the authoritative set for this LGA.
+LISMORE_ZONES = [
+    "RU1", "RU2", "RU3", "RU5",
+    "R1", "R2", "R3", "R5",
+    "E1", "E2", "E3", "E4", "MU1",
+    "SP2", "RE1", "RE2",
+    "C1", "C2", "C3",
+    "W1", "W2",
+]
+
 # One valid argument set per tool. Kept explicit rather than generated, so that a
 # renamed argument breaks a test instead of being silently accommodated.
 VALID_ARGS = {
@@ -133,18 +144,48 @@ class TestZoneData:
     def test_case_insensitive(self, call):
         assert call("get_zone_info", {"zone_code": "r2"})["zone_code"] == "R2"
 
-    @pytest.mark.parametrize("zone", ["RU1", "RU2", "RU3", "RU4", "RU6", "R4", "E5", "C4", "SP1", "W2"])
-    @pytest.mark.xfail(strict=True, reason="zone absent from ZONES; IMPROVEMENT_PLAN 1.1")
-    def test_all_lep_zones_present(self, zone):
+    @pytest.mark.parametrize("zone", LISMORE_ZONES)
+    def test_every_lismore_zone_present(self, zone):
+        """The 21 zones with a land use table in Lismore LEP 2012.
+
+        Derived from the LEP text itself, not from the Standard Instrument: RU4,
+        RU6, R4, E5, C4 and SP1 exist in the Standard Instrument and are
+        name-checked in passing by LEP clauses, but have no land use table here
+        and do not apply in this LGA. Do not add them.
+        """
         assert zone in ZONES
+
+    @pytest.mark.parametrize("zone", LISMORE_ZONES)
+    def test_every_zone_has_a_land_use_table(self, zone):
+        entry = ZONES[zone]
+        assert entry.get("name")
+        assert entry.get("permitted_with_consent") or entry.get("permitted_without_consent")
+        assert entry.get("prohibited"), f"{zone} has no prohibition, not even the catch-all"
+
+    def test_no_zones_beyond_lismore_and_legacy_redirects(self):
+        """Guards against re-adding Standard Instrument zones that Lismore doesn't use."""
+        unexpected = {
+            code for code in ZONES
+            if code not in LISMORE_ZONES and not ZONES[code].get("redirect_to")
+        }
+        assert unexpected == set()
 
 
 class TestKnownGaps:
     """Pinned as xfail so Phase 1 and 3 have executable targets."""
 
-    @pytest.mark.xfail(strict=True, reason="unknown types get a generic checklist; IMPROVEMENT_PLAN 1.6")
     def test_checklist_refuses_nonsense(self, call):
-        assert "error" in call("get_da_checklist", {"development_type": "nuclear reactor"})
+        result = call("get_da_checklist", {"development_type": "nuclear reactor"})
+        assert "error" in result
+        assert result["recognised_types"]
+        # Still tells the caller what every DA needs, rather than refusing outright.
+        assert result["documents_required_for_every_da"]
+
+    @pytest.mark.parametrize("dev_type", ["dwelling", "commercial", "subdivision", "change_of_use"])
+    def test_checklist_still_answers_known_types(self, call, dev_type):
+        result = call("get_da_checklist", {"development_type": dev_type})
+        assert "error" not in result
+        assert result["additional_for_type"]
 
     @pytest.mark.xfail(strict=True, reason="exact-token matching; IMPROVEMENT_PLAN 3.1")
     @pytest.mark.parametrize("term", ["coffee shop", "child care centre"])
@@ -155,10 +196,17 @@ class TestKnownGaps:
     def test_see_template_accepts_spaces(self, call):
         assert "error" not in call("get_see_template", {"section": "site description"})
 
-    @pytest.mark.xfail(strict=True, reason="LEP-only reasoning ignores SEPPs; IMPROVEMENT_PLAN 1.3")
     def test_catchall_prohibition_mentions_sepps(self, call):
+        """A use missing from the LEP table may still have a SEPP pathway; the
+        answer must not read as a settled refusal. IMPROVEMENT_PLAN 1.3."""
         result = call("check_permissibility", {"zone_code": "R2", "land_use": "secondary dwelling"})
         assert "sepp" in json.dumps(result).lower()
+        assert "secondary dwelling" in result["scope_of_this_answer"].lower()
+
+    def test_permitted_answers_carry_no_sepp_caveat(self, call):
+        """The caveat belongs on refusals only — adding it everywhere would dilute it."""
+        result = call("check_permissibility", {"zone_code": "R2", "land_use": "dwelling houses"})
+        assert "scope_of_this_answer" not in result
 
     @pytest.mark.xfail(strict=True, reason="success key absent on happy path; IMPROVEMENT_PLAN 3.5")
     def test_preview_see_form_always_reports_success(self, call):

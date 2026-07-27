@@ -212,7 +212,11 @@ zones and are unrelated to the old E1–E4 environmental zones, which became C1�
 | RU2 | Rural Landscape | Rural uses with landscape values |
 | RU3 | Forestry | Forestry operations |
 | RU5 | Village | Village centres (Nimbin, Dunoon, etc.) |
-| RU6 | Transition | Rural land transitioning to other uses |
+
+⚠️ **RU4 Primary Production Small Lots and RU6 Transition do not apply in Lismore.** They exist in
+the Standard Instrument and are name-checked in passing by LEP clauses (4.2 lists them among
+"rural zones"), but neither has a land use table in Lismore LEP 2012 — the LEP says so explicitly
+in a note to clause 4.2. Do not cite them for a Lismore site.
 
 ### Conservation Zones (formerly Environmental Protection)
 | Zone | Name |
@@ -220,7 +224,9 @@ zones and are unrelated to the old E1–E4 environmental zones, which became C1�
 | C1 | National Parks and Nature Reserves (formerly E1) |
 | C2 | Environmental Conservation (formerly E2) |
 | C3 | Environmental Management (formerly E3) |
-| C4 | Environmental Living (formerly E4) |
+
+⚠️ **C4 Environmental Living does not apply in Lismore** — no land use table in LEP 2012.
+Likewise **E5 Heavy Industrial**: the employment zones in Lismore stop at E4.
 
 ### Other Zones
 | Zone | Name |
@@ -232,9 +238,19 @@ zones and are unrelated to the old E1–E4 environmental zones, which became C1�
 | W2 | Recreational Waterways |
 
 **Note**: Zone name changes occurred April 2023 under Standard Instrument Amendment Order 2021.
-Verified against `documents/lep/lep-2012-nsw-full.txt` (the current consolidated LEP) on 2026-07-26.
-The `get_zone_info` and `check_permissibility` tools carry the land use tables verbatim — prefer them
-over this summary.
+
+**Lismore LEP 2012 has exactly 21 zones with a land use table** — the four rural, four residential,
+five employment (E1–E4 plus MU1), SP2, RE1, RE2, C1–C3, and W1–W2 listed above. Verified by
+extracting the zone headings from `documents/lep/lep-2012-nsw-full.txt` on 2026-07-27, and pinned
+by `tests/test_tools.py::TestZoneData`, which fails both if a Lismore zone goes missing and if a
+non-Lismore zone is added. `get_zone_info` and `check_permissibility` carry all 21 land use tables
+verbatim — prefer them over this summary.
+
+⚠️ **`check_permissibility` reads the LEP land use table only.** It has no knowledge of State
+Environmental Planning Policies, which can permit a use the table omits and prevail over the LEP.
+Secondary dwellings ("granny flats") are the common case: absent from several Lismore residential
+tables, but generally permissible with consent under the Housing SEPP. The tool flags this on any
+prohibited or not-found result — do not report such a result as a settled refusal.
 
 ## Development Standards (Typical Values)
 
