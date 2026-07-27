@@ -764,17 +764,51 @@ def _query_tokens(query: str) -> list[str]:
     return tokens or words  # fall back to raw words if everything got filtered out
 
 
-def search_pdf(pdf_path: Path, query: str, max_results: int = 5) -> list[dict]:
-    """Search a PDF for text matching the query.
+# Every category the document tools search and list. `exempt-development` holds the
+# state-wide NSW DPE fact sheets used for "do I need a DA?" questions; leaving it out
+# meant those PDFs shipped with the repo but were unreachable through any tool.
+DOC_CATEGORIES = ["dcp", "lep", "forms", "fees", "exempt-development"]
 
-    Scores each line by how many distinct significant query terms it contains,
-    rather than requiring the full query phrase to appear verbatim. A line
-    matching every token in a multi-word query still ranks highest, but a
-    query like "food and drink premises change of use" will still surface
-    lines that only cover part of that concept (e.g. just "food and drink
-    premises"), instead of returning nothing because the exact phrase never
-    appears on one line.
+# .txt is included because parts of the LEP only exist here as text extracts
+# (legislation.nsw.gov.au and austlii both 403 automated fetches, so they were
+# scraped once via Playwright). Note that anything under documents/ is assumed to be
+# real content: files that were actually scraper failures — 404 pages, Cloudflare
+# challenges — were removed rather than filtered at search time, because a search hit
+# quoting a bot-verification page is worse than no hit. Check any new .txt before
+# adding it.
+SEARCHABLE_SUFFIXES = {".pdf", ".txt"}
+LISTABLE_SUFFIXES = {".pdf", ".txt", ".xls", ".xlsx"}
+
+
+def _score_lines(lines: list[str], tokens: list[str], query: str) -> list[tuple[int, int, list[str], str]]:
+    """Score each line by how many distinct query tokens it contains.
+
+    Returns (index, score, matched_terms, context) for every line that matched at
+    least one token. Requiring the full phrase verbatim would return nothing for a
+    query like "food and drink premises change of use"; scoring by token count still
+    ranks a full-phrase line highest while surfacing lines covering only part of the
+    concept.
     """
+    hits = []
+    for i, line in enumerate(lines):
+        line_lower = line.lower()
+        matched = [t for t in tokens if t in line_lower]
+        if not matched:
+            continue
+
+        score = len(matched)
+        if query.lower() in line_lower:
+            score += len(tokens)  # exact-phrase bonus, still just a ranking boost
+
+        start = max(0, i - 2)
+        end = min(len(lines), i + 3)
+        context = '\n'.join(lines[start:end])
+        hits.append((i, score, matched, context.strip()[:500]))
+    return hits
+
+
+def search_pdf(pdf_path: Path, query: str, max_results: int = 5) -> list[dict]:
+    """Search a PDF for text matching the query, scored per line."""
     tokens = _query_tokens(query)
     if not tokens:
         return []
@@ -784,29 +818,14 @@ def search_pdf(pdf_path: Path, query: str, max_results: int = 5) -> list[dict]:
         doc = fitz.open(pdf_path)
 
         for page_num in range(len(doc)):
-            page = doc[page_num]
-            text = page.get_text()
-            lines = text.split('\n')
-
-            for i, line in enumerate(lines):
-                line_lower = line.lower()
-                matched = [t for t in tokens if t in line_lower]
-                if not matched:
-                    continue
-
-                score = len(matched)
-                if query.lower() in line_lower:
-                    score += len(tokens)  # exact-phrase bonus, still just a ranking boost
-
-                start = max(0, i - 2)
-                end = min(len(lines), i + 3)
-                context = '\n'.join(lines[start:end])
-
+            lines = doc[page_num].get_text().split('\n')
+            for _, score, matched, context in _score_lines(lines, tokens, query):
                 scored.append({
                     "score": score,
                     "matched_terms": matched,
                     "page": page_num + 1,
-                    "context": context.strip()[:500],
+                    "location": f"page {page_num + 1}",
+                    "context": context,
                     "file": pdf_path.name
                 })
 
@@ -816,6 +835,76 @@ def search_pdf(pdf_path: Path, query: str, max_results: int = 5) -> list[dict]:
 
     scored.sort(key=lambda r: r["score"], reverse=True)
     return scored[:max_results]
+
+
+def search_text_file(text_path: Path, query: str, max_results: int = 5) -> list[dict]:
+    """Search a plain-text document, reporting line numbers where a PDF reports pages.
+
+    read_dcp_section takes the same line numbers as its start/end range for .txt files,
+    so a hit here can be opened directly.
+    """
+    tokens = _query_tokens(query)
+    if not tokens:
+        return []
+
+    try:
+        lines = text_path.read_text(encoding="utf-8", errors="replace").split('\n')
+    except Exception as e:
+        return [{"error": str(e)}]
+
+    scored = [
+        {
+            "score": score,
+            "matched_terms": matched,
+            "line": i + 1,
+            "location": f"line {i + 1}",
+            "context": context,
+            "file": text_path.name
+        }
+        for i, score, matched, context in _score_lines(lines, tokens, query)
+    ]
+
+    scored.sort(key=lambda r: r["score"], reverse=True)
+    return scored[:max_results]
+
+
+def search_document(path: Path, query: str, max_results: int = 5) -> list[dict]:
+    """Search one document, dispatching on file type."""
+    if path.suffix.lower() == ".txt":
+        return search_text_file(path, query, max_results)
+    return search_pdf(path, query, max_results)
+
+
+def searchable_documents(chapter: str = "") -> list[Path]:
+    """Every searchable document across all categories, optionally filtered by filename."""
+    paths = []
+    for subdir in DOC_CATEGORIES:
+        subdir_path = DOCS_DIR / subdir
+        if not subdir_path.exists():
+            continue
+        for path in sorted(subdir_path.iterdir()):
+            if path.suffix.lower() not in SEARCHABLE_SUFFIXES:
+                continue
+            if chapter and chapter.lower() not in path.name.lower():
+                continue
+            paths.append(path)
+    return paths
+
+
+def find_document(name: str) -> Path | None:
+    """Locate a document by filename or filename fragment, across all categories."""
+    candidates = [
+        path for path in searchable_documents()
+        if name.lower() in path.name.lower()
+    ]
+    if not candidates:
+        return None
+    # Prefer an exact filename match over a fragment match ('chapter-1' would
+    # otherwise resolve by directory order rather than by what was asked for).
+    for path in candidates:
+        if path.name.lower() == name.lower():
+            return path
+    return candidates[0]
 
 
 def extract_pdf_section(pdf_path: Path, start_page: int = 1, end_page: int = None) -> str:
@@ -837,20 +926,46 @@ def extract_pdf_section(pdf_path: Path, start_page: int = 1, end_page: int = Non
         return f"Error reading PDF: {e}"
 
 
+def extract_text_section(text_path: Path, start_line: int = 1, end_line: int = None) -> str:
+    """Extract a line range from a plain-text document.
+
+    Text extracts have no pages, so read_dcp_section's start/end are read as line
+    numbers here — matching the line numbers search_text_file reports.
+    """
+    try:
+        lines = text_path.read_text(encoding="utf-8", errors="replace").split('\n')
+        if end_line is None:
+            end_line = min(len(lines), max(start_line, 1) + 199)  # default window
+
+        selected = lines[max(start_line, 1) - 1:min(end_line, len(lines))]
+        header = f"--- {text_path.name}, lines {start_line}-{min(end_line, len(lines))} of {len(lines)} ---\n"
+        return (header + '\n'.join(selected))[:10000]
+    except Exception as e:
+        return f"Error reading text file: {e}"
+
+
+def extract_document_section(path: Path, start: int = 1, end: int = None) -> str:
+    """Read a section of one document — pages for PDFs, lines for text extracts."""
+    if path.suffix.lower() == ".txt":
+        return extract_text_section(path, start, end)
+    return extract_pdf_section(path, start, end)
+
+
 def list_available_documents() -> list[dict]:
     """List all available documents in the documents directory."""
     documents = []
 
     if DOCS_DIR.exists():
-        for subdir in ["dcp", "lep", "fees", "forms"]:
+        for subdir in DOC_CATEGORIES:
             subdir_path = DOCS_DIR / subdir
             if subdir_path.exists():
-                for file in subdir_path.iterdir():
-                    if file.suffix.lower() in ['.pdf', '.xls', '.xlsx']:
+                for file in sorted(subdir_path.iterdir()):
+                    if file.suffix.lower() in LISTABLE_SUFFIXES:
                         documents.append({
                             "category": subdir,
                             "filename": file.name,
-                            "path": str(file.relative_to(DOCS_DIR))
+                            "path": str(file.relative_to(DOCS_DIR)),
+                            "addressed_by": "line number" if file.suffix.lower() == ".txt" else "page number",
                         })
 
     return documents
@@ -2077,7 +2192,7 @@ TOOLS: list[Tool] = [
         ),
         Tool(
             name="search_dcp",
-            description="Search Lismore's planning documents (DCP chapters, LEP-related documents, forms, fee schedules) for specific provisions, requirements, or keywords. Matches on significant terms in the query, not just the exact phrase, so multi-word conceptual queries still surface partial matches.",
+            description="Search Lismore's planning documents (DCP chapters, LEP documents and text extracts, forms, fee schedules, and the NSW exempt-development fact sheets) for specific provisions, requirements, or keywords. Matches on significant terms in the query, not just the exact phrase, so multi-word conceptual queries still surface partial matches. Each hit reports the file plus a location — a page number for PDFs, a line number for text extracts — that read_dcp_section accepts directly.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -2095,21 +2210,21 @@ TOOLS: list[Tool] = [
         ),
         Tool(
             name="read_dcp_section",
-            description="Read a specific section from a DCP chapter PDF.",
+            description="Read a section from any planning document — a DCP chapter, an LEP text extract, a form, a fee schedule, or an exempt-development fact sheet. Use list_documents for filenames.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "chapter": {
                         "type": "string",
-                        "description": "Chapter filename (e.g., 'chapter-7-off-street-carparking.pdf')"
+                        "description": "Document filename or a fragment of it (e.g., 'chapter-7-off-street-carparking.pdf', 'lep-2012-nsw-full.txt', 'fences')"
                     },
                     "start_page": {
                         "type": "integer",
-                        "description": "Starting page number (default: 1)"
+                        "description": "Starting page number, or starting line number for .txt documents (default: 1)"
                     },
                     "end_page": {
                         "type": "integer",
-                        "description": "Ending page number (optional)"
+                        "description": "Ending page number, or ending line number for .txt documents (optional; .txt defaults to a 200-line window)"
                     }
                 },
                 "required": ["chapter"]
@@ -2117,7 +2232,7 @@ TOOLS: list[Tool] = [
         ),
         Tool(
             name="list_documents",
-            description="List all available planning documents (DCP chapters, LEP documents, forms, fee schedules).",
+            description="List all available planning documents (DCP chapters, LEP documents and text extracts, forms, fee schedules, exempt-development fact sheets), with how each is addressed by read_dcp_section.",
             inputSchema={
                 "type": "object",
                 "properties": {}
@@ -2807,18 +2922,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 text=json.dumps({"error": "Documents directory not found"})
             )]
 
-        # Search across all planning document categories, not just dcp/ —
-        # a query about e.g. flood clauses or heritage schedules may only
-        # be answerable from lep/ or forms/.
+        # Search across all planning document categories, not just dcp/ — a query about
+        # e.g. flood clauses, exempt development or heritage schedules may only be
+        # answerable from lep/, exempt-development/ or forms/.
         all_results = []
-        for subdir in ["dcp", "lep", "forms", "fees"]:
-            subdir_path = DOCS_DIR / subdir
-            if not subdir_path.exists():
-                continue
-            for pdf_file in subdir_path.glob("*.pdf"):
-                if chapter and chapter.lower() not in pdf_file.name.lower():
-                    continue
-                all_results.extend(search_pdf(pdf_file, query))
+        for path in searchable_documents(chapter):
+            all_results.extend(search_document(path, query))
 
         if not all_results:
             return [TextContent(
@@ -2850,26 +2959,20 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         start_page = arguments.get("start_page", 1)
         end_page = arguments.get("end_page")
 
-        # Find the PDF file
-        pdf_path = None
-        dcp_dir = DOCS_DIR / "dcp"
+        # Resolve across every category, not just dcp/ — search_dcp can return a hit in
+        # lep/ or exempt-development/, and there was previously no way to open it.
+        doc_path = find_document(chapter)
 
-        if dcp_dir.exists():
-            for pdf_file in dcp_dir.glob("*.pdf"):
-                if chapter.lower() in pdf_file.name.lower():
-                    pdf_path = pdf_file
-                    break
-
-        if not pdf_path:
+        if not doc_path:
             return [TextContent(
                 type="text",
                 text=json.dumps({
-                    "error": f"Chapter '{chapter}' not found",
-                    "available": [f.name for f in dcp_dir.glob("*.pdf")] if dcp_dir.exists() else []
+                    "error": f"Document '{chapter}' not found",
+                    "available": [str(p.relative_to(DOCS_DIR)) for p in searchable_documents()]
                 }, indent=2)
             )]
 
-        text = extract_pdf_section(pdf_path, start_page, end_page)
+        text = extract_document_section(doc_path, start_page, end_page)
         return [TextContent(
             type="text",
             text=text
