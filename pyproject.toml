@@ -23,6 +23,16 @@ scraping = [
     "playwright>=1.40.0",
 ]
 
+# Test-only. Not installed on Render (requirements.txt is the deploy manifest).
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q --strict-markers"
+
 [project.scripts]
 lismore-da-mcp = "lismore_da_mcp.server:main"
 
