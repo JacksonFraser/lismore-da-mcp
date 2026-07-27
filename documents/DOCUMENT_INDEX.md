@@ -45,9 +45,23 @@ This directory contains official planning documents downloaded from Lismore City
 | File | Description |
 |------|-------------|
 | `lep-2012-nsw-full.txt` | **Added 2026-07-26.** Full text of Lismore LEP 2012 extracted from NSW Legislation site. Contains all zone land use tables, development standards, local provisions, heritage schedules, and clauses. 302KB. Source: `legislation.nsw.gov.au/view/whole/html/inforce/current/epi-2013-0066` |
-| `clause-5.21-flood-planning.txt` | Clause 5.21 Flood Planning text from Lismore LEP 2012 |
+| `clause-5.21-flood-planning.txt` | Clause 5.21 Flood Planning text from Lismore LEP 2012 (AustLII extract) |
+| `part-4-development-standards.txt` | Part 4 principal development standards — clauses 4.1/4.1AA minimum subdivision lot size (AustLII extract) |
+| `zone-r1-land-use-table.txt` | Clause 2.3 and the R1 zone land use table (AustLII extract) |
 | `LEP_2012_Land_Use_Matrix.xls` | Land use permissibility matrix for all zones |
 | `existing-land-use-rights-fact-sheet.pdf` | Existing Use Rights fact sheet |
+
+**Removed 2026-07-27** — 15 files in this directory were scraper output, not content: the
+`zone-*.txt` per-zone files (AustLII "404 File not found" pages, despite filenames promising zone
+land use tables), `lep-dictionary.txt`, `schedule-5-heritage.txt` and
+`standard-instrument-dictionary.txt` (404 / Cloudflare bot-verification pages),
+`lep-2012-full.txt` (a Cloudflare "Just a moment..." challenge page), and
+`lep-2012-austlii.txt` / `.html` (table of contents only, no substantive text). They were deleted
+rather than filtered out at search time — the document tools now search `.txt` files, and a search
+hit quoting a bot-verification page is worse than no hit. Recoverable from git history if needed.
+**Verify any new `.txt` extract actually contains the content its filename claims before
+committing it.** The zone land use tables live in `lep-2012-nsw-full.txt` and, transcribed, in the
+`ZONES` dict behind the `get_zone_info` / `check_permissibility` tools.
 
 ## Fees & Charges
 
