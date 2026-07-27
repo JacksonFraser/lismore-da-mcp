@@ -1,0 +1,38 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 is the floor declared in pyproject; 3.13 is what the deployed
+        # server and local .venv run on.
+        python-version: ["3.10", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+        # The suite reads the real PDFs under documents/, which are committed.
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest
+
+      - name: Check the server still starts in HTTP mode
+        # Catches import-time and ASGI wiring breakage that the unit tests miss,
+        # since Render runs this path and nothing else exercises it.
+        run: python -c "from lismore_da_mcp.server import build_http_app; build_http_app()"
+        env:
+          MCP_TRANSPORT: http
