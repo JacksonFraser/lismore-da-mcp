@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "lismore-da": {
+      "command": "/Users/jacksonfraser/lismore-da-agent/.venv/bin/python",
+      "args": ["-m", "lismore_da_mcp.server"],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,37 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Page not found</title>
+	<style type="text/css">
+		html { font-size: 10px; }
+		body { text-align: center; font-family: Helvetica, sans-serif; font-size: 1.8rem; color: #444; }
+		article { text-align: left; width: 80%; margin: 50px auto 0; }
+		h1 { font-size: 3.5rem; }
+		p { line-height: 1.5; }
+		#countdown { font-size: 2.5rem; }
+		img { width: 125px; display: block; margin-left: -19px; }
+
+		@media (min-width: 768px) {
+			body { font-size: 1.8rem; }
+			article { margin-top: 100px; width: 65%; }
+			h1 { font-size: 4.6rem; }
+			#countdown { font-size: 3rem; }
+			img { width: 175px; margin-left: -27px; }
+		}
+		@media (min-width: 992px) {
+			body { font-size: 2rem; }
+			article { margin-top: 150px; width: 55%; }
+			img { width: 200px; margin-left: -31px; }
+		}
+	</style>
+</head>
+<body>
+	<article>
+        <img src="data:image/png;base64,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" alt="Document with a sad face">
+		<h1>We couldn’t find the page you’re looking for</h1>
+        <p>Please check the address and try again.</p>
+	</article>
+</body>
+</html>

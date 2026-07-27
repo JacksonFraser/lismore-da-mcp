@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+
+# Generated SEE PDFs contain applicant PII — never bake them into the image.
+documents/output/*
+!documents/output/.gitkeep
+
+# Third party's real signed document — see _quarantined/README.md.
+_quarantined/
+
+# The repo owner's own real business/address details.
+my-application/
+
+# Not needed at runtime — only used by the standalone fetch_*.py scraping scripts.
+fetch_lep.py
+fetch_lep_full.py
+fetch_zones.py
+fetch_exempt_development.py
+requirements-scraping.txt
+
+*.html
+*.md
