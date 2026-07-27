@@ -432,17 +432,40 @@ the dangerous half (a refusal that reads as settled) at a fraction of the cost. 
 **Exit criteria:** no tool returns a confident answer outside its data coverage; every rural zone
 resolves; the four `test_tools.py::TestKnownGaps` and `test_fees.py` xfails flip to passing.
 
-## Phase 2 — Structural split
+## Phase 2 — Structural split — **2.1, 2.2, 2.4 complete**
 
-| # | Task | Effort | Notes |
+| # | Task | Status | Notes |
 |---|---|---|---|
-| 2.1 | Extract `data/` modules (pure move, no logic change) | 2h | Safest first step |
-| 2.2 | Extract `search/` and `see/` packages | 4h | The two hotspots |
-| 2.3 | Build `registry.py`, migrate tools domain by domain | 6h | Replaces the 1,016-line chain |
-| 2.4 | Extract `transport/`; reduce `server.py` to wiring | 2h | |
-| 2.5 | Convert `data/*.py` to JSON + a loader with schema validation | 4h | Optional; makes T10/U1 a data task |
+| 2.1 | Extract `data/` modules | ✅ | 9 modules; a transcription is now reviewable without reading the server |
+| 2.2 | Extract search and `see/` packages | ✅ | Plus `landuse.py`, which check_permissibility and the SEE generator share |
+| 2.3 | Build a registry, migrate tools domain by domain | ☐ **remaining** | The 1,054-line `call_tool` and 635-line `TOOLS` are all that's left |
+| 2.4 | Extract `transport`; reduce `server.py` to wiring | ✅ | Plus `app.py` holding the Server instance |
+| 2.5 | Convert `data/*.py` to JSON + loader | ☐ | Optional |
 
-**Exit criteria:** no module over ~400 lines; adding a tool touches one file.
+**server.py: 4,185 → 1,990 lines.** Suite 216 → **223 passing**, 6 xfailed.
+
+```
+server.py      1990   TOOLS + call_tool + validate_arguments + main
+data/zones.py   491   see/generate.py  376   see/fields.py 220
+search.py       209   see/fill.py      188   data/definitions.py 176
+see/parsers.py  154   landuse.py       131   transport.py   98
+config.py        33   app.py            10   + 6 smaller data modules
+```
+
+**A real break the unit tests could not see.** Moving the transports out left
+`transport.py` referencing a `server` object it no longer imported — `build_http_app()` raised
+`NameError`. Every test still passed, because nothing exercised the HTTP path; only the CI import
+step caught it. Fixed by moving the `Server` instance into `app.py` so transports and tool
+registration both reach it without importing each other, and `tests/test_transport.py` now covers
+the path directly. **Take this as evidence for keeping that CI step**, and as a reminder that
+"tests pass" was not sufficient here.
+
+`server.py` re-exports names it does not itself use, so `from lismore_da_mcp.server import X`
+keeps working. This is deliberate and commented at the import block — do not strip those without
+checking `tests/` first.
+
+**Exit criteria:** no module over ~400 lines (only `data/zones.py` exceeds it, and it is pure
+data); adding a tool touches one file — still blocked on 2.3.
 
 ## Phase 3 — Usability
 
