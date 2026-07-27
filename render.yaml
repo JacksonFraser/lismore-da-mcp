@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: lismore-da-mcp
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m lismore_da_mcp.server
+    envVars:
+      - key: MCP_TRANSPORT
+        value: http
+      - key: PYTHONPATH
+        value: src
