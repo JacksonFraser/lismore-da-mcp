@@ -356,17 +356,28 @@ with no test suite is how subtle regressions get shipped.
 
 Each chunk is independently shippable. Effort is rough developer-hours.
 
-## Phase 0 — Safety net (do first)
+## Phase 0 — Safety net ✅ **COMPLETE** (commit `b06950f`)
 
-| # | Task | Effort | Notes |
+| # | Task | Status | Notes |
 |---|---|---|---|
-| 0.1 | Add `pytest` + `tests/`, wire `uv run pytest` | 1h | No test infra exists today |
-| 0.2 | Tests for pure functions: `calculate_da_fee` bracket boundaries, `parse_street_address`, `parse_land_identifier`, `estimate_parking_requirement`, `_score_lines`, `find_document` | 3h | Highest value per hour |
-| 0.3 | Test `see_layout()` against the real template + assert `SEE_LAYOUT_EXPECTED` | 2h | Guards the PII-misplacement risk (T3) |
-| 0.4 | Golden-file test: every tool called with valid args returns without raising | 2h | Cheap regression net for the refactor |
-| 0.5 | GitHub Actions workflow running the suite on push/PR | 1h | Repo currently has no CI |
+| 0.1 | Add `pytest` + `tests/`, wire it up | ✅ | `[dev]` extra + `[tool.pytest.ini_options]` |
+| 0.2 | Tests for pure functions | ✅ | `test_fees.py`, `test_parsers.py`, `test_documents.py` |
+| 0.3 | Test `see_layout()` + assert `SEE_LAYOUT_EXPECTED` | ✅ | `test_see_layout.py`; template matches expectations |
+| 0.4 | Every tool called with valid args | ✅ | `test_tools.py`, incl. a test that fails if a tool is added without a smoke case |
+| 0.5 | GitHub Actions workflow | ✅ | `.github/workflows/tests.yml`, Python 3.10 + 3.13, plus an HTTP-app import check |
 
-**Exit criteria:** `pytest` green in CI, and every tool exercised at least once.
+**Result:** 159 passing, 22 xfailed, ~7s. The xfails are `strict=True`, so each flips to a
+failure the moment its defect is fixed — they are executable targets for Phases 1 and 3, not
+suppressed noise. Each references its plan item.
+
+**Found while writing the tests — new, not in the original evaluation:**
+
+`calculate_da_fee()` computes the per-$1,000 increment by linear interpolation, but Schedule 4
+charges *"for each $1,000, **or part $1,000**, by which estimated cost exceeds"* the bracket
+floor. A $5,500 development is quoted **$221.50** when Council will charge **$223.00**. The
+bracket base fees themselves ($220 / $459 / $1,509 / $2,272) match the official schedule exactly —
+only the rounding is wrong. Verified against `documents/fees/nsw-planning-fees-2024-25.pdf`, p2.
+Pinned as a strict xfail in `test_fees.py::TestPartThousandRounding`. Added below as **1.8**.
 
 ## Phase 1 — Correctness (highest user impact)
 
@@ -379,9 +390,10 @@ Each chunk is independently shippable. Effort is rough developer-hours.
 | 1.5 | Tag documents with planning instrument; label LEP 2000 hits as superseded | 2h | U8 |
 | 1.6 | `get_da_checklist` refuses unknown types | 1h | U4 |
 | 1.7 | Add effective dates to fee/zone/DCP responses | 2h | U10 |
+| 1.8 | Round the fee increment up per part-$1,000, per Schedule 4 | 0.5h | Found in Phase 0; xfail already written |
 
 **Exit criteria:** no tool returns a confident answer outside its data coverage; every rural zone
-resolves.
+resolves; the four `test_tools.py::TestKnownGaps` and `test_fees.py` xfails flip to passing.
 
 ## Phase 2 — Structural split
 
