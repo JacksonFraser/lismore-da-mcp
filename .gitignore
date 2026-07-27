@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.claude/
+
+# Generated SEE PDFs contain applicant PII — never commit them.
+documents/output/*
+!documents/output/.gitkeep
+
+# Third party's real signed document, kept out on purpose — see _quarantined/README.md.
+_quarantined/
+
+# The repo owner's own real business/address details.
+my-application/

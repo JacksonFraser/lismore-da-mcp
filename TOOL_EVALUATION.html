@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lismore DA MCP Server - Tool Evaluation</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --surface-2: #1f2b47;
+            --primary: #4ecca3;
+            --secondary: #7b68ee;
+            --text: #e8e8e8;
+            --text-muted: #a0a0a0;
+            --success: #4ecca3;
+            --warning: #ffc857;
+            --danger: #ff6b6b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: var(--secondary);
+            font-size: 1.8rem;
+            margin: 2rem 0 1rem;
+            padding-left: 0.5rem;
+            border-left: 4px solid var(--secondary);
+        }
+
+        h3 {
+            color: var(--text);
+            font-size: 1.3rem;
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-success { background: var(--success); color: var(--bg); }
+        .badge-warning { background: var(--warning); color: var(--bg); }
+        .badge-danger { background: var(--danger); color: var(--bg); }
+        .badge-info { background: var(--secondary); color: white; }
+
+        .score-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .score-card {
+            background: var(--surface-2);
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .score-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary);
+            min-width: 60px;
+        }
+
+        .score-label {
+            font-weight: 600;
+        }
+
+        .score-note {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .overall-score {
+            text-align: center;
+            padding: 2rem;
+            background: linear-gradient(135deg, var(--surface), var(--surface-2));
+            border-radius: 16px;
+            margin: 2rem 0;
+        }
+
+        .overall-score .value {
+            font-size: 4rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .journey-step {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid var(--secondary);
+        }
+
+        .journey-step.success { border-left-color: var(--success); }
+        .journey-step.warning { border-left-color: var(--warning); }
+        .journey-step.danger { border-left-color: var(--danger); }
+
+        .step-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .step-number {
+            background: var(--secondary);
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 1rem;
+        }
+
+        code {
+            background: var(--bg);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: var(--primary);
+        }
+
+        pre {
+            background: var(--bg);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-size: 0.85rem;
+        }
+
+        pre code {
+            padding: 0;
+            background: none;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--surface-2);
+        }
+
+        th {
+            background: var(--surface-2);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: var(--surface-2);
+        }
+
+        .tool-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .tool-item {
+            background: var(--surface-2);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .fix-banner {
+            background: linear-gradient(135deg, #1a472a, #2d5a3d);
+            border: 2px solid var(--success);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .fix-banner h3 {
+            color: var(--success);
+            margin-bottom: 0.5rem;
+        }
+
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .comparison-before, .comparison-after {
+            background: var(--bg);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        .comparison-before {
+            border: 2px solid var(--danger);
+        }
+
+        .comparison-after {
+            border: 2px solid var(--success);
+        }
+
+        .comparison-label {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .comparison-before .comparison-label { color: var(--danger); }
+        .comparison-after .comparison-label { color: var(--success); }
+
+        .workflow-table td:first-child {
+            font-weight: 600;
+        }
+
+        .gap-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .gap-list li {
+            padding: 0.75rem 1rem;
+            margin: 0.5rem 0;
+            background: var(--surface-2);
+            border-radius: 8px;
+            border-left: 3px solid var(--warning);
+        }
+
+        .recommendations {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .rec-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .rec-card h4 {
+            color: var(--secondary);
+            margin-bottom: 1rem;
+        }
+
+        .rec-card ul {
+            padding-left: 1.5rem;
+        }
+
+        .rec-card li {
+            margin: 0.5rem 0;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--surface-2);
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MCP Server Tool Evaluation</h1>
+        <p class="subtitle">Testing the Lismore DA Assistant from a first-time user's perspective</p>
+
+        <div class="card">
+            <h3>Test Scenario</h3>
+            <p><strong>User Profile:</strong> First-time applicant with no planning knowledge</p>
+            <p><strong>Goal:</strong> Understand requirements to open a caf&eacute; in Lismore CBD</p>
+            <p><strong>Tools Available:</strong> 18 MCP tools</p>
+        </div>
+
+        <div class="overall-score">
+            <div class="value">8.7/10</div>
+            <p>Overall Score (up from 8.3 after critical fix)</p>
+        </div>
+
+        <h2>Score Breakdown</h2>
+
+        <div class="score-grid">
+            <div class="score-card">
+                <div class="score-value">10</div>
+                <div>
+                    <div class="score-label">Fee Calculation</div>
+                    <div class="score-note">Accurate with context</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">10</div>
+                <div>
+                    <div class="score-label">Contact Info</div>
+                    <div class="score-note">Complete with duty planner</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">9</div>
+                <div>
+                    <div class="score-label">Permissibility</div>
+                    <div class="score-note">FIXED - hierarchical matching</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">9</div>
+                <div>
+                    <div class="score-label">Zone Info</div>
+                    <div class="score-note">Comprehensive data</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">9</div>
+                <div>
+                    <div class="score-label">Parking Rates</div>
+                    <div class="score-note">Direct answers</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">9</div>
+                <div>
+                    <div class="score-label">Document Checklist</div>
+                    <div class="score-note">Conditional logic</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">9</div>
+                <div>
+                    <div class="score-label">SEE Templates</div>
+                    <div class="score-note">Actionable prompts</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">8</div>
+                <div>
+                    <div class="score-label">Definitions</div>
+                    <div class="score-note">Good suggestions</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">8</div>
+                <div>
+                    <div class="score-label">Referral Checking</div>
+                    <div class="score-note">Clear triggers</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">7</div>
+                <div>
+                    <div class="score-label">Flood Requirements</div>
+                    <div class="score-note">Not site-specific</div>
+                </div>
+            </div>
+            <div class="score-card">
+                <div class="score-value">7</div>
+                <div>
+                    <div class="score-label">DCP Search</div>
+                    <div class="score-note">Results can be noisy</div>
+                </div>
+            </div>
+        </div>
+
+        <h2>The User Journey</h2>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">1</div>
+                    <h3>What is a "caf&eacute;" in planning terms?</h3>
+                </div>
+                <span class="badge badge-success">Helpful</span>
+            </div>
+            <p><strong>Tool:</strong> <code>get_definition</code></p>
+            <p><strong>Query:</strong> <code>{"term": "cafe"}</code></p>
+            <p><strong>Result:</strong> Not found, but suggested "restaurant or cafe" as the correct term.</p>
+            <p><strong>Verdict:</strong> Guided user to the right answer instead of just failing.</p>
+        </div>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">2</div>
+                    <h3>Get the proper definition</h3>
+                </div>
+                <span class="badge badge-success">Excellent</span>
+            </div>
+            <p><strong>Tool:</strong> <code>get_definition</code></p>
+            <p><strong>Result:</strong> Clear definition explaining it's a "food and drink premises" with seating for on-premises consumption.</p>
+        </div>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">3</div>
+                    <h3>What zones are available?</h3>
+                </div>
+                <span class="badge badge-success">Good</span>
+            </div>
+            <p><strong>Tool:</strong> <code>list_zones</code></p>
+            <p><strong>Result:</strong> 17 active zones categorized by type, with note about legacy codes (B1&rarr;E1, etc.)</p>
+        </div>
+
+        <div class="journey-step warning">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">4</div>
+                    <h3>Can I open a caf&eacute; in E2 (CBD)?</h3>
+                </div>
+                <span class="badge badge-warning">Issue Found</span>
+            </div>
+            <p><strong>Tool:</strong> <code>check_permissibility</code></p>
+            <p><strong>Problem:</strong> Said "likely permitted" via catch-all, instead of recognizing caf&eacute; is permitted under "Commercial premises".</p>
+            <p><strong>Root Cause:</strong> Didn't understand hierarchical land uses: <code>cafe &rarr; restaurant or cafe &rarr; food and drink premises &rarr; commercial premises</code></p>
+        </div>
+
+        <div class="fix-banner">
+            <h3>Critical Bug Fixed</h3>
+            <p>Implemented hierarchical term matching so the tool now correctly recognizes that "caf&eacute;" falls under "Commercial premises".</p>
+
+            <div class="comparison">
+                <div class="comparison-before">
+                    <div class="comparison-label">Before Fix</div>
+                    <pre><code>{
+  "permissibility": "likely_permitted_with_consent",
+  "detail": "not explicitly listed but Zone E2 permits
+             'any other development not specified'"
+}</code></pre>
+                </div>
+                <div class="comparison-after">
+                    <div class="comparison-label">After Fix</div>
+                    <pre><code>{
+  "permissibility": "permitted_with_consent",
+  "detail": "'cafe' falls under 'Commercial premises'
+             which is permitted in Zone E2",
+  "classification": "'cafe' is a type of 'commercial premises'"
+}</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">5</div>
+                    <h3>Parking requirements</h3>
+                </div>
+                <span class="badge badge-success">Excellent</span>
+            </div>
+            <p><strong>Tool:</strong> <code>get_parking_rates</code></p>
+            <p><strong>Result:</strong> Direct answer: 1 space per 10m&sup2; dining area.</p>
+        </div>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">6</div>
+                    <h3>DA fees for $50k fitout</h3>
+                </div>
+                <span class="badge badge-success">Excellent</span>
+            </div>
+            <p><strong>Tool:</strong> <code>calculate_da_fees</code></p>
+            <p><strong>Result:</strong> $355.00 statutory fee. Notes additional fees may apply (advertising, s7.11 contributions).</p>
+        </div>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">7</div>
+                    <h3>What documents do I need?</h3>
+                </div>
+                <span class="badge badge-success">Excellent</span>
+            </div>
+            <p><strong>Tool:</strong> <code>get_da_checklist</code></p>
+            <p><strong>Result:</strong> 6 base documents + 3 type-specific + 6 conditional documents with clear triggers.</p>
+        </div>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">8</div>
+                    <h3>How do I write the SEE?</h3>
+                </div>
+                <span class="badge badge-success">Good</span>
+            </div>
+            <p><strong>Tool:</strong> <code>get_see_template</code></p>
+            <p><strong>Result:</strong> 6 specific prompts for each section (site description, proposal, planning framework, impacts, mitigation, s4.15 matters).</p>
+        </div>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">9</div>
+                    <h3>Flood requirements for CBD</h3>
+                </div>
+                <span class="badge badge-info">Good</span>
+            </div>
+            <p><strong>Tool:</strong> <code>get_flood_requirements</code></p>
+            <p><strong>Result:</strong> FPL: 1% AEP + 500mm freeboard. CBD exemption conditions listed. Advises consulting Duty Planner.</p>
+        </div>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">10</div>
+                    <h3>Check referrals (heritage building)</h3>
+                </div>
+                <span class="badge badge-success">Good</span>
+            </div>
+            <p><strong>Tool:</strong> <code>check_referrals</code></p>
+            <p><strong>Result:</strong> Heritage Council and Transport NSW referrals triggered. Shows required documents for each.</p>
+        </div>
+
+        <div class="journey-step success">
+            <div class="step-header">
+                <div style="display: flex; align-items: center;">
+                    <div class="step-number">11</div>
+                    <h3>Who do I contact?</h3>
+                </div>
+                <span class="badge badge-success">Excellent</span>
+            </div>
+            <p><strong>Tool:</strong> <code>get_contact_info</code></p>
+            <p><strong>Result:</strong> Phone, address, hours. Free Duty Planner: Tuesdays/Thursdays 8:30-10:30am, no appointment needed.</p>
+        </div>
+
+        <h2>Workflow Assessment</h2>
+
+        <table class="workflow-table">
+            <thead>
+                <tr>
+                    <th>User Question</th>
+                    <th>Tool Support</th>
+                    <th>Gap</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>"What can I build here?"</td>
+                    <td><span class="badge badge-warning">Partial</span></td>
+                    <td>Can't lookup property constraints from address</td>
+                </tr>
+                <tr>
+                    <td>"Is my use permitted?"</td>
+                    <td><span class="badge badge-success">Good</span></td>
+                    <td>FIXED - hierarchical matching now works</td>
+                </tr>
+                <tr>
+                    <td>"What documents do I need?"</td>
+                    <td><span class="badge badge-success">Excellent</span></td>
+                    <td>Comprehensive checklist</td>
+                </tr>
+                <tr>
+                    <td>"How do I write the SEE?"</td>
+                    <td><span class="badge badge-success">Good</span></td>
+                    <td>Templates for all sections</td>
+                </tr>
+                <tr>
+                    <td>"What parking do I need?"</td>
+                    <td><span class="badge badge-success">Good</span></td>
+                    <td>No CBD reduction variations</td>
+                </tr>
+                <tr>
+                    <td>"What will it cost?"</td>
+                    <td><span class="badge badge-success">Good</span></td>
+                    <td>Fees accurate, no fit-out cost guidance</td>
+                </tr>
+                <tr>
+                    <td>"Any special approvals?"</td>
+                    <td><span class="badge badge-success">Good</span></td>
+                    <td>Referral triggers clear</td>
+                </tr>
+                <tr>
+                    <td>"Who do I contact?"</td>
+                    <td><span class="badge badge-success">Excellent</span></td>
+                    <td>Duty planner details included</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Remaining Gaps</h2>
+
+        <ul class="gap-list">
+            <li><strong>No property lookup</strong> &mdash; Can't determine zone, flood status, or heritage listing from an address. Requires NSW Planning Portal API or Council data.</li>
+            <li><strong>No flood map data</strong> &mdash; Can't check if specific site is flood-affected. Returns general requirements only.</li>
+            <li><strong>No heritage schedule search</strong> &mdash; Schedule 5 is in LEP text but not indexed by property address.</li>
+            <li><strong>No CBD parking variations</strong> &mdash; Doesn't mention contribution-in-lieu options or shared parking arrangements.</li>
+        </ul>
+
+        <h2>Available Tools (18)</h2>
+
+        <div class="tool-list">
+            <div class="tool-item">get_definition</div>
+            <div class="tool-item">list_definitions</div>
+            <div class="tool-item">get_zone_info</div>
+            <div class="tool-item">list_zones</div>
+            <div class="tool-item">check_permissibility</div>
+            <div class="tool-item">check_referrals</div>
+            <div class="tool-item">get_parking_rates</div>
+            <div class="tool-item">list_parking_types</div>
+            <div class="tool-item">get_setback_requirements</div>
+            <div class="tool-item">get_residential_standards</div>
+            <div class="tool-item">get_flood_requirements</div>
+            <div class="tool-item">get_da_checklist</div>
+            <div class="tool-item">get_see_template</div>
+            <div class="tool-item">search_dcp</div>
+            <div class="tool-item">read_dcp_section</div>
+            <div class="tool-item">list_documents</div>
+            <div class="tool-item">calculate_da_fees</div>
+            <div class="tool-item">get_contact_info</div>
+        </div>
+
+        <h2>Recommendations</h2>
+
+        <div class="recommendations">
+            <div class="rec-card">
+                <h4>Immediate</h4>
+                <ul>
+                    <li>Add common term synonyms (cafe&rarr;restaurant or cafe)</li>
+                    <li>Improve DCP search relevance</li>
+                </ul>
+            </div>
+            <div class="rec-card">
+                <h4>Short-term</h4>
+                <ul>
+                    <li>Add parking variations for CBD/heritage</li>
+                    <li>Parse Schedule 5 into searchable heritage index</li>
+                </ul>
+            </div>
+            <div class="rec-card">
+                <h4>Medium-term</h4>
+                <ul>
+                    <li>Site constraint checker using precinct data</li>
+                    <li>DA cost estimator with per-m&sup2; rates</li>
+                </ul>
+            </div>
+            <div class="rec-card">
+                <h4>Long-term</h4>
+                <ul>
+                    <li>NSW Planning Portal API integration</li>
+                    <li>Live zone/constraint lookups by address</li>
+                </ul>
+            </div>
+        </div>
+
+        <footer>
+            <p>Lismore DA MCP Server v1.0 &bull; 18 Tools &bull; Evaluated July 2026</p>
+            <p>Test scenario: Opening a caf&eacute; in Lismore CBD</p>
+        </footer>
+    </div>
+</body>
+</html>

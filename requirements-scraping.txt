@@ -1,0 +1,4 @@
+# Only needed to run the standalone fetch_*.py document-scraping scripts.
+# Not installed in the deployed server image.
+httpx>=0.27.0
+playwright>=1.40.0
