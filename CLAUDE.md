@@ -1,3 +1,116 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+This file has two halves:
+
+- **Part 1 — Working on the code** (below): how to build, run and modify the MCP server.
+- **Part 2 — Lismore DA knowledge base** (from "Lismore Development Application Assistant"
+  onward): domain content loaded as context when *using* the agent to answer planning questions.
+  Do not delete it when editing this file.
+
+---
+
+# PART 1 — WORKING ON THE CODE
+
+## Commands
+
+```bash
+uv sync                                   # install deps into .venv (Python >=3.10)
+uv sync --extra scraping                  # + httpx/playwright, only for the fetch_*.py scripts
+.venv/bin/python -m lismore_da_mcp.server # run the server over stdio (what .mcp.json launches)
+MCP_TRANSPORT=http PYTHONPATH=src PORT=8080 \
+  .venv/bin/python -m lismore_da_mcp.server   # run the public HTTP transport locally
+curl localhost:8080/health                # → "ok"
+```
+
+There is no test suite, linter, or formatter configured. Changes are verified by calling the
+tools through an MCP client (the local `lismore-da` server from `.mcp.json`, or the deployed
+`lismore-da-public`), or by importing `lismore_da_mcp.server` and calling handlers directly:
+
+```bash
+.venv/bin/python -c "
+import asyncio, json
+from lismore_da_mcp.server import call_tool
+print(asyncio.run(call_tool('get_parking_rates', {'development_type': 'restaurant'}))[0].text)"
+```
+
+## Architecture
+
+Effectively the whole server is one file: `src/lismore_da_mcp/server.py` (~3,800 lines). It is
+organised as labelled banner sections; find things by section rather than by module.
+
+**Two transports, one server object.** `main()` branches on `MCP_TRANSPORT`: unset/`stdio` →
+`stdio_server()` for local `.mcp.json` use; `http` → a Starlette app (`build_http_app()`) mounting
+`StreamableHTTPSessionManager(stateless=True)` at `/mcp`, with `/health` and an in-process per-IP
+rate limiter (`_RateLimitMiddleware`, 30 req/60s). `render.yaml` deploys the HTTP mode to
+https://lismore-da-mcp.onrender.com as an **open, unauthenticated** endpoint.
+
+**`PUBLIC_MODE` is a privacy switch, not just a transport flag.** It is `True` iff
+`MCP_TRANSPORT=http`. In that mode `fill_see_pdf` must write to a per-request temp dir, return the
+PDF inline (base64), and delete it — never into the shared `documents/output/` tree, because
+generated SEEs contain a named applicant's address and would otherwise be readable by the next
+caller. Any new tool that writes files must respect this branch.
+
+**Tools are declared data, dispatched by if/elif.** `TOOLS: list[Tool]` (~line 2001) holds every
+tool's schema; `call_tool()` is one long `if name == ... elif` chain. `validate_arguments()` runs
+first and checks each call against that tool's own `inputSchema` — rejecting unknown and
+missing/empty required arguments rather than letting handlers `.get()` a default and answer
+confidently wrong (an empty `land_use` once returned "permitted without consent"). Adding a tool
+means: append to `TOOLS`, add an `elif` branch, and update the tool table in `README.md`.
+
+**Knowledge lives in module-level dicts, not in the PDFs.** `ZONES`, `PARKING_RATES`,
+`LAND_USE_DEFINITIONS`, `RESIDENTIAL_STANDARDS`, `REFERRAL_REQUIREMENTS`, `FLOOD_PLANNING`,
+`SEE_TEMPLATES`, `CONTACT_INFO` are hand-transcribed from the source documents. The zone land use
+tables are transcribed verbatim from `documents/lep/lep-2012-nsw-full.txt` and are the
+authoritative answer for permissibility — prefer them over the prose summaries in Part 2.
+
+**Document access is two-tier.** Structured tools answer from the dicts; `search_dcp` /
+`read_dcp_section` / `list_documents` fall back to the files under `documents/`. Scope is
+centralised in `DOC_CATEGORIES` (dcp, lep, forms, fees, exempt-development) and
+`SEARCHABLE_SUFFIXES` / `LISTABLE_SUFFIXES` — extend those rather than re-globbing in a handler.
+`_score_lines()` scores lines by how many distinct query tokens they contain (stopwords dropped,
+exact-phrase is only a ranking bonus) so partial concept matches still surface; `search_document()`
+and `extract_document_section()` dispatch PDF vs `.txt` behind it. PDFs are addressed by page,
+`.txt` extracts by line, and search results carry a `location` string that `read_dcp_section`
+accepts either way.
+
+**SEE PDF filling discovers geometry instead of hardcoding coordinates.** The Lismore template has
+no AcroForm fields, so `see_layout()` finds answer boxes (white-filled rects) and tick boxes
+(Wingdings glyphs U+F0A8 / U+F071) at fill time and sorts them into reading order.
+`SEE_FORM_FIELDS` addresses them as `{page, box|check: index}`. `SEE_LAYOUT_EXPECTED` asserts the
+per-page box/checkbox counts so a reissued form fails loudly rather than silently writing text
+into the wrong place. `_draw_single_line`/`_draw_wrapped` shrink text to `MIN_FONTSIZE` (6.5pt) and
+report overflow; overflowed fields auto-tick the page-1 "supporting information attached" box.
+`preview_see_form` renders what would be written; `fill_see_pdf` produces the file. The template
+only covers **Minor Development** — `SEE_TEMPLATE_SCOPE` gates this, and out-of-scope proposals
+must use `generate_see_draft` (free-form EP&A Schedule 1 headings) instead.
+
+## Documents and privacy
+
+`documents/` (~69MB of official PDFs) **is committed**; `.gitignore` deliberately excludes
+`documents/output/*` (generated SEEs contain applicant PII), `my-application/` (the repo owner's
+real details), and `_quarantined/`. `_quarantined/README.md` records a third party's real signed
+SEE that was mistaken for a blank template — never restore files from there into `documents/`.
+Treat any new document added under `documents/` as published: check it is genuinely blank/public
+before committing, and record it in `documents/DOCUMENT_INDEX.md`.
+
+The `fetch_*.py` scripts at repo root are one-off Playwright scrapers (legislation.nsw.gov.au,
+austlii, planning.nsw.gov.au all return 403 to plain HTTP fetches). They are never imported by the
+server and their deps stay in the `scraping` extra so Render doesn't ship browser binaries. **These
+scripts save whatever the server returned, including 403/404 bodies and Cloudflare challenge
+pages** — 15 such files were committed to `documents/lep/` under names promising real content and
+had to be deleted (see `documents/DOCUMENT_INDEX.md`). Open anything a scraper produces before
+committing it; the document tools now search `.txt`, so junk extracts surface as answers.
+
+Fee figures are on the 2024-25 statutory schedule (`calculate_da_fee()`, fee unit $111.32) and
+need an annual July refresh. `calculate_da_fees` is the source of truth for a number — the tables
+in Part 2 and `QUICK_REFERENCE.md` are indicative only.
+
+---
+
+# PART 2 — LISMORE DA KNOWLEDGE BASE
+
 # Lismore Development Application Assistant
 
 You are an expert assistant for Development Applications (DAs) in the Lismore Local Government Area (LGA), New South Wales, Australia. Your role is to help applicants understand requirements, prepare documentation, and navigate the DA process for residential and commercial developments.
