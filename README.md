@@ -23,6 +23,12 @@ This is an open, unauthenticated endpoint (no API key) — it only serves public
 guidance, not private data. It's hosted on Render's free tier, so the first request after a period
 of inactivity may take 30-60 seconds to wake up.
 
+In Claude Code, add it with:
+
+```bash
+claude mcp add --transport http lismore-da-public https://lismore-da-mcp.onrender.com/mcp
+```
+
 To run your own copy instead (locally or self-hosted), see Quick Start below.
 
 ## Quick Start
@@ -47,19 +53,43 @@ claude
 
 ## Available MCP Tools
 
+21 tools in total.
+
+**Lookups**
+
 | Tool | Description |
 |------|-------------|
-| `get_parking_rates` | Get parking requirements for a development type |
-| `get_zone_info` | Get zone objectives, permitted uses, height limits |
-| `calculate_da_fees` | Calculate DA lodgement fee from development cost |
-| `get_flood_requirements` | Get flood planning level and floor requirements |
-| `get_contact_info` | Get Lismore Council contacts and duty planner info |
-| `search_dcp` | Search DCP documents for specific provisions |
-| `read_dcp_section` | Read pages from a DCP chapter PDF |
+| `get_zone_info` | Zone objectives, permitted uses, and development standards for an LEP 2012 zone |
+| `list_zones` | List all zone codes available in Lismore LEP 2012 |
+| `check_permissibility` | Check whether a specific land use is permitted (with/without consent) in a specific zone |
+| `get_definition` | Standard Instrument LEP definition of a land-use term, plus related terms |
+| `list_definitions` | List all land-use terms with a definition available |
+| `get_parking_rates` | Off-street parking requirements for a development type, with shortfall calculation |
+| `list_parking_types` | List development types with parking rate data available |
+| `get_setback_requirements` | Front/side/rear setback requirements for residential development |
+| `get_residential_standards` | DCP Chapter 1 standards: site coverage, private open space, landscaping, car parking design |
+| `get_flood_requirements` | Flood planning level and floor level requirements, with exemptions |
+| `check_referrals` | External agency referrals (integrated development) a proposal may trigger |
+| `calculate_da_fees` | DA lodgement fee from estimated development cost |
+| `get_da_checklist` | Required documents for a DA, by development type |
+| `get_contact_info` | Council contacts and duty planner availability |
+
+**Documents**
+
+| Tool | Description |
+|------|-------------|
+| `search_dcp` | Full-text search across DCP chapters, LEP documents, forms, and fee schedules |
+| `read_dcp_section` | Read a page range from a specific DCP chapter PDF |
 | `list_documents` | List all available planning documents |
-| `get_da_checklist` | Get required documents for a DA by type |
-| `list_parking_types` | List development types with parking rates |
-| `list_zones` | List all zone codes in Lismore LEP 2012 |
+
+**Statement of Environmental Effects (SEE)**
+
+| Tool | Description |
+|------|-------------|
+| `get_see_template` | Section-by-section guidance for writing an SEE |
+| `generate_see_draft` | Generate a full draft SEE from proposal details (any development type) |
+| `preview_see_form` | Preview exactly what will be written to the official Lismore SEE PDF before generating it |
+| `fill_see_pdf` | Fill and return the official Lismore SEE PDF (Minor Development scope only — see `preview_see_form` first) |
 
 ## Example Usage
 
