@@ -1,0 +1,445 @@
+# Lismore DA MCP Server — Evaluation & Improvement Plan
+
+Evaluation date: 2026-07-27. Against commit `dd84164` (`main`).
+
+Two evaluations — **user perspective** (what an applicant or an LLM acting for one
+experiences) and **technical perspective** (what maintaining and running this costs) — followed
+by a proposed module breakdown and a chunked work plan.
+
+Everything below was verified by running the tools, not by reading alone. Where a finding is a
+legal/planning claim rather than a code observation it is marked **[verify with planner]**.
+
+---
+
+## Executive summary
+
+The server is more thoughtfully built than its single-file shape suggests. Argument validation
+refuses rather than guesses, retired zone codes return proper redirects, the public HTTP mode has
+a real privacy switch, and the SEE PDF filler discovers form geometry instead of hardcoding
+coordinates. Those are good decisions and none of the work below should undo them.
+
+The problems cluster in three places:
+
+1. **Data coverage gaps that produce confidently wrong answers.** Ten real LEP zones are missing
+   entirely, including every rural zone in a predominantly rural LGA.
+2. **Exact-token matching everywhere**, so ordinary words (`coffee shop`, `childcare`,
+   `site description`) are rejected by tools that hold the answer.
+3. **A 3,918-line module with no tests and no logging**, where 25% of the file is one `if/elif`
+   chain — which makes every fix above riskier than it needs to be.
+
+Recommended order: **safety net → correctness → structure → UX → performance**. Tests come first
+specifically so the structural split can be verified rather than hoped at.
+
+---
+
+# Part 1 — User perspective
+
+## U1. Ten real zones are missing, including all rural zones — **critical**
+
+```
+get_zone_info("RU1") → "Zone 'RU1' not found"
+```
+
+Missing from the `ZONES` dict: `RU1`, `RU2`, `RU3`, `RU4`, `RU6`, `R4`, `E5`, `C4`, `SP1`, `W2`.
+
+RU1 Primary Production and RU2 Rural Landscape cover the large majority of the Lismore LGA's land
+area. A farmer asking about a rural shed, a rural tourism operator, anyone outside the urban
+footprint — all get "not found" from the tool that is supposed to be authoritative.
+
+This also contradicts `CLAUDE.md`, which currently tells the agent: *"The `get_zone_info` and
+`check_permissibility` tools carry the land use tables verbatim — prefer them over this summary."*
+For those ten zones the summary is right and the tool is empty. Whichever gets fixed, they must
+stop disagreeing.
+
+The land use tables are already present in `documents/lep/lep-2012-nsw-full.txt` (the R2 table is
+at line 675), so this is transcription, not research.
+
+## U2. LEP-only reasoning misses SEPP overrides — **critical**
+
+```
+check_permissibility(zone_code="R2", land_use="secondary dwelling")
+→ "likely_prohibited"
+  "not listed in the Zone R2 land use table, which prohibits 'any other development not specified'"
+```
+
+Read strictly as a statement about the LEP land use table, that is correct — I verified against
+the LEP text and "Secondary dwellings" genuinely is absent from R2 item 3.
+
+But "can I build a granny flat?" is probably the single most common question a residential
+council gets, and the practical answer is usually yes, via State Environmental Planning Policy
+(Housing) 2021, which permits secondary dwellings with consent on land where dwelling houses are
+permitted. **[verify with planner]** A SEPP overrides the LEP where they conflict, and this tool
+has no knowledge of SEPPs at all.
+
+The response never mentions that a SEPP pathway might exist. It reads as a settled "no". The
+`advice` field says to confirm with the Duty Planner, which helps, but the headline
+`permissibility: likely_prohibited` is what a caller will act on.
+
+Minimum fix: when a use falls through to the catch-all prohibition, say explicitly that the answer
+reflects the LEP land use table only and that SEPPs (Housing, Codes, Transport, Primary
+Production) may independently permit it. Better fix: encode the handful of high-traffic SEPP
+pathways — secondary dwellings, exempt/complying development, group homes.
+
+## U3. Exact-token matching rejects ordinary words
+
+Real results:
+
+| Tool | Input | Result |
+|---|---|---|
+| `get_parking_rates` | `cafe` | ✅ 1 space per 10m² dining |
+| `get_parking_rates` | `coffee shop` | ❌ Exact match not found |
+| `get_parking_rates` | `takeaway` | ❌ not found |
+| `get_parking_rates` | `child care centre` | ❌ not found |
+| `get_parking_rates` | `hairdresser` | ❌ not found |
+| `get_parking_rates` | `brewery` | ❌ not found |
+| `get_definition` | `granny flat` | ❌ No definition found |
+| `get_definition` | `deck` / `shed` | ❌ No definition found |
+| `get_see_template` | `site description` | ❌ not found (key is `site_description`) |
+| `preview_see_form` | `single storey dwelling` | ❌ (enum is `dwelling_single_storey`) |
+
+`TOOL_EVALUATION.md` already caught this for `get_definition` + "cafe" and recommended synonym
+matching. It was never generalised. The same defect now appears in at least five tools.
+
+Note `get_see_template("site description")` failing is close to absurd — the section is literally
+named that, and only the underscore differs.
+
+## U4. `get_da_checklist` never refuses
+
+```
+get_da_checklist("spaceship")        → returns a checklist
+get_da_checklist("nuclear reactor")  → returns a checklist
+get_da_checklist("asdfgh")           → returns a checklist
+```
+
+It echoes the input as `development_type` and returns generic documents. This is the exact failure
+mode `validate_arguments()` was written to prevent — a confident answer to a question the server
+cannot actually answer — reintroduced one layer down. An unrecognised type should say so and list
+what it does know.
+
+## U5. Argument names are inconsistent across tools
+
+Seven different names for "the thing you are asking about":
+
+```
+get_zone_info(zone_code)              get_parking_rates(development_type)
+get_definition(term)                  get_see_template(section)
+get_setback_requirements(setback_type) check_permissibility(land_use, zone_code)
+check_referrals(development_characteristics)
+```
+
+Concrete evidence of the cost: while writing this evaluation, with the source open in front of me,
+I guessed wrong on four of them in a single batch (`zone` vs `zone_code`, `development_type` vs
+`development_characteristics`). An LLM caller without the source will do worse, and the strict
+validator turns each near-miss into a hard failure rather than a recovery.
+
+The validator is right to be strict. The names should be consistent enough that strictness rarely
+bites.
+
+## U6. The SEE tools take 34–35 parameters
+
+`fill_see_pdf` has 35 properties, `preview_see_form` 34, `generate_see_draft` 17. That is a lot of
+surface for a caller to populate correctly, and the fields are heavily correlated (`property_address`
+alongside `unit`, `street_number`, `street`, `suburb`; `lot_dp` alongside `lot`, `plan_type`,
+`plan_number`).
+
+The parsing helpers (`parse_street_address`, `parse_land_identifier`) already exist to derive the
+components. Consider accepting the composite fields and deriving the rest, with the granular
+fields as optional overrides.
+
+## U7. Setback advice ignores the things setbacks depend on
+
+`get_setback_requirements(setback_type, development_type)` — no zone, no lot size, no street
+frontage, no adjoining development. `CLAUDE.md` states setbacks depend on zone, lot size and
+adjoining development, and DCP Chapter 1 varies them by wall height and length. The tool returns a
+single answer per setback type regardless.
+
+Either take those inputs, or state plainly in the response that the figure is a general default
+and site-specific controls override it.
+
+## U8. Superseded LEP 2000 documents are searched alongside current ones
+
+Four chapters in `documents/dcp/` are LEP 2000 versions:
+
+```
+chapter-1-residential-lep2000.pdf         chapter-12-heritage-lep2000.pdf
+chapter-14-tree-preservation-lep2000.pdf  part-b-chapter-6-nimbin-village-lep2000.pdf
+```
+
+`search_dcp` returns hits from these with no indication they are superseded. Per `CLAUDE.md`, LEP
+2000 applies only to areas still under Ministerial review for the former E2/E3 zones — so for
+almost every site a LEP 2000 hit is the wrong answer, presented identically to the right one.
+
+## U9. Response shapes differ between success and failure
+
+`preview_see_form` returns `{success: false, blocking_issues: [...]}` when it rejects, but on
+success returns `{summary, text_fields, tick_boxes, ...}` with **no `success` key at all**. A
+caller checking `response["success"]` sees `None` on the happy path.
+
+## U10. Answers carry no currency information
+
+`calculate_da_fees` returns a figure with no effective date, though the schedule hardcoded in
+`calculate_da_fee()` is 2024-25 and statutory fees reset each July. Same for zone and DCP answers.
+For a domain whose whole risk profile is "controls change", every response should date itself.
+
+## U11. Search is slow enough to notice
+
+`search_dcp` took **7.35s** locally on fast hardware, opening and re-extracting **41 documents**
+per query. Render's free tier has a fraction of that CPU, so hosted queries will be substantially
+worse, on top of cold-start delay.
+
+## What works well — do not regress these
+
+- **Legacy zone redirects.** `get_zone_info("B3")` returns a proper "now E2, use that" payload
+  rather than a bare failure. Genuinely good.
+- **`validate_arguments()`** refuses unknown/empty arguments instead of `.get()`-ing a default.
+  The docstring records the real bug that motivated it.
+- **`PUBLIC_MODE`** keeps generated SEEs (which contain a named applicant's address) out of shared
+  disk on the public deployment.
+- **SEE scope gate** blocks out-of-scope development and names the valid types plus the
+  purpose-written fallback.
+- **`SEE_LAYOUT_EXPECTED`** makes a reissued Council form fail loudly instead of writing an
+  applicant's text into the wrong box.
+- **Error messages frequently suggest alternatives** (`similar_terms`, `similar_uses`).
+
+---
+
+# Part 2 — Technical perspective
+
+## T1. One module, two hotspots
+
+3,918 lines in `src/lismore_da_mcp/server.py`:
+
+| Concern | Lines | Share |
+|---|---|---|
+| SEE PDF form config + fill | 974–2111 | **29%** |
+| `call_tool` dispatch | 2796–3811 | **25%** |
+| Tool schemas | 2112–2795 | 17% |
+| Data (parking, zones, definitions) | 35–493 | 11% |
+| Document search/read | 749–973 | 5% |
+| SEE templates, flood, fees, contact | 599–748 | 3% |
+| Everything else | — | 10% |
+
+## T2. `call_tool` is a 1,016-line `if/elif` chain
+
+21 branches in one function. Adding a tool means editing three distant places (schema list,
+dispatch chain, README). Nothing enforces that they stay in sync, and no branch can be tested
+without going through the whole dispatcher.
+
+## T3. No tests, no CI — **highest structural risk**
+
+Zero test files. No CI (`gh pr checks` reported no checks on the branch merged today). The
+riskiest code has no coverage at all: `see_layout()`'s geometry discovery, `calculate_da_fee()`
+bracket boundaries, `classify_land_use()`, the address/lot parsers, `find_document()` resolution.
+
+`SEE_LAYOUT_EXPECTED` exists precisely because a reissued form would otherwise misplace an
+applicant's text — and nothing currently runs that check.
+
+## T4. No logging anywhere
+
+Zero references to `logging` or `logger`. On a public, unauthenticated service this means no
+record of what was asked, what failed, or whether the rate limiter is engaging. Debugging a user
+report is currently guesswork.
+
+## T5. No search index
+
+`searchable_documents()` returns 41 paths and every query re-opens and re-extracts all of them via
+PyMuPDF. SQLite FTS5 is available through the stdlib `sqlite3` — an index built once at deploy
+would take this from seconds to milliseconds with no new dependency.
+
+## T6. Rate limiter grows without bound
+
+`_RateLimitMiddleware._hits` (line ~3837) is keyed by IP and never evicts keys — only the deque
+per key is trimmed. Every distinct IP that ever connects retains an entry for the process
+lifetime. Slow leak on a long-running instance; also a small memory-amplification vector on an
+open endpoint.
+
+## T7. Dead code
+
+- `calculate_da_fee()` line 700: `fee_unit = 111.32` assigned, never used — the brackets are
+  hardcoded dollars. It reads as though the schedule is parameterised when it is not.
+- Line 20: `Resource` imported from `mcp.types`, never used.
+
+## T8. Broad exception handling with string returns
+
+Five `except Exception` blocks return error strings or `[{"error": str(e)}]`. Combined with T4, a
+PyMuPDF failure on one document is indistinguishable from that document having no matches.
+
+## T9. Silent truncation
+
+`extract_pdf_section` and `extract_text_section` both cut at 10,000 characters with no signal to
+the caller. A user reading a long DCP section has no way to know content was dropped or how to get
+the rest.
+
+## T10. Data and logic are interleaved
+
+459 lines of zone tables, plus parking rates, definitions, referrals and SEE templates, all as
+Python literals inside the same module as the server logic. Transcribing a new zone means editing
+the server. Moving these to data files (JSON/YAML) would let them be validated against the LEP
+text independently, and would make U1 a data task rather than a code task.
+
+## T11. Public endpoint exposure
+
+Deliberately unauthenticated and documented as such. Worth noting that the in-process limiter is
+per-instance and best-effort (the code says so), and there is no request logging to detect abuse
+(T4). Fine at current traffic; revisit if usage grows.
+
+---
+
+# Part 3 — Proposed module breakdown
+
+Target shape. Sizes are estimates from the current line counts.
+
+```
+src/lismore_da_mcp/
+  __init__.py
+  server.py              # wiring + entrypoint only, ~120 lines
+  registry.py            # @tool decorator: schema + handler in one place
+
+  transport/
+    stdio.py             # stdio_server run loop
+    http.py              # Starlette app, health, session manager
+    ratelimit.py         # _RateLimitMiddleware (+ eviction)
+
+  data/                  # pure data, no logic — candidates for JSON
+    zones.py             # ZONES (+ the 10 missing)
+    parking.py           # PARKING_RATES
+    definitions.py       # LAND_USE_DEFINITIONS, LAND_USE_HIERARCHY
+    standards.py         # RESIDENTIAL_STANDARDS
+    referrals.py         # REFERRAL_REQUIREMENTS
+    fees.py              # fee brackets + effective date
+    contacts.py          # CONTACT_INFO
+    flood.py             # FLOOD_PLANNING
+
+  tools/                 # one module per domain: schema + handler together
+    zoning.py            # get_zone_info, list_zones, check_permissibility,
+                         # get_definition, list_definitions
+    parking.py           # get_parking_rates, list_parking_types
+    fees.py              # calculate_da_fees
+    planning.py          # flood, setbacks, residential standards, referrals,
+                         # checklist, contact
+    documents.py         # search_dcp, read_dcp_section, list_documents
+    see.py               # get_see_template, generate_see_draft,
+                         # preview_see_form, fill_see_pdf
+
+  see/                   # the 1,138-line block, split by responsibility
+    layout.py            # _answer_boxes, _checkbox_rects, see_layout,
+                         # SEE_LAYOUT_EXPECTED
+    fields.py            # SEE_FORM_FIELDS, SEE_QUESTIONS, scope config
+    render.py            # _draw_tick, _write, _draw_single_line, _draw_wrapped
+    generate.py          # generate_see_form_data, parsers, classify_land_use
+    fill.py              # fill_see_pdf
+
+  search/
+    index.py             # build/refresh the FTS index
+    query.py             # search_document, _score_lines, searchable_documents,
+                         # find_document, extract_document_section
+```
+
+**The registry is what removes the `if/elif` chain.** Roughly:
+
+```python
+@tool(name="get_zone_info", description=..., schema={...})
+def get_zone_info(zone_code: str) -> dict:
+    ...
+```
+
+The decorator appends to `TOOLS` and registers the handler in a dispatch dict, so schema and
+implementation live together and cannot drift. `call_tool` becomes a lookup plus the existing
+`validate_arguments()` call — a dozen lines.
+
+**Sequencing note:** do this *after* Phase 0 tests exist. A pure-mechanical move of 3,900 lines
+with no test suite is how subtle regressions get shipped.
+
+---
+
+# Part 4 — Work plan, in chunks
+
+Each chunk is independently shippable. Effort is rough developer-hours.
+
+## Phase 0 — Safety net (do first)
+
+| # | Task | Effort | Notes |
+|---|---|---|---|
+| 0.1 | Add `pytest` + `tests/`, wire `uv run pytest` | 1h | No test infra exists today |
+| 0.2 | Tests for pure functions: `calculate_da_fee` bracket boundaries, `parse_street_address`, `parse_land_identifier`, `estimate_parking_requirement`, `_score_lines`, `find_document` | 3h | Highest value per hour |
+| 0.3 | Test `see_layout()` against the real template + assert `SEE_LAYOUT_EXPECTED` | 2h | Guards the PII-misplacement risk (T3) |
+| 0.4 | Golden-file test: every tool called with valid args returns without raising | 2h | Cheap regression net for the refactor |
+| 0.5 | GitHub Actions workflow running the suite on push/PR | 1h | Repo currently has no CI |
+
+**Exit criteria:** `pytest` green in CI, and every tool exercised at least once.
+
+## Phase 1 — Correctness (highest user impact)
+
+| # | Task | Effort | Notes |
+|---|---|---|---|
+| 1.1 | Transcribe the 10 missing zones from `lep-2012-nsw-full.txt` | 4h | U1. Rural zones first (RU1, RU2) |
+| 1.2 | Reconcile `CLAUDE.md`'s "tools are authoritative" claim with reality | 0.5h | Do with 1.1 so they stop disagreeing |
+| 1.3 | Add SEPP caveat to catch-all prohibition results | 2h | U2. Minimum viable fix |
+| 1.4 | Encode high-traffic SEPP pathways (secondary dwellings, exempt/complying) | 6h | U2. Needs planner review |
+| 1.5 | Tag documents with planning instrument; label LEP 2000 hits as superseded | 2h | U8 |
+| 1.6 | `get_da_checklist` refuses unknown types | 1h | U4 |
+| 1.7 | Add effective dates to fee/zone/DCP responses | 2h | U10 |
+
+**Exit criteria:** no tool returns a confident answer outside its data coverage; every rural zone
+resolves.
+
+## Phase 2 — Structural split
+
+| # | Task | Effort | Notes |
+|---|---|---|---|
+| 2.1 | Extract `data/` modules (pure move, no logic change) | 2h | Safest first step |
+| 2.2 | Extract `search/` and `see/` packages | 4h | The two hotspots |
+| 2.3 | Build `registry.py`, migrate tools domain by domain | 6h | Replaces the 1,016-line chain |
+| 2.4 | Extract `transport/`; reduce `server.py` to wiring | 2h | |
+| 2.5 | Convert `data/*.py` to JSON + a loader with schema validation | 4h | Optional; makes T10/U1 a data task |
+
+**Exit criteria:** no module over ~400 lines; adding a tool touches one file.
+
+## Phase 3 — Usability
+
+| # | Task | Effort | Notes |
+|---|---|---|---|
+| 3.1 | Shared term-resolution helper: synonyms + fuzzy + underscore/space tolerance | 4h | U3. One helper, used by all lookup tools |
+| 3.2 | Apply it to parking, definitions, SEE templates, `minor_development_type` | 2h | |
+| 3.3 | Normalise argument names across tools (`*_code`, `*_type`) | 2h | U5. Breaking change — version the tools |
+| 3.4 | Collapse SEE parameters; derive components from composites | 4h | U6 |
+| 3.5 | Consistent response envelope (`success` always present) | 2h | U9 |
+| 3.6 | Take zone/lot into setbacks, or state the limitation in the response | 2h | U7 |
+
+## Phase 4 — Performance
+
+| # | Task | Effort | Notes |
+|---|---|---|---|
+| 4.1 | SQLite FTS5 index built at deploy time | 6h | U11/T5. 7.35s → milliseconds |
+| 4.2 | Fall back to live scan if the index is missing | 1h | Keeps local dev simple |
+| 4.3 | Signal truncation in `extract_*_section`, offer continuation | 1h | T9 |
+
+## Phase 5 — Operations
+
+| # | Task | Effort | Notes |
+|---|---|---|---|
+| 5.1 | Structured logging: tool name, duration, outcome — never applicant data | 3h | T4. Note the PII constraint |
+| 5.2 | Evict idle IPs from the rate limiter | 1h | T6 |
+| 5.3 | Remove dead `fee_unit` and `Resource` import | 0.25h | T7 |
+| 5.4 | Narrow broad `except Exception`; distinguish "no match" from "read failed" | 2h | T8 |
+| 5.5 | Fix Render auto-deploy (GitHub App linkage) | — | Deferred; three pushes to `main` have not triggered a deploy |
+| 5.6 | Trim AustLII nav chrome from the four `.txt` extracts | 1h | Minor search noise |
+
+---
+
+## Suggested order
+
+**Phase 0 → 1 → 2 → 3 → 4 → 5**, with two deviations worth considering:
+
+- **5.3** (dead code) is 15 minutes and can ride along with anything.
+- **1.1** (missing zones) is the single highest-impact item in the document and does not depend on
+  the test suite. If only one thing gets done, do that.
+
+Phase 2 genuinely should wait for Phase 0. Everything else can be reordered to taste.
+
+## Open questions
+
+1. Should `check_permissibility` attempt SEPP reasoning at all, or explicitly scope itself to the
+   LEP and say so loudly? Encoding SEPPs is a large, ongoing maintenance commitment.
+2. Is the public hosted server intended to stay unauthenticated as usage grows?
+3. Are the LEP 2000 documents still needed, or can they move to an archive directory?
