@@ -1,0 +1,235 @@
+"""Zone lookups, permissibility and land use definitions."""
+
+import json
+
+from mcp.types import TextContent
+
+from lismore_da_mcp.data.definitions import LAND_USE_DEFINITIONS
+from lismore_da_mcp.data.zones import ZONES
+from lismore_da_mcp.landuse import canonical_use
+from lismore_da_mcp.landuse import classify_land_use
+from lismore_da_mcp.registry import tool
+from lismore_da_mcp.vocabulary import DEFINITION_SYNONYMS
+from lismore_da_mcp.vocabulary import resolve
+from lismore_da_mcp.vocabulary import unresolved_error
+
+
+@tool(
+    name='get_zone_info',
+    description='Get information about a zoning classification in Lismore LEP 2012, including objectives, permitted uses, and development standards.',
+    properties={
+        'zone_code': {'type': 'string', 'description': "Zone code (e.g., 'R1', 'R2', 'R3', 'B2', 'B3', 'IN1', 'RU5')"},
+    },
+    required=['zone_code'],
+)
+def get_zone_info(arguments: dict):
+    zone_code = arguments.get("zone_code", "").upper()
+    if zone_code in ZONES:
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "zone_code": zone_code,
+                **ZONES[zone_code],
+                "source": "Lismore LEP 2012"
+            }, indent=2)
+        )]
+    else:
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "error": f"Zone '{zone_code}' not found",
+                "available_zones": list(ZONES.keys())
+            }, indent=2)
+        )]
+
+
+@tool(
+    name='list_zones',
+    description='List all zone codes available in Lismore LEP 2012.',
+    properties={},
+)
+def list_zones(arguments: dict):
+    active_zones = {code: info["name"] for code, info in ZONES.items() if "redirect_to" not in info}
+    return [TextContent(
+        type="text",
+        text=json.dumps({
+            "zones": active_zones,
+            "categories": {
+                "residential": ["R1", "R2", "R3", "R5"],
+                "employment": ["E1", "E2", "E3", "E4"],
+                "mixed_use": ["MU1"],
+                "rural": ["RU5"],
+                "special_purpose": ["SP2"],
+                "recreation": ["RE1", "RE2"],
+                "conservation": ["C1", "C2", "C3"],
+                "waterways": ["W1"],
+                "legacy_codes": ["B1", "B2", "B3", "B4", "IN1", "IN2"]
+            },
+            "note": "Zone codes changed in April 2022 under Standard Instrument amendments. Legacy B/IN codes redirect to new E/MU zones."
+        }, indent=2)
+    )]
+
+
+@tool(
+    name='check_permissibility',
+    description='Check if a specific land use is permitted in a specific zone. Returns whether the use is permitted without consent, permitted with consent, prohibited, or not found. Essential first step for any DA - confirms the proposal is actually permissible.',
+    properties={
+        'land_use': {'type': 'string', 'description': "The proposed land use (e.g., 'restaurant or cafe', 'dwelling house', 'warehouse', 'shop top housing')"},
+        'zone_code': {'type': 'string', 'description': "Zone code (e.g., 'R1', 'E2', 'MU1')"},
+    },
+    required=['land_use', 'zone_code'],
+)
+def check_permissibility(arguments: dict):
+    land_use = arguments["land_use"].strip()
+    zone_code = arguments["zone_code"].upper().strip()
+
+    redirect_note = None
+    if zone_code in ZONES and "redirect_to" in ZONES[zone_code]:
+        new_zone = ZONES[zone_code]["redirect_to"]
+        redirect_note = f"Zone {zone_code} has been replaced by {new_zone}. Checked against {new_zone}."
+        zone_code = new_zone
+
+    if zone_code not in ZONES:
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "error": f"Zone \'{zone_code}\' not found",
+                "available_zones": [k for k in ZONES if "redirect_to" not in ZONES[k]]
+            }, indent=2)
+        )]
+
+    zone = ZONES[zone_code]
+    classification = classify_land_use(land_use, zone, zone_code)
+
+    # Map the classification onto the verdicts this tool has always returned.
+    verdicts = {
+        ("exact", True): "permitted",
+        ("hierarchy", True): "permitted_with_consent",
+        ("exact", False): "prohibited",
+        ("hierarchy", False): "prohibited",
+    }
+    permissibility = "unknown"
+    if classification["match_type"] == "catchall":
+        permissibility = "likely_permitted_with_consent" if classification["permissible"] is None else "likely_prohibited"
+    elif classification["match_type"] == "approximate":
+        permissibility = "likely_prohibited" if classification["category"] == "prohibited" else "uncertain"
+    elif classification["matched_use"]:
+        in_without = any(
+            canonical_use(u) == canonical_use(classification["matched_use"])
+            for u in zone.get("permitted_without_consent", [])
+        )
+        if classification["permissible"] is False:
+            permissibility = "prohibited"
+        else:
+            permissibility = "permitted_without_consent" if in_without else "permitted_with_consent"
+    elif classification["match_type"] == "none":
+        permissibility = "not_found"
+
+    result = {
+        "land_use": land_use,
+        "zone_code": zone_code,
+        "zone_name": zone["name"],
+        "permissibility": permissibility,
+        "detail": classification["statement"],
+        "matched_use": classification["matched_use"],
+        "match_type": classification["match_type"],
+    }
+    if redirect_note:
+        result["redirect_note"] = redirect_note
+    if permissibility == "permitted_with_consent":
+        result["next_steps"] = "A Development Application is required for this use."
+    elif permissibility == "prohibited":
+        result["advice"] = "This use cannot be approved in this zone. Consider an alternative zone or use."
+    elif permissibility in ("uncertain", "not_found", "likely_permitted_with_consent", "likely_prohibited"):
+        result["advice"] = "Confirm the exact land use term with the Council Duty Planner before relying on this."
+        all_uses = zone.get("permitted_without_consent", []) + zone.get("permitted_with_consent", [])
+        words = [w for w in canonical_use(land_use).split() if len(w) > 3]
+        similar = [u for u in all_uses if any(w in canonical_use(u) for w in words)]
+        if similar:
+            result["similar_uses"] = similar[:5]
+
+    # This tool reads the LEP land use table and nothing else. A State
+    # Environmental Planning Policy can permit a use the table omits, and
+    # prevails over the LEP where they conflict — most commonly for secondary
+    # dwellings ("granny flats"), which are absent from several Lismore
+    # residential tables but are generally permissible with consent under the
+    # Housing SEPP. Without this note, a catch-all miss reads as a settled "no".
+    if permissibility in ("likely_prohibited", "prohibited", "not_found"):
+        result["scope_of_this_answer"] = (
+            "Based on the Lismore LEP 2012 land use table only. State Environmental "
+            "Planning Policies (Housing, Exempt and Complying Development Codes, "
+            "Transport and Infrastructure, Primary Production) can independently permit "
+            "a use that the LEP table does not list, and prevail over the LEP where they "
+            "conflict. A use shown here as prohibited may still have a SEPP pathway — "
+            "secondary dwellings are the common example. Check with the Duty Planner "
+            "before treating this as a refusal."
+        )
+
+    return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+
+@tool(
+    name='get_definition',
+    description="Get the Standard Instrument LEP definition of a land-use term (e.g. 'retail premises' vs 'food and drink premises' vs 'shop'), including related terms. Use this to work out which defined use a proposal actually falls under before checking zone permissibility.",
+    properties={
+        'term': {'type': 'string', 'description': "Land-use term to look up (e.g. 'retail premises', 'food and drink premises', 'shop', 'home business')"},
+    },
+    required=['term'],
+)
+def get_definition(arguments: dict):
+    raw_term = arguments.get("term", "")
+    match = resolve(raw_term, LAND_USE_DEFINITIONS, DEFINITION_SYNONYMS)
+
+    if match:
+        entry = LAND_USE_DEFINITIONS[match.key]
+        result = {
+            **entry,
+            "source": "Standard Instrument (Local Environmental Plans) Order 2006 — Dictionary, as carried into Lismore LEP 2012",
+            "caveat": "Paraphrased for readability. Definitions can be amended — verify against the current Lismore LEP 2012 Dictionary before relying on this for a formal submission."
+        }
+        if match.how != "exact":
+            # The planning term is often not the word the applicant used, and
+            # which term applies decides permissibility — so name the swap.
+            result["interpreted_as"] = (
+                f"'{raw_term}' is not itself a defined term; answered with "
+                f"'{entry['term']}', the Standard Instrument term it usually corresponds to. "
+                "Use that term in a DA, and confirm it fits your proposal."
+            )
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    error = unresolved_error(raw_term, match, "definition", LAND_USE_DEFINITIONS)
+    error["note"] = (
+        "Only terms with a Standard Instrument definition are listed. Everyday words for "
+        "building elements (deck, shed, fence) are not separately defined — they are "
+        "assessed as part of the development they belong to."
+    )
+    return [TextContent(type="text", text=json.dumps(error, indent=2))]
+
+
+@tool(
+    name='list_definitions',
+    description='List all available land-use definitions in the system. Use this to see what terms have definitions available before calling get_definition.',
+    properties={},
+)
+def list_definitions(arguments: dict):
+    definitions_list = [
+        {"key": k, "term": v["term"]}
+        for k, v in LAND_USE_DEFINITIONS.items()
+    ]
+    categories = {
+        "retail_commercial": ["retail_premises", "food_and_drink_premises", "shop", "restaurant_or_cafe", "take_away_food_and_drink_premises", "business_premises", "commercial_premises", "neighbourhood_shop"],
+        "home_based": ["home_business", "home_occupation"],
+        "residential": ["dwelling_house", "dual_occupancy", "secondary_dwelling", "multi_dwelling_housing", "residential_flat_building", "attached_dwellings", "shop_top_housing", "boarding_house"],
+        "industrial": ["light_industries", "general_industries", "warehouse_or_distribution_centre", "vehicle_repair_station"],
+        "community_recreation": ["recreation_facility_indoor", "community_facility", "centre_based_child_care_facility"],
+        "accommodation": ["hotel_or_motel_accommodation", "bed_and_breakfast_accommodation"],
+    }
+    return [TextContent(
+        type="text",
+        text=json.dumps({
+            "available_definitions": definitions_list,
+            "categories": categories,
+            "total_count": len(definitions_list),
+            "usage": "Use get_definition with any term key to get the full definition"
+        }, indent=2)
+    )]
