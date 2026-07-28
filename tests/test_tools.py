@@ -187,12 +187,27 @@ class TestKnownGaps:
         assert "error" not in result
         assert result["additional_for_type"]
 
-    @pytest.mark.xfail(strict=True, reason="exact-token matching; IMPROVEMENT_PLAN 3.1")
-    @pytest.mark.parametrize("term", ["coffee shop", "child care centre"])
-    def test_parking_accepts_common_synonyms(self, call, term):
-        assert "error" not in call("get_parking_rates", {"development_type": term})
+    @pytest.mark.parametrize("term,expected", [
+        ("coffee shop", "cafe"),                  # synonym
+        ("child care centre", "childcare_centre"),  # word-boundary difference
+        ("takeaway", "take_away"),                # squashed
+        ("granny flat", "secondary_dwelling"),    # applicant's word for a planning term
+        ("doctors surgery", "medical_centre"),
+        ("Restaurant", "restaurant"),             # case only
+    ])
+    def test_parking_accepts_common_phrasing(self, call, term, expected):
+        result = call("get_parking_rates", {"development_type": term})
+        assert "error" not in result, result.get("error")
+        assert result["development_type"] == expected
 
-    @pytest.mark.xfail(strict=True, reason="section keys are snake_case only; IMPROVEMENT_PLAN 3.1")
+    def test_parking_says_when_it_reinterpreted(self, call):
+        """A silent swap would hide that the rate is for a different use."""
+        result = call("get_parking_rates", {"development_type": "coffee shop"})
+        assert "coffee shop" in result["interpreted_as"]
+
+    def test_parking_exact_match_carries_no_note(self, call):
+        assert "interpreted_as" not in call("get_parking_rates", {"development_type": "cafe"})
+
     def test_see_template_accepts_spaces(self, call):
         assert "error" not in call("get_see_template", {"section": "site description"})
 

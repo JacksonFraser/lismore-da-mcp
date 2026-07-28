@@ -17,6 +17,11 @@ from lismore_da_mcp.see.fields import (
     SEE_QUESTIONS,
     SEE_TEMPLATE_SCOPE,
 )
+from lismore_da_mcp.vocabulary import (
+    MINOR_DEVELOPMENT_SYNONYMS,
+    PARKING_SYNONYMS,
+    resolve,
+)
 from lismore_da_mcp.see.parsers import (
     estimate_parking_requirement,
     parse_land_identifier,
@@ -86,7 +91,14 @@ def generate_see_form_data(
         )
 
     # --- scope: this template covers minor residential development only --------
-    if minor_development_type not in SEE_TEMPLATE_SCOPE:
+    # Resolve loosely — "shed" and "single storey dwelling" are how an applicant
+    # describes the work, not the enum. But only naming is loose: a proposal
+    # outside the template's scope is still refused, because filling this form
+    # for, say, a commercial fitout would produce a document Council rejects.
+    scope_match = resolve(minor_development_type, SEE_TEMPLATE_SCOPE, MINOR_DEVELOPMENT_SYNONYMS)
+    if scope_match:
+        minor_development_type = scope_match.key
+    else:
         blocking.append(
             "This form is for 'Minor Development Only'. Set minor_development_type to one of: "
             + ", ".join(SEE_TEMPLATE_SCOPE)
@@ -162,8 +174,10 @@ def generate_see_form_data(
 
     # --- parking, from the DCP rate rather than an assertion -------------------
     parking = None
-    rate_key = (proposed_use or "").lower().replace(" ", "_")
-    rate_entry = PARKING_RATES.get(rate_key)
+    # Same loose resolution the parking tool uses, so "coffee shop" gets a rate
+    # here too rather than silently omitting the parking section of the form.
+    rate_match = resolve(proposed_use or "", PARKING_RATES, PARKING_SYNONYMS)
+    rate_entry = PARKING_RATES.get(rate_match.key) if rate_match else None
     if rate_entry:
         parking = estimate_parking_requirement(rate_entry["spaces"], floor_area_sqm, num_employees)
         if parking:

@@ -467,16 +467,37 @@ checking `tests/` first.
 **Exit criteria:** no module over ~400 lines (only `data/zones.py` exceeds it, and it is pure
 data); adding a tool touches one file — still blocked on 2.3.
 
-## Phase 3 — Usability
+## Phase 3 — Usability — **3.1 and 3.2 complete**
 
-| # | Task | Effort | Notes |
+| # | Task | Status | Notes |
 |---|---|---|---|
-| 3.1 | Shared term-resolution helper: synonyms + fuzzy + underscore/space tolerance | 4h | U3. One helper, used by all lookup tools |
-| 3.2 | Apply it to parking, definitions, SEE templates, `minor_development_type` | 2h | |
+| 3.1 | Shared term-resolution helper | ✅ | `vocabulary.py` |
+| 3.2 | Apply to parking, definitions, SEE sections, `minor_development_type` | ✅ | Plus the SEE generator's own parking lookup |
 | 3.3 | Normalise argument names across tools (`*_code`, `*_type`) | 2h | U5. Breaking change — version the tools |
 | 3.4 | Collapse SEE parameters; derive components from composites | 4h | U6 |
 | 3.5 | Consistent response envelope (`success` always present) | 2h | U9 |
 | 3.6 | Take zone/lot into setbacks, or state the limitation in the response | 2h | U7 |
+
+Resolution runs exact → squashed → synonym → fuzzy, most confident first. Most of U3's failures
+turned out to be punctuation, not vocabulary: `take_away` and `childcare_centre` were already in
+the table and `takeaway` / `child care centre` simply could not reach them.
+
+**The design constraint was refusing to guess**, since a confident wrong answer about planning law
+is worse than an error — the same reasoning behind `validate_arguments()`. Thresholds were set
+from measured ratios against the real vocabularies rather than picked: genuine typos score
+0.88–0.95 (`resturant`/`restaurant` 0.95), unrelated words 0.18–0.50 (`hairdresser`/`warehouse`
+0.50). So `hairdresser` and `brewery` still refuse — they have no Chapter 7 rate, and quoting
+warehouse rates at a hairdresser would be a wrong answer wearing a helpful face. A fuzzy match must
+also beat its runner-up by a margin, so an ambiguous term yields suggestions rather than a coin
+toss.
+
+Any non-exact match is reported back in `interpreted_as`, so a caller can see that `coffee shop`
+was answered as `cafe`. For `get_definition` this matters most: which Standard Instrument term
+applies is what decides permissibility, so the swap is stated rather than silently applied.
+
+`TestSynonymTablesAreValid` caught two aliases that were already dead on arrival (`take-away`,
+`strata subdivision` — both normalise to their own targets) and guards against a synonym pointing
+at a key that later gets renamed.
 
 ## Phase 4 — Performance — **4.1 and 4.2 complete**
 
