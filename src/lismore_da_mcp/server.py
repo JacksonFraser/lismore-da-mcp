@@ -80,6 +80,7 @@ from lismore_da_mcp.search import (
 # or DCP without reading the server. Re-exported here because tools, tests and
 # any external caller have always imported these from this module.
 from lismore_da_mcp.data.contacts import CONTACT_INFO
+from lismore_da_mcp.data.instruments import SUPERSEDED_NOTE, instrument_for, is_superseded
 from lismore_da_mcp.data.definitions import (
     CATCHALL_TERM,
     LAND_USE_DEFINITIONS,
@@ -1101,6 +1102,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             )]
 
         text = extract_document_section(doc_path, start_page, end_page)
+        # A reader who opens a chapter directly gets no search result to carry the
+        # warning, so it goes on the content itself.
+        if is_superseded(doc_path.name):
+            text = f"⚠️ SUPERSEDED FOR MOST LAND — {SUPERSEDED_NOTE}\n\n{text}"
         return [TextContent(
             type="text",
             text=text
