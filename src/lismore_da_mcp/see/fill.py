@@ -9,6 +9,8 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 
+from lismore_da_mcp.observability import record_document_error
+
 from lismore_da_mcp.config import SEE_TEMPLATE_PATH
 from lismore_da_mcp.see.fields import SEE_FORM_FIELDS
 from lismore_da_mcp.see.layout import SEE_LAYOUT_EXPECTED, see_layout
@@ -184,5 +186,9 @@ def fill_see_pdf(form_data: dict, output_path: Path) -> dict:
             "template_layout_changed": template_changed,
         }
 
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
+        # Narrow on purpose: a failure to open or write the template is an
+        # operational problem to report, but a TypeError in the field mapping is
+        # a bug and must not be dressed up as one.
+        record_document_error("fill_see_pdf", SEE_TEMPLATE_PATH.name, type(e).__name__, str(e))
         return {"success": False, "error": str(e)}

@@ -34,11 +34,29 @@ class _RateLimitMiddleware:
     not a substitute for a real edge limiter (e.g. Cloudflare) if traffic grows.
     """
 
+    # Sweep idle IPs this often. Without it the map only ever grew: each entry's
+    # deque was trimmed, but the key itself was never removed, so every distinct
+    # IP that ever connected stayed for the process lifetime. On an open endpoint
+    # that is both a slow leak and a cheap way to grow the process from outside.
+    SWEEP_EVERY_SECONDS = 300.0
+
     def __init__(self, app, max_requests: int = 30, window_seconds: float = 60.0):
         self.app = app
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._hits: dict = {}
+        self._last_sweep = 0.0
+
+    def _sweep(self, now: float) -> int:
+        """Drop IPs with no request inside the current window. Returns how many."""
+        stale = [
+            ip for ip, hits in self._hits.items()
+            if not hits or now - hits[-1] > self.window_seconds
+        ]
+        for ip in stale:
+            del self._hits[ip]
+        self._last_sweep = now
+        return len(stale)
 
     async def __call__(self, scope, receive, send):
         import time
@@ -51,6 +69,12 @@ class _RateLimitMiddleware:
         client = scope.get("client")
         ip = client[0] if client else "unknown"
         now = time.monotonic()
+
+        # Amortised: a sweep is O(tracked IPs) and runs at most every few minutes,
+        # rather than on every request.
+        if now - self._last_sweep > self.SWEEP_EVERY_SECONDS:
+            self._sweep(now)
+
         hits = self._hits.setdefault(ip, deque())
         while hits and now - hits[0] > self.window_seconds:
             hits.popleft()

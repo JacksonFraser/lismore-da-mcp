@@ -4,14 +4,10 @@ Derives the form's answers from what the caller supplied, refusing where the
 proposal falls outside the template's "Minor Development Only" scope.
 """
 
-import math
-import re
-
 from lismore_da_mcp.data.parking import PARKING_RATES
 from lismore_da_mcp.data.zones import ZONES
-from lismore_da_mcp.landuse import canonical_use, classify_land_use
+from lismore_da_mcp.landuse import classify_land_use
 from lismore_da_mcp.see.fields import (
-    PURPOSE_WRITTEN_SEE_HEADINGS,
     RESIDENTIAL_ZONES,
     SEE_COMMENT_FIELDS,
     SEE_QUESTIONS,
