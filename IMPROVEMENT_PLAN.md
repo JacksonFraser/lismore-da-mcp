@@ -513,7 +513,7 @@ Two things the move surfaced:
 | 3.1 | Shared term-resolution helper | ✅ | `vocabulary.py` |
 | 3.2 | Apply to parking, definitions, SEE sections, `minor_development_type` | ✅ | Plus the SEE generator's own parking lookup |
 | 3.3 | Normalise argument names across tools (`*_code`, `*_type`) | 2h | U5. Breaking change — version the tools |
-| 3.4 | Collapse SEE parameters; derive components from composites | 4h | U6 |
+| 3.4 | Collapse SEE parameters | ◐ | Premise was wrong — see below |
 | 3.5 | Consistent response envelope | ✅ | `preview_see_form` returned two shapes |
 | 3.6 | Setbacks: take the inputs the controls actually depend on | ✅ | See below |
 
@@ -580,6 +580,36 @@ the 22 seconds.
 | 5.4 | Narrow broad `except Exception` | ✅ | Found a real bug — see below |
 | 5.5 | Fix Render auto-deploy (GitHub App linkage) | — | Deferred; three pushes to `main` have not triggered a deploy |
 | 5.6 | Trim AustLII nav chrome from the four `.txt` extracts | 1h | Minor search noise |
+
+### 3.4 — U6's premise was wrong
+
+U6 proposed "accepting the composite fields and deriving the rest, with the granular fields as
+optional overrides." **That was already the implementation.** A call with only the eight required
+arguments works and derives everything:
+
+```
+property_address: "Shop 3, 88 Keen Street, Lismore NSW 2480"
+lot_dp:           "Lot 12 Section 3 DP 758651"
+  → address_number 'Shop 3 88'   street_name 'Keen Street'   suburb 'Lismore'
+  → lot '12'   dp '758651'   section '3'
+```
+
+The evaluation counted 35 parameters and inferred a problem the code had already solved.
+
+The real defect was the opposite: **the schema steered callers away from the composites.**
+`property_address` said *"Prefer the separate unit/street_number/street/suburb fields"* and `lot_dp`
+said *"Prefer lot/plan_type/plan_number"*. The parsers worked; the documentation told callers not
+to rely on them. That is why the surface read as 35 parameters for an 8-parameter call.
+
+Fixed by inverting that guidance, marking all eight derived components "Optional override. Derived
+from … when omitted", and stating in both tool descriptions that eight arguments is a complete
+call. Non-breaking. Regression tests now pin the derivation, which nothing guarded before.
+
+**Still open, and a genuine decision rather than a defect:** grouping the 26 optional arguments into
+nested objects (`address_parts`, `land_parts`, `site_constraints`, `operation_details`) would take
+the surface from 34 top-level to about 18. It is a breaking change on a public unauthenticated
+server, and unlike `development_type` it cannot be cleanly aliased — keeping both forms would push
+the count to ~40 while the schema is being read.
 
 ### 3.6 — setbacks
 
