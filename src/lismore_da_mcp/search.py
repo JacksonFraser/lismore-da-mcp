@@ -140,7 +140,7 @@ def search_all(
         for path in searchable_documents(chapter):
             results.extend(search_document(path, query))
         results.sort(key=lambda r: r.get("score", 0), reverse=True)
-        return results[:max_results]
+        return [annotate_instrument(r) for r in results[:max_results]]
 
     # FTS5 returns matching segments in its own order. Scores tie constantly —
     # every hit on a single-token query scores 1 — so the order candidates are
@@ -177,7 +177,33 @@ def search_all(
         results.extend(hits[:per_document])
 
     results.sort(key=lambda r: r.get("score", 0), reverse=True)
-    return results[:max_results]
+    return [annotate_instrument(r) for r in results[:max_results]]
+
+
+def annotate_instrument(result: dict) -> dict:
+    """Tag a search hit with the planning instrument it comes from.
+
+    The DCP has parallel chapters for LEP 2012 and LEP 2000 land, and they were
+    previously indistinguishable in results — so a superseded setback could be
+    quoted as a current control.
+    """
+    from lismore_da_mcp.data.instruments import (
+        SUPERSEDED_NOTE,
+        instrument_for,
+        is_superseded,
+    )
+
+    file_name = result.get("file", "")
+    category = ""
+    for path in searchable_documents():
+        if path.name == file_name:
+            category = path.parent.name
+            break
+
+    result["instrument"] = instrument_for(file_name, category)
+    if is_superseded(file_name):
+        result["superseded"] = SUPERSEDED_NOTE
+    return result
 
 
 def searchable_documents(chapter: str = "") -> list[Path]:
@@ -255,17 +281,23 @@ def list_available_documents() -> list[dict]:
     """List all available documents in the documents directory."""
     documents = []
 
+    from lismore_da_mcp.data.instruments import instrument_for, is_superseded
+
     if DOCS_DIR.exists():
         for subdir in DOC_CATEGORIES:
             subdir_path = DOCS_DIR / subdir
             if subdir_path.exists():
                 for file in sorted(subdir_path.iterdir()):
                     if file.suffix.lower() in LISTABLE_SUFFIXES:
-                        documents.append({
+                        entry = {
                             "category": subdir,
                             "filename": file.name,
                             "path": str(file.relative_to(DOCS_DIR)),
                             "addressed_by": "line number" if file.suffix.lower() == ".txt" else "page number",
-                        })
+                            "instrument": instrument_for(file.name, subdir),
+                        }
+                        if is_superseded(file.name):
+                            entry["superseded"] = True
+                        documents.append(entry)
 
     return documents
