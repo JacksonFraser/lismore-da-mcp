@@ -1,3 +1,17 @@
+# ⚠️ This file does NOT drive the live service. Editing it changes nothing.
+#
+# srv-d9jibcb7uimc739lnv60 was created manually in the Render dashboard rather
+# than from this Blueprint, so its build and start commands come from the
+# dashboard. Verified 2026-07-28: the index build step below was added here,
+# the deploy reported "live", and it never ran — the server went on answering
+# every search from a full scan at ~24s a query. Nothing surfaced the problem
+# except timing the endpoint. The same disconnect is why auto-deploy does not
+# fire (IMPROVEMENT_PLAN 5.5).
+#
+# The commands here were mirrored into the dashboard by hand on 2026-07-28 and
+# match it as of then. Anything changed here must be changed there too, or it
+# will silently have no effect. To remove the split, recreate the service from
+# this Blueprint.
 services:
   - type: web
     name: lismore-da-mcp
