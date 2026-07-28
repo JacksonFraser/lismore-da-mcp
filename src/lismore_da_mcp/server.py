@@ -15,6 +15,12 @@ import json
 from mcp.types import TextContent
 
 from lismore_da_mcp.app import server
+from lismore_da_mcp.observability import (
+    OUTCOME_INVALID_ARGUMENTS,
+    OUTCOME_OK,
+    configure_logging,
+    timed_tool_call,
+)
 from lismore_da_mcp.registry import mcp_tools, registered, validate_arguments
 
 # Importing the tools package is what registers every tool.
@@ -116,13 +122,21 @@ async def list_tools():
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    """Validate arguments, then hand off to the registered handler."""
-    argument_error = validate_arguments(name, arguments)
-    if argument_error:
-        return [TextContent(type="text", text=json.dumps(argument_error, indent=2))]
+    """Validate arguments, then hand off to the registered handler.
 
-    registration = registered()[name]
-    return registration.handler(arguments)
+    `arguments` is never passed to the logger — several tools carry an
+    applicant's name and address. See observability.py.
+    """
+    with timed_tool_call(name) as outcome:
+        argument_error = validate_arguments(name, arguments)
+        if argument_error:
+            outcome[0] = OUTCOME_INVALID_ARGUMENTS
+            return [TextContent(type="text", text=json.dumps(argument_error, indent=2))]
+
+        registration = registered()[name]
+        result = registration.handler(arguments)
+        outcome[0] = OUTCOME_OK
+        return result
 
 
 # ============================================================================

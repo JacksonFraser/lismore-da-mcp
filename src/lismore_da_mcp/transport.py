@@ -9,9 +9,17 @@ import os
 from mcp.server.stdio import stdio_server
 
 from lismore_da_mcp.app import server
+from lismore_da_mcp.observability import (
+    configure_logging,
+    record_index_state,
+    record_rate_limited,
+    record_startup,
+)
 
 async def run():
     """Run the MCP server over stdio (local, single-user — used by .mcp.json)."""
+    configure_logging()
+    record_startup("stdio")
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
@@ -49,6 +57,7 @@ class _RateLimitMiddleware:
 
         if len(hits) >= self.max_requests:
             from starlette.responses import PlainTextResponse
+            record_rate_limited(self.window_seconds, self.max_requests)
             response = PlainTextResponse("Rate limit exceeded, try again shortly.", status_code=429)
             await response(scope, receive, send)
             return
@@ -77,6 +86,17 @@ def build_http_app():
 
     @asynccontextmanager
     async def lifespan(_app):
+        configure_logging()
+        record_startup("http")
+        # A missing index is invisible from outside — search still answers, just
+        # via a full scan at roughly a thousand times the cost. That shipped once.
+        from lismore_da_mcp.index import index_status
+
+        state = index_status()
+        record_index_state(
+            "present" if state.get("present") else "absent",
+            state.get("segments"),
+        )
         async with session_manager.run():
             yield
 

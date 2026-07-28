@@ -574,12 +574,40 @@ the 22 seconds.
 
 | # | Task | Effort | Notes |
 |---|---|---|---|
-| 5.1 | Structured logging: tool name, duration, outcome — never applicant data | 3h | T4. Note the PII constraint |
+| 5.1 | Structured logging: tool name, duration, outcome — never applicant data | ✅ | `observability.py` |
 | 5.2 | Evict idle IPs from the rate limiter | 1h | T6 |
 | 5.3 | Remove dead `fee_unit` and `Resource` import | 0.25h | T7 |
 | 5.4 | Narrow broad `except Exception`; distinguish "no match" from "read failed" | 2h | T8 |
 | 5.5 | Fix Render auto-deploy (GitHub App linkage) | — | Deferred; three pushes to `main` have not triggered a deploy |
 | 5.6 | Trim AustLII nav chrome from the four `.txt` extracts | 1h | Minor search noise |
+
+### 5.1 — logging
+
+One line per tool call, plus rate-limit, startup and search-index events:
+
+```
+INFO  tool=get_zone_info     outcome=ok                duration_ms=0.1
+INFO  tool=search_dcp        outcome=ok                duration_ms=40.6
+WARN  tool=get_zone_info     outcome=invalid_arguments duration_ms=0.0
+```
+
+**Applicant data is excluded by shape, not by discipline.** `fill_see_pdf`, `preview_see_form` and
+`generate_see_draft` all take a name, street address and lot/DP, on a public unauthenticated
+service whose logs go to a third-party platform. So `record_tool_call()` has no parameter capable
+of carrying an argument value — there is no call site where someone could pass one by accident, and
+a test asserts that signature stays that way. Another test drives a real SEE call with a
+distinctive fake name and address and asserts neither appears in captured output.
+
+Invalid arguments log at WARNING, not ERROR: a caller mistake is not a server fault, and conflating
+them makes the error rate useless for alerting.
+
+The client IP is deliberately not logged on rate-limit events. It is personal information, Render's
+proxy already records request detail, and what matters for tuning is that the limiter engaged at
+all.
+
+The search-index state is logged at startup because a missing index is otherwise invisible from
+outside — search still answers, just ~1000× slower. That exact failure reached production once and
+was caught only by timing the endpoint.
 
 ---
 
