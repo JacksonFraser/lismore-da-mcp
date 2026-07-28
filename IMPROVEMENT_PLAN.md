@@ -579,7 +579,7 @@ the 22 seconds.
 | 5.3 | Remove dead code | ✅ | Both already gone; removed 5 imports the refactors left |
 | 5.4 | Narrow broad `except Exception` | ✅ | Found a real bug — see below |
 | 5.5 | Fix Render auto-deploy (GitHub App linkage) | — | Deferred; three pushes to `main` have not triggered a deploy |
-| 5.6 | Trim AustLII nav chrome from the four `.txt` extracts | 1h | Minor search noise |
+| 5.6 | Trim nav chrome from the four `.txt` extracts | ✅ | Provenance kept as a `Source:` line |
 
 ### 3.4 — U6's premise was wrong
 
