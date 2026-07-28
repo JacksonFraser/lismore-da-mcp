@@ -514,7 +514,7 @@ Two things the move surfaced:
 | 3.2 | Apply to parking, definitions, SEE sections, `minor_development_type` | ✅ | Plus the SEE generator's own parking lookup |
 | 3.3 | Normalise argument names across tools (`*_code`, `*_type`) | 2h | U5. Breaking change — version the tools |
 | 3.4 | Collapse SEE parameters; derive components from composites | 4h | U6 |
-| 3.5 | Consistent response envelope (`success` always present) | 2h | U9 |
+| 3.5 | Consistent response envelope | ✅ | `preview_see_form` returned two shapes |
 | 3.6 | Take zone/lot into setbacks, or state the limitation in the response | 2h | U7 |
 
 Resolution runs exact → squashed → synonym → fuzzy, most confident first. Most of U3's failures
@@ -544,7 +544,7 @@ at a key that later gets renamed.
 |---|---|---|---|
 | 4.1 | SQLite FTS5 index built at deploy time | ✅ | `index.py`; built by `render.yaml` buildCommand |
 | 4.2 | Fall back to live scan if the index is missing | ✅ | `lookup()` returns `None`; degrades to slow, never to broken |
-| 4.3 | Signal truncation in `extract_*_section` | ☐ | T9, still open |
+| 4.3 | Signal truncation in `extract_*_section` | ✅ | With a verified resume hint |
 
 **Measured.** Hosted search before: **16–26s** warm (three runs: 24.9, 26.0, 16.5). Locally 7.4s
 of the 7.8s was PyMuPDF extraction across 902 pages / 2.1M characters — the scoring was noise.
@@ -580,6 +580,23 @@ the 22 seconds.
 | 5.4 | Narrow broad `except Exception` | ✅ | Found a real bug — see below |
 | 5.5 | Fix Render auto-deploy (GitHub App linkage) | — | Deferred; three pushes to `main` have not triggered a deploy |
 | 5.6 | Trim AustLII nav chrome from the four `.txt` extracts | 1h | Minor search noise |
+
+### 4.3, 3.5 and the address parser — clearing the last pinned defects
+
+The suite now has **zero xfails**: every behaviour pinned as known-broken is fixed.
+
+**4.3** — section reads cut at 10,000 characters silently, so a provision continuing past the cut
+simply looked absent. Truncation is now stated and carries a resume point (`start_line=461`,
+`start_page=5`). The hint is verified rather than asserted: a test resumes from it and checks the
+cut line reappears, so the overlap is a partial line rather than a gap.
+
+**3.5** — `preview_see_form` returned `success: False` when it refused and omitted the key entirely
+when it worked, so a caller checking `response["success"]` saw `None` on the happy path and could
+reasonably read it as failure. Same tool, same key, both paths now.
+
+**Address parser** — `parse_street_address("Keen Street")` put "Keen Street" in the suburb box too.
+With no comma there is nothing identifying a suburb, and the value was being written onto a form
+that goes to Council. Blank is honest; an explicit `suburb` argument still wins.
 
 ### 5.4 — a real bug behind the style issue
 
