@@ -1,69 +1,5 @@
-AustLII
-New South Wales Consolidated Regulations
-▼
-All databases
-This database only
-This legisation only
-Full text
-Titles only
-Advanced Search…
-About Contact Copyright & Usage Privacy Disclaimers Feedback Help
-Type
-Legis
- Jurisdiction
-New South Wales
- Database
-New South Wales Consolidated Regulations
- Year
- Citation
-llep2012310 s2.3
-All Databases
+Source: http://www.austlii.edu.au/au/legis/nsw/consol_reg/llep2012310/s2.3.html
 
- 
-Cases & Legislation
-
- 
-Journals & Scholarship
-
- 
-Law Reform
-
- 
-Treaties
-
- 
-Libraries
-
- 
-Communities
-
- 
-LawCite
-
-Australia
- 
-CTH
- 
-ACT
- 
-NSW
- 
-NT
- 
-QLD
- 
-SA
- 
-TAS
- 
-VIC
- 
-WA
- 
-New Zealand
-Specific YearAny
-Any
-Any
 LISMORE LOCAL ENVIRONMENTAL PLAN 2012 - REG 2.3 Zone objectives and Land Use Table
 LISMORE LOCAL ENVIRONMENTAL PLAN 2012 - REG 2.3
 Zone objectives and Land Use Table
@@ -85,26 +21,3 @@ Notes :
 3 Schedule 3 sets out complying development (for which a complying development certificate may be issued as an alternative to obtaining development consent).
 4 Clause 2.6 requires consent for subdivision of land.
 5 Part 5 contains other provisions which require consent for particular development.
-
-
-
-
-NAVIGATE
-Next Section
-Previous Section
-Table of Provisions
-Notes
-PRINT
-Print (pretty)
-Print (eco-friendly)
-DOWNLOAD
-RTF format (244 KB)
-Plain text (ASCII) (172 KB)
-CITED BY
-LawCite records
-NoteUp references
-JOIN THE DISCUSSION
-Tweet this page
-Follow @AustLII on Twitter
-About Copyright & Usage Privacy Disclaimers Help
-http://www.austlii.edu.au/au/legis/nsw/consol_reg/llep2012310/s2.3.html

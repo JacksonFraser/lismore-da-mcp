@@ -44,10 +44,10 @@ This directory contains official planning documents downloaded from Lismore City
 
 | File | Description |
 |------|-------------|
-| `lep-2012-nsw-full.txt` | **Added 2026-07-26.** Full text of Lismore LEP 2012 extracted from NSW Legislation site. Contains all zone land use tables, development standards, local provisions, heritage schedules, and clauses. 302KB. Source: `legislation.nsw.gov.au/view/whole/html/inforce/current/epi-2013-0066` |
-| `clause-5.21-flood-planning.txt` | Clause 5.21 Flood Planning text from Lismore LEP 2012 (AustLII extract) |
-| `part-4-development-standards.txt` | Part 4 principal development standards — clauses 4.1/4.1AA minimum subdivision lot size (AustLII extract) |
-| `zone-r1-land-use-table.txt` | Clause 2.3 and the R1 zone land use table (AustLII extract) |
+| `lep-2012-nsw-full.txt` | **Added 2026-07-26.** Full text of Lismore LEP 2012 extracted from NSW Legislation site. Contains all zone land use tables, development standards, local provisions, heritage schedules, and clauses. ~300KB. **Trimmed 2026-07-28** — the site navigation header and footer were removed so they stop appearing in search results; a `Source:` line at the top preserves provenance. Source: `legislation.nsw.gov.au/view/whole/html/inforce/current/epi-2013-0066` |
+| `clause-5.21-flood-planning.txt` | Clause 5.21 Flood Planning text from Lismore LEP 2012 (AustLII extract, chrome trimmed) |
+| `part-4-development-standards.txt` | Part 4 principal development standards — clauses 4.1/4.1AA minimum subdivision lot size (AustLII extract, chrome trimmed) |
+| `zone-r1-land-use-table.txt` | Clause 2.3 and the R1 zone land use table (AustLII extract, chrome trimmed) |
 | `LEP_2012_Land_Use_Matrix.xls` | Land use permissibility matrix for all zones |
 | `existing-land-use-rights-fact-sheet.pdf` | Existing Use Rights fact sheet |
 
