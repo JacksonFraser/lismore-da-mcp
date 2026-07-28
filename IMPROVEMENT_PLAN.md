@@ -456,7 +456,7 @@ resolves; the four `test_tools.py::TestKnownGaps` and `test_fees.py` xfails flip
 |---|---|---|---|
 | 2.1 | Extract `data/` modules | ✅ | 9 modules; a transcription is now reviewable without reading the server |
 | 2.2 | Extract search and `see/` packages | ✅ | Plus `landuse.py`, which check_permissibility and the SEE generator share |
-| 2.3 | Build a registry, migrate tools domain by domain | ☐ **remaining** | The 1,054-line `call_tool` and 635-line `TOOLS` are all that's left |
+| 2.3 | Build a registry, migrate tools domain by domain | ✅ | `registry.py` + `tools/`; `server.py` 1,990 → 143 lines |
 | 2.4 | Extract `transport`; reduce `server.py` to wiring | ✅ | Plus `app.py` holding the Server instance |
 | 2.5 | Convert `data/*.py` to JSON + loader | ☐ | Optional |
 
@@ -482,8 +482,29 @@ the path directly. **Take this as evidence for keeping that CI step**, and as a 
 keeps working. This is deliberate and commented at the import block — do not strip those without
 checking `tests/` first.
 
-**Exit criteria:** no module over ~400 lines (only `data/zones.py` exceeds it, and it is pure
-data); adding a tool touches one file — still blocked on 2.3.
+### 2.3 — the registry
+
+`server.py` is now **143 lines**: `list_tools`, `call_tool`, `main`, and a re-export block. The
+1,055-line `if/elif` chain and the 635-line `TOOLS` list are gone. A tool is one decorated function
+carrying its own schema, in `tools/` grouped by domain (zoning, parking, fees, planning, documents,
+see).
+
+**Verified by diffing the tool surface against pre-refactor `main`**, not just by the suite
+passing. All 21 tools present; 20 byte-identical in description and schema. The single difference
+is `get_residential_standards`, whose schema previously carried `"required": []` and now omits the
+key — JSON Schema treats an empty `required` and an absent one identically.
+
+Two things the move surfaced:
+
+- `preview_see_form` and `fill_see_pdf` shared one dispatch branch and told themselves apart by
+  inspecting `name`, which a registered handler no longer receives. Split into two thin
+  registrations over one `_see_form` implementation, deliberately still shared: a preview that
+  diverged from what actually gets written would be worse than no preview.
+- The decorator now rejects a duplicate tool name, and a `required` argument that isn't declared in
+  `properties`, at import time rather than on the call that needed it.
+
+**Exit criteria met:** no module over ~400 lines except `tools/see.py` (643, the SEE tools) and
+`data/zones.py` (491, pure data); adding a tool touches one file.
 
 ## Phase 3 — Usability — **3.1 and 3.2 complete**
 
