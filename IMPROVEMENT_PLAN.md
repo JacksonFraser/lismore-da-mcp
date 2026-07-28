@@ -705,6 +705,26 @@ was caught only by timing the endpoint.
 
 Phase 2 genuinely should wait for Phase 0. Everything else can be reordered to taste.
 
+## Server instructions (added 2026-07-28, not from the original evaluation)
+
+The evaluation treated this as 21 tools and missed that a remote agent gets **only** those 21 tool
+descriptions. `initialize` returned `instructions: None`, and no prompts or resources were exposed.
+
+Everything an agent needs that a schema cannot convey — the order of work, when to send someone to
+the Duty Planner, that a LEP table miss is not a refusal — lived solely in this repository's
+`CLAUDE.md`, which nobody connecting to the hosted server ever sees.
+
+`instructions.py` now ships that briefing in the `initialize` response, where MCP clients surface it
+to the model. 2,570 characters, budgeted rather than open-ended since it is injected every session.
+
+Note this came from a correction: the first proposal was a `start_here` orchestration tool, which
+was wrong. An MCP server is driven by an agent, and the agent already orchestrates — the fix is to
+brief it, not to build a worse orchestrator inside the server.
+
+`tests/test_instructions.py` guards both halves: that each caveat survives a tidy-up, and that the
+factual claims still match the data (the zone count is read from `ZONES`, the retired-code
+redirects are checked against it, and every tool named must still be registered).
+
 ## Open questions
 
 1. Should `check_permissibility` attempt SEPP reasoning at all, or explicitly scope itself to the
