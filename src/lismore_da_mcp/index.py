@@ -27,7 +27,10 @@ import fitz  # PyMuPDF
 from lismore_da_mcp.config import DOCS_DIR
 
 # Ephemeral on Render, which is fine — it is rebuilt at deploy time by the build
-# command, and lazily on first use if that ever fails to run.
+# command configured in the Render dashboard (see render.yaml for why the
+# dashboard rather than the Blueprint). If that step is ever removed, search
+# still answers: lookup() returns None and the caller falls back to a full scan.
+# There is no lazy rebuild — a first request should not pay an ~8s build.
 INDEX_PATH = Path(
     os.environ.get("LISMORE_SEARCH_INDEX", str(DOCS_DIR.parent / ".search-index.sqlite3"))
 )
