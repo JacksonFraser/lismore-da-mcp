@@ -34,9 +34,15 @@ def parse_street_address(
 
     segments = [s.strip() for s in text.split(",") if s.strip()]
 
-    # Suburb: the last segment that isn't just NSW and/or a postcode
-    if not parts["suburb"]:
-        for segment in reversed(segments[1:] or segments):
+    # Suburb: the last segment that isn't just NSW and/or a postcode.
+    #
+    # Only when there is a later segment to take it from. A single-segment
+    # address ("Keen Street") has nothing that identifies a suburb, and the
+    # fallback used to reuse the whole string — writing the street name into the
+    # suburb box of a form that goes to Council. Leaving it blank is honest, and
+    # the caller can supply `suburb` explicitly.
+    if not parts["suburb"] and len(segments) > 1:
+        for segment in reversed(segments[1:]):
             candidate = re.sub(r"\b\d{4}\b", "", segment)
             candidate = re.sub(r"\bNSW\b", "", candidate, flags=re.I)
             candidate = " ".join(candidate.split())

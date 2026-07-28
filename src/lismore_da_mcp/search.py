@@ -244,6 +244,28 @@ def find_document(name: str) -> Path | None:
             return path
     return candidates[0]
 
+# Output cap. A DCP chapter can run to hundreds of pages, and returning all of it
+# would swamp the caller's context for no benefit.
+MAX_SECTION_CHARS = 10000
+
+
+def _truncate(text: str, resume_hint: str) -> str:
+    """Cap the output, saying so and how to get the rest.
+
+    Cutting silently at 10,000 characters left a reader with no way to know
+    content was dropped, let alone where it stopped — so a provision continuing
+    past the cut simply looked absent.
+    """
+    if len(text) <= MAX_SECTION_CHARS:
+        return text
+    return (
+        text[:MAX_SECTION_CHARS]
+        + f"\n\n--- TRUNCATED at {MAX_SECTION_CHARS} characters. "
+        + resume_hint
+        + " ---"
+    )
+
+
 def extract_pdf_section(pdf_path: Path, start_page: int = 1, end_page: int = None) -> str:
     """Extract text from specific pages of a PDF."""
     try:
@@ -252,13 +274,20 @@ def extract_pdf_section(pdf_path: Path, start_page: int = 1, end_page: int = Non
             end_page = len(doc)
 
         text = ""
+        last_page = start_page
         for page_num in range(start_page - 1, min(end_page, len(doc))):
             page = doc[page_num]
             text += f"\n--- Page {page_num + 1} ---\n"
             text += page.get_text()
+            if len(text) <= MAX_SECTION_CHARS:
+                last_page = page_num + 1
 
         doc.close()
-        return text[:10000]  # Limit output size
+        return _truncate(
+            text,
+            f"Content continues past page {last_page}. Request a later page range "
+            f"(e.g. start_page={last_page}) to read on.",
+        )
     except (OSError, RuntimeError, ValueError) as e:
         # The caller asked for this document by name, so the error is the answer
         # to their question — unlike search, where it would masquerade as a hit.
@@ -276,9 +305,23 @@ def extract_text_section(text_path: Path, start_line: int = 1, end_line: int = N
         if end_line is None:
             end_line = min(len(lines), max(start_line, 1) + 199)  # default window
 
-        selected = lines[max(start_line, 1) - 1:min(end_line, len(lines))]
-        header = f"--- {text_path.name}, lines {start_line}-{min(end_line, len(lines))} of {len(lines)} ---\n"
-        return (header + '\n'.join(selected))[:10000]
+        first = max(start_line, 1)
+        last = min(end_line, len(lines))
+        selected = lines[first - 1:last]
+        header = f"--- {text_path.name}, lines {first}-{last} of {len(lines)} ---\n"
+        body = header + '\n'.join(selected)
+
+        # Report the line the caller can resume from, rather than the requested
+        # end — which is what they would otherwise assume they had received.
+        if len(body) > MAX_SECTION_CHARS:
+            consumed = body[:MAX_SECTION_CHARS].count("\n")
+            resume = first + max(consumed - 1, 0)
+            return _truncate(
+                body,
+                f"Content continues at line {resume} of {len(lines)}. "
+                f"Request start_line={resume} to read on.",
+            )
+        return body
     except OSError as e:
         record_document_error("read", text_path.name, type(e).__name__, str(e))
         return f"Error reading text file: {e}"

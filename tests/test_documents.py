@@ -13,6 +13,7 @@ from lismore_da_mcp.server import (
     SEARCHABLE_SUFFIXES,
     _score_lines,
     extract_document_section,
+    extract_pdf_section,
     extract_text_section,
     find_document,
     list_available_documents,
@@ -110,11 +111,39 @@ class TestSectionExtraction:
         pdf = extract_document_section(docs_dir / "dcp" / "chapter-7-off-street-carparking.pdf", 1, 1)
         assert "--- Page 1 ---" in pdf
 
-    @pytest.mark.xfail(strict=True, reason="10k truncation is silent; IMPROVEMENT_PLAN T9")
     def test_truncation_is_signalled(self, docs_dir):
         out = extract_text_section(docs_dir / "lep" / "lep-2012-nsw-full.txt", 1, 100_000)
         assert len(out) >= 10_000
-        assert "truncat" in out.lower()
+        assert "TRUNCATED" in out
+
+    def test_truncation_says_where_to_resume(self, docs_dir):
+        out = extract_text_section(docs_dir / "lep" / "lep-2012-nsw-full.txt", 1, 100_000)
+        assert "start_line=" in out
+
+    def test_the_resume_hint_actually_continues(self, docs_dir):
+        """A hint pointing at the wrong line would be worse than none — the
+        reader would skip content and never know."""
+        import re
+
+        path = docs_dir / "lep" / "lep-2012-nsw-full.txt"
+        first = extract_text_section(path, 1, 100_000)
+        resume = int(re.search(r"start_line=(\d+)", first).group(1))
+
+        delivered = first.split("--- TRUNCATED")[0]
+        last_partial = delivered.rstrip().split("\n")[-1]
+        continued = extract_text_section(path, resume, resume + 1)
+
+        # The resumed read must pick up the line the cut landed inside, so the
+        # overlap is a partial line rather than a gap.
+        assert last_partial.strip() in continued
+
+    def test_pdf_truncation_names_a_page_to_resume_from(self, docs_dir):
+        out = extract_pdf_section(docs_dir / "dcp" / "chapter-1-residential-development.pdf", 1, 200)
+        assert "TRUNCATED" in out and "start_page=" in out
+
+    def test_short_reads_are_untouched(self, docs_dir):
+        out = extract_text_section(docs_dir / "lep" / "clause-5.21-flood-planning.txt", 1, 5)
+        assert "TRUNCATED" not in out
 
 
 class TestSearchResults:

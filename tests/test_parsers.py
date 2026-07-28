@@ -59,16 +59,18 @@ class TestStreetAddress:
             "suburb": "",
         }
 
-    def test_single_segment_currently_duplicates_into_suburb(self):
-        """Pins present behaviour: with no comma there is nothing to distinguish
-        street from suburb, and the same text lands in both boxes."""
+    def test_single_segment_does_not_guess_a_suburb(self):
+        """With no comma there is nothing identifying a suburb. Blank is honest;
+        reusing the street name would write it into a box on a form that goes to
+        Council."""
         parsed = parse_street_address("Keen Street")
         assert parsed["street"] == "Keen Street"
-        assert parsed["suburb"] == "Keen Street"
+        assert parsed["suburb"] == ""
 
-    @pytest.mark.xfail(strict=True, reason="single-segment address fills suburb with the street name")
-    def test_single_segment_should_not_guess_suburb(self):
-        assert parse_street_address("Keen Street")["suburb"] == ""
+    def test_explicit_suburb_still_wins_for_a_single_segment(self):
+        parsed = parse_street_address("12 Keen Street", suburb="Lismore")
+        assert parsed["suburb"] == "Lismore"
+        assert parsed["street"] == "Keen Street"
 
 
 class TestLandIdentifier:
