@@ -515,7 +515,7 @@ Two things the move surfaced:
 | 3.3 | Normalise argument names across tools (`*_code`, `*_type`) | 2h | U5. Breaking change — version the tools |
 | 3.4 | Collapse SEE parameters; derive components from composites | 4h | U6 |
 | 3.5 | Consistent response envelope | ✅ | `preview_see_form` returned two shapes |
-| 3.6 | Take zone/lot into setbacks, or state the limitation in the response | 2h | U7 |
+| 3.6 | Setbacks: take the inputs the controls actually depend on | ✅ | See below |
 
 Resolution runs exact → squashed → synonym → fuzzy, most confident first. Most of U3's failures
 turned out to be punctuation, not vocabulary: `take_away` and `childcare_centre` were already in
@@ -580,6 +580,27 @@ the 22 seconds.
 | 5.4 | Narrow broad `except Exception` | ✅ | Found a real bug — see below |
 | 5.5 | Fix Render auto-deploy (GitHub App linkage) | — | Deferred; three pushes to `main` have not triggered a deploy |
 | 5.6 | Trim AustLII nav chrome from the four `.txt` extracts | 1h | Minor search noise |
+
+### 3.6 — setbacks
+
+U7 said setbacks depend on zone, lot size and adjoining development, and proposed either taking
+those inputs or stating the limitation. Reading the chapter showed the premise was partly wrong:
+**DCP Chapter 1 applies by development type, not by zone** — it covers "building, altering or using
+land for the construction of residential development, including ancillary structures such as sheds,
+pools and garages", wherever that occurs. Zone-gating would have been incorrect.
+
+What the controls do depend on is **lot configuration** (front) and **storeys** (side, rear). The
+tool took neither. Its single `development_type` argument conflated the two, so a two-storey corner
+lot could not be expressed at all.
+
+Now split into `storeys` and `lot_configuration`, with `development_type` kept as an alias — it is
+a published argument and renaming it would break callers we cannot see. When the inputs determine a
+figure the tool gives that figure and says why; when they do not it says which input is missing
+rather than returning the "general" case as though it were the answer. Every variant stays
+available under `all_cases`.
+
+The response also states the chapter's scope, so a caller asking about a shopfront is pointed at
+Chapters 2 and 3 instead of being handed residential numbers.
 
 ### 4.3, 3.5 and the address parser — clearing the last pinned defects
 
