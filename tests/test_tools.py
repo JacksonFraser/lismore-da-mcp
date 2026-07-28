@@ -231,3 +231,78 @@ class TestKnownGaps:
     def test_preview_see_form_reports_failure_the_same_way(self, call):
         out_of_scope = {**VALID_ARGS["preview_see_form"], "minor_development_type": "shopping centre"}
         assert call("preview_see_form", out_of_scope)["success"] is False
+
+
+class TestSetbackRequirements:
+    """DCP Chapter 1 setbacks depend on lot configuration (front) and storeys
+    (side, rear). The tool previously took neither, so it returned every variant
+    and left the caller to guess which applied — or, with `development_type`,
+    could express storeys OR lot shape but never both."""
+
+    def test_two_storey_corner_lot_is_expressible(self, call):
+        result = call("get_setback_requirements", {
+            "setback_type": "all", "storeys": 2, "lot_configuration": "corner",
+        })
+        assert result["setbacks"]["front"]["because"] == "corner lot"
+        assert result["setbacks"]["side"]["because"] == "2 storeys"
+
+    @pytest.mark.parametrize("storeys,expected", [
+        (1, "Minimum 3m for single storey"),
+        (2, "6m for two storey"),
+    ])
+    def test_rear_returns_only_the_applicable_half(self, call, storeys, expected):
+        """Answering a two-storey question with the single-storey figure first
+        invites reading the wrong number off it."""
+        result = call("get_setback_requirements", {"setback_type": "rear", "storeys": storeys})
+        assert result["setbacks"]["applicable"] == expected
+
+    @pytest.mark.parametrize("config,fragment", [
+        ("standard", "building line"),
+        ("corner", "Secondary frontage"),
+        ("battle_axe", "access handle"),
+    ])
+    def test_front_follows_lot_configuration(self, call, config, fragment):
+        result = call("get_setback_requirements", {
+            "setback_type": "front", "lot_configuration": config,
+        })
+        assert fragment in result["setbacks"]["applicable"]
+
+    def test_missing_input_is_reported_not_guessed(self, call):
+        """Returning the 'general' case unconditionally presented a default as
+        though it were the answer."""
+        result = call("get_setback_requirements", {"setback_type": "side"})
+        assert result["setbacks"]["applicable"] is None
+        assert "storeys" in result["setbacks"]["to_narrow_this"]
+        assert "side" in result["not_determined"]
+
+    def test_all_cases_are_always_available(self, call):
+        result = call("get_setback_requirements", {"setback_type": "front"})
+        assert result["setbacks"]["all_cases"]
+
+    def test_scope_is_stated(self, call):
+        """Chapter 1 applies to residential development by use, not by zone, so a
+        caller asking about a shopfront needs telling these are the wrong
+        controls."""
+        result = call("get_setback_requirements", {"setback_type": "all"})
+        assert "Chapter 2" in result["applies_to"] and "Chapter 3" in result["applies_to"]
+
+    @pytest.mark.parametrize("legacy,expected_because", [
+        ("single_storey", "single storey"),
+        ("two_storey", "2 storeys"),
+    ])
+    def test_legacy_development_type_still_works(self, call, legacy, expected_because):
+        """It is a published tool argument; renaming without an alias would break
+        callers we cannot see."""
+        result = call("get_setback_requirements", {
+            "setback_type": "side", "development_type": legacy,
+        })
+        assert result["setbacks"]["because"] == expected_because
+
+    def test_legacy_corner_lot_maps_to_configuration(self, call):
+        result = call("get_setback_requirements", {
+            "setback_type": "front", "development_type": "corner_lot",
+        })
+        assert result["setbacks"]["because"] == "corner lot"
+
+    def test_unknown_setback_type_refused(self, call):
+        assert "error" in call("get_setback_requirements", {"setback_type": "diagonal"})
