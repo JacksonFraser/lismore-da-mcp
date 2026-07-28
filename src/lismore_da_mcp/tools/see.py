@@ -1,7 +1,6 @@
 """Statement of Environmental Effects: guidance, drafting and the official form."""
 
 from pathlib import Path
-from typing import Any
 import base64
 import json
 import shutil

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 
+from lismore_da_mcp.observability import record_document_error
+
 from lismore_da_mcp.config import (
     DOC_CATEGORIES,
     DOCS_DIR,
@@ -76,8 +78,13 @@ def search_pdf(pdf_path: Path, query: str, max_results: int = 5) -> list[dict]:
                 })
 
         doc.close()
-    except Exception as e:
-        return [{"error": str(e)}]
+    except (OSError, RuntimeError, ValueError) as e:
+        # A document that cannot be read contributes no hits. Returning an error
+        # dict here put it into the result list, where it sorted as a scoreless
+        # "hit" and could be handed to the caller with no file or context. The
+        # failure belongs in the log, not in the answer.
+        record_document_error("search", pdf_path.name, type(e).__name__, str(e))
+        return []
 
     scored.sort(key=lambda r: r["score"], reverse=True)
     return scored[:max_results]
@@ -94,8 +101,9 @@ def search_text_file(text_path: Path, query: str, max_results: int = 5) -> list[
 
     try:
         lines = text_path.read_text(encoding="utf-8", errors="replace").split('\n')
-    except Exception as e:
-        return [{"error": str(e)}]
+    except OSError as e:
+        record_document_error("search", text_path.name, type(e).__name__, str(e))
+        return []
 
     scored = [
         {
@@ -251,7 +259,10 @@ def extract_pdf_section(pdf_path: Path, start_page: int = 1, end_page: int = Non
 
         doc.close()
         return text[:10000]  # Limit output size
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
+        # The caller asked for this document by name, so the error is the answer
+        # to their question — unlike search, where it would masquerade as a hit.
+        record_document_error("read", pdf_path.name, type(e).__name__, str(e))
         return f"Error reading PDF: {e}"
 
 def extract_text_section(text_path: Path, start_line: int = 1, end_line: int = None) -> str:
@@ -268,7 +279,8 @@ def extract_text_section(text_path: Path, start_line: int = 1, end_line: int = N
         selected = lines[max(start_line, 1) - 1:min(end_line, len(lines))]
         header = f"--- {text_path.name}, lines {start_line}-{min(end_line, len(lines))} of {len(lines)} ---\n"
         return (header + '\n'.join(selected))[:10000]
-    except Exception as e:
+    except OSError as e:
+        record_document_error("read", text_path.name, type(e).__name__, str(e))
         return f"Error reading text file: {e}"
 
 def extract_document_section(path: Path, start: int = 1, end: int = None) -> str:

@@ -148,3 +148,109 @@ class TestConfiguration:
         before = len(obs.logger.handlers)
         obs.configure_logging()
         assert len(obs.logger.handlers) == before
+
+
+class TestDocumentErrors:
+    """A document that cannot be read must be logged, not smuggled into results."""
+
+    def _broken_pdf(self, tmp_path):
+        path = tmp_path / "broken.pdf"
+        path.write_text("this is definitely not a PDF")
+        return path
+
+    def test_corrupt_pdf_yields_no_hits(self, tmp_path, caplog):
+        from lismore_da_mcp.search import search_pdf
+
+        with caplog.at_level(logging.ERROR, logger=obs.LOGGER_NAME):
+            results = search_pdf(self._broken_pdf(tmp_path), "flood planning")
+        assert results == [], "an unreadable document must contribute no results"
+
+    def test_corrupt_pdf_is_logged(self, tmp_path, caplog):
+        from lismore_da_mcp.search import search_pdf
+
+        with caplog.at_level(logging.ERROR, logger=obs.LOGGER_NAME):
+            search_pdf(self._broken_pdf(tmp_path), "flood planning")
+        assert "event=document_error" in caplog.text
+        assert "document=broken.pdf" in caplog.text
+
+    def test_error_never_appears_as_a_search_result(self, tmp_path, caplog):
+        """Previously search_pdf returned [{"error": ...}], which search_all
+        merged into the result list where it ranked as a scoreless hit with no
+        file, location or context."""
+        from lismore_da_mcp.search import search_pdf
+
+        with caplog.at_level(logging.ERROR, logger=obs.LOGGER_NAME):
+            results = search_pdf(self._broken_pdf(tmp_path), "flood")
+        assert not any("error" in r for r in results)
+
+    def test_missing_text_file_yields_no_hits(self, tmp_path, caplog):
+        from lismore_da_mcp.search import search_text_file
+
+        with caplog.at_level(logging.ERROR, logger=obs.LOGGER_NAME):
+            assert search_text_file(tmp_path / "absent.txt", "flood") == []
+
+    def test_reading_a_named_document_still_reports_the_error(self, tmp_path, caplog):
+        """Unlike search: the caller asked for this document, so the failure is
+        the answer to their question."""
+        from lismore_da_mcp.search import extract_pdf_section
+
+        with caplog.at_level(logging.ERROR, logger=obs.LOGGER_NAME):
+            out = extract_pdf_section(self._broken_pdf(tmp_path), 1, 1)
+        assert "Error reading PDF" in out
+
+    def test_programming_errors_are_not_swallowed(self, monkeypatch, tmp_path):
+        """Narrow catches on purpose — a TypeError here is a bug in this code and
+        must surface, not be reported as an unreadable document."""
+        import lismore_da_mcp.search as S
+
+        def exploding_scorer(*a, **k):
+            raise TypeError("bug in the scorer")
+
+        monkeypatch.setattr(S, "_score_lines", exploding_scorer)
+        real = next(p for p in S.searchable_documents() if p.suffix == ".pdf")
+        with pytest.raises(TypeError):
+            S.search_pdf(real, "flood")
+
+
+class TestRateLimiterEviction:
+    """The hits map only ever grew: each entry's deque was trimmed but the key
+    itself was never removed, so every IP that ever connected stayed for the
+    process lifetime."""
+
+    def _limiter(self):
+        from lismore_da_mcp.transport import _RateLimitMiddleware
+
+        async def app(scope, receive, send):
+            return None
+
+        return _RateLimitMiddleware(app, max_requests=5, window_seconds=10.0)
+
+    def test_idle_ips_are_evicted(self):
+        from collections import deque
+
+        limiter = self._limiter()
+        limiter._hits["1.2.3.4"] = deque([100.0])   # last seen long ago
+        limiter._hits["5.6.7.8"] = deque([999.0])   # seen just now
+        evicted = limiter._sweep(now=1000.0)
+        assert evicted == 1
+        assert set(limiter._hits) == {"5.6.7.8"}
+
+    def test_empty_entries_are_evicted(self):
+        from collections import deque
+
+        limiter = self._limiter()
+        limiter._hits["1.2.3.4"] = deque()
+        assert limiter._sweep(now=1.0) == 1
+        assert limiter._hits == {}
+
+    def test_active_ips_survive(self):
+        from collections import deque
+
+        limiter = self._limiter()
+        limiter._hits["1.2.3.4"] = deque([995.0, 999.0])
+        assert limiter._sweep(now=1000.0) == 0
+        assert "1.2.3.4" in limiter._hits
+
+    def test_sweep_is_amortised_not_per_request(self):
+        limiter = self._limiter()
+        assert limiter.SWEEP_EVERY_SECONDS >= 60
