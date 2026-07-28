@@ -478,13 +478,37 @@ data); adding a tool touches one file — still blocked on 2.3.
 | 3.5 | Consistent response envelope (`success` always present) | 2h | U9 |
 | 3.6 | Take zone/lot into setbacks, or state the limitation in the response | 2h | U7 |
 
-## Phase 4 — Performance
+## Phase 4 — Performance — **4.1 and 4.2 complete**
 
-| # | Task | Effort | Notes |
+| # | Task | Status | Notes |
 |---|---|---|---|
-| 4.1 | SQLite FTS5 index built at deploy time | 6h | U11/T5. 7.35s → milliseconds |
-| 4.2 | Fall back to live scan if the index is missing | 1h | Keeps local dev simple |
-| 4.3 | Signal truncation in `extract_*_section`, offer continuation | 1h | T9 |
+| 4.1 | SQLite FTS5 index built at deploy time | ✅ | `index.py`; built by `render.yaml` buildCommand |
+| 4.2 | Fall back to live scan if the index is missing | ✅ | `lookup()` returns `None`; degrades to slow, never to broken |
+| 4.3 | Signal truncation in `extract_*_section` | ☐ | T9, still open |
+
+**Measured.** Hosted search before: **16–26s** warm (three runs: 24.9, 26.0, 16.5). Locally 7.4s
+of the 7.8s was PyMuPDF extraction across 902 pages / 2.1M characters — the scoring was noise.
+After: **0.02s** per query locally, ~400×. Index is 904 segments, built in ~8s.
+
+**Parity took two fixes, both worth knowing about:**
+
+1. *Result diversity.* A full scan caps each document at 5 hits before ranking globally. The first
+   index version had no cap, so for "acid sulfate soils" the LEP text took 9 of 10 slots instead
+   of 5. Reproduced deliberately.
+2. *Tie ordering.* Single-token queries score every hit 1, so which hits survive is decided purely
+   by visit order — and FTS5 does not return rows in the scan's document/page order. Candidates
+   are now sorted into scan order before scoring.
+
+**One deliberate behavioural difference.** A full scan matches *substrings*: `house` hits the token
+`warehouse`. FTS5 matches tokens, and prefix terms (`house*`) recover `houses`/`housing` but not a
+term embedded mid-token. Verified this affects nothing realistic — all 25 test queries return
+byte-identical results — and only shows up for fragments like `"ouse"` or `"arking"`, where the
+scan returns 10 hits and the index 0. Dropping those is an improvement, since `house` matching
+`warehouse` is a false positive. Pinned in `tests/test_index.py::TestKnownDifference`.
+
+Parity is enforced by `TestParityWithFullScan`, which runs the full scan it replaces for three
+representative queries. That makes the suite ~31s instead of ~9s; the equivalence claim is worth
+the 22 seconds.
 
 ## Phase 5 — Operations
 

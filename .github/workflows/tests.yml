@@ -32,7 +32,13 @@ jobs:
 
       - name: Check the server still starts in HTTP mode
         # Catches import-time and ASGI wiring breakage that the unit tests miss,
-        # since Render runs this path and nothing else exercises it.
+        # since Render runs this path and nothing else exercises it. This step
+        # caught a NameError during the Phase 2 split that every test missed.
         run: python -c "from lismore_da_mcp.server import build_http_app; build_http_app()"
         env:
           MCP_TRANSPORT: http
+
+      - name: Check the search index builds
+        # render.yaml runs this at deploy time; if it breaks, search silently
+        # degrades to a full scan (~8s a query) rather than failing loudly.
+        run: python -m lismore_da_mcp.index
