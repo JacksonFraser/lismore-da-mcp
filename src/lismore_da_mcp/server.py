@@ -54,6 +54,7 @@ from lismore_da_mcp.see.parsers import (
 )
 from lismore_da_mcp.search import (
     STOPWORDS,
+    search_all,
     _query_tokens,
     _score_lines,
     extract_document_section,
@@ -1045,14 +1046,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 text=json.dumps({"error": "Documents directory not found"})
             )]
 
-        # Search across all planning document categories, not just dcp/ — a query about
+        # Searches all planning document categories, not just dcp/ — a query about
         # e.g. flood clauses, exempt development or heritage schedules may only be
-        # answerable from lep/, exempt-development/ or forms/.
-        all_results = []
-        for path in searchable_documents(chapter):
-            all_results.extend(search_document(path, query))
+        # answerable from lep/, exempt-development/ or forms/. Uses the FTS index
+        # when present and falls back to a full scan when it isn't.
+        top_results = search_all(query, chapter)
 
-        if not all_results:
+        if not top_results:
             return [TextContent(
                 type="text",
                 text=json.dumps({
@@ -1062,10 +1062,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 }, indent=2)
             )]
 
-        # Re-rank globally across every document searched, then drop the
-        # internal score before returning it.
-        all_results.sort(key=lambda r: r.get("score", 0), reverse=True)
-        top_results = all_results[:10]
+        # Drop the internal ranking score before returning.
         for r in top_results:
             r.pop("score", None)
 
