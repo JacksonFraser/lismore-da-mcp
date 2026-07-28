@@ -29,6 +29,14 @@ from lismore_da_mcp.config import (
     SEE_TEMPLATE_PATH,
 )
 from lismore_da_mcp.landuse import canonical_use, classify_land_use, match_land_use
+from lismore_da_mcp.vocabulary import (
+    DEFINITION_SYNONYMS,
+    MINOR_DEVELOPMENT_SYNONYMS,
+    PARKING_SYNONYMS,
+    SEE_SECTION_SYNONYMS,
+    resolve,
+    unresolved_error,
+)
 from lismore_da_mcp.transport import _RateLimitMiddleware, build_http_app, run, run_http
 from lismore_da_mcp.see.fill import fill_see_pdf
 from lismore_da_mcp.see.generate import generate_see_form_data
@@ -925,8 +933,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return [TextContent(type="text", text=json.dumps(argument_error, indent=2))]
 
     if name == "get_parking_rates":
-        dev_type = arguments.get("development_type", "").lower().replace(" ", "_")
-        if dev_type in PARKING_RATES:
+        requested = arguments.get("development_type", "")
+        match = resolve(requested, PARKING_RATES, PARKING_SYNONYMS)
+        if match:
+            dev_type = match.key
             result = PARKING_RATES[dev_type]
             response = {
                 "development_type": dev_type,
@@ -935,6 +945,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 "source": "Lismore DCP Chapter 7 - Off-Street Carparking",
                 "note": "Rates may vary by location. Check specific DCP provisions for exact requirements."
             }
+            if match.how != "exact":
+                response["interpreted_as"] = (
+                    f"Read '{requested}' as '{dev_type}'. If that is not the use you meant, "
+                    "call again with a term from list_parking_types."
+                )
 
             # Turn the rate into a number where the inputs allow it, so a shortfall
             # gets stated rather than left as an exercise for the reader.
@@ -958,24 +973,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
         else:
-            # Try partial match
-            matches = [k for k in PARKING_RATES.keys() if dev_type in k or k in dev_type]
-            if matches:
-                return [TextContent(
-                    type="text",
-                    text=json.dumps({
-                        "error": f"Exact match not found for '{dev_type}'",
-                        "similar_types": matches,
-                        "suggestion": "Try one of the similar types listed above"
-                    }, indent=2)
-                )]
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    "error": f"Development type '{dev_type}' not found",
-                    "available_types": list(PARKING_RATES.keys())
-                }, indent=2)
-            )]
+            # No rate for this use. Say so rather than offering the closest
+            # string — a hairdresser given warehouse rates is a wrong answer,
+            # not a helpful approximation.
+            error = unresolved_error(requested, match, "parking rate", PARKING_RATES)
+            error["note"] = (
+                "Chapter 7 sets rates by land use category, so an unlisted business usually "
+                "falls under a broader term (a hairdresser is generally 'shop' or "
+                "'business premises'). Confirm the correct category with Council rather than "
+                "assuming the nearest-sounding one."
+            )
+            return [TextContent(type="text", text=json.dumps(error, indent=2))]
 
     elif name == "get_zone_info":
         zone_code = arguments.get("zone_code", "").upper()
@@ -1230,32 +1238,32 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
     elif name == "get_definition":
         raw_term = arguments.get("term", "")
-        key = raw_term.strip().lower().replace(" ", "_").replace("-", "_")
+        match = resolve(raw_term, LAND_USE_DEFINITIONS, DEFINITION_SYNONYMS)
 
-        if key in LAND_USE_DEFINITIONS:
-            entry = LAND_USE_DEFINITIONS[key]
-            return [TextContent(
-                type="text",
-                text=json.dumps({
-                    **entry,
-                    "source": "Standard Instrument (Local Environmental Plans) Order 2006 — Dictionary, as carried into Lismore LEP 2012",
-                    "caveat": "Paraphrased for readability. Definitions can be amended — verify against the current Lismore LEP 2012 Dictionary before relying on this for a formal submission."
-                }, indent=2)
-            )]
+        if match:
+            entry = LAND_USE_DEFINITIONS[match.key]
+            result = {
+                **entry,
+                "source": "Standard Instrument (Local Environmental Plans) Order 2006 — Dictionary, as carried into Lismore LEP 2012",
+                "caveat": "Paraphrased for readability. Definitions can be amended — verify against the current Lismore LEP 2012 Dictionary before relying on this for a formal submission."
+            }
+            if match.how != "exact":
+                # The planning term is often not the word the applicant used, and
+                # which term applies decides permissibility — so name the swap.
+                result["interpreted_as"] = (
+                    f"'{raw_term}' is not itself a defined term; answered with "
+                    f"'{entry['term']}', the Standard Instrument term it usually corresponds to. "
+                    "Use that term in a DA, and confirm it fits your proposal."
+                )
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
-        # Try substring match against term keys/labels for near-misses
-        matches = [
-            v["term"] for k, v in LAND_USE_DEFINITIONS.items()
-            if key in k or any(w in k for w in key.split("_") if len(w) >= 3)
-        ]
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": f"No definition found for '{raw_term}'",
-                "similar_terms": matches,
-                "available_terms": [v["term"] for v in LAND_USE_DEFINITIONS.values()]
-            }, indent=2)
-        )]
+        error = unresolved_error(raw_term, match, "definition", LAND_USE_DEFINITIONS)
+        error["note"] = (
+            "Only terms with a Standard Instrument definition are listed. Everyday words for "
+            "building elements (deck, shed, fence) are not separately defined — they are "
+            "assessed as part of the development they belong to."
+        )
+        return [TextContent(type="text", text=json.dumps(error, indent=2))]
 
     elif name == "check_permissibility":
         land_use = arguments["land_use"].strip()
@@ -1441,17 +1449,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 "usage": "Use these headings and prompts to structure your Statement of Environmental Effects",
                 "source": "Based on EP&A Regulation Schedule 1 and Lismore Council requirements"
             }
-        elif section in SEE_TEMPLATES:
-            result = {
-                "section": section,
-                "template": SEE_TEMPLATES[section],
-                "source": "Based on EP&A Regulation Schedule 1 and Lismore Council requirements"
-            }
         else:
-            result = {
-                "error": f"Section '{section}' not found",
-                "available_sections": list(SEE_TEMPLATES.keys())
-            }
+            match = resolve(section, SEE_TEMPLATES, SEE_SECTION_SYNONYMS)
+            if match:
+                result = {
+                    "section": match.key,
+                    "template": SEE_TEMPLATES[match.key],
+                    "source": "Based on EP&A Regulation Schedule 1 and Lismore Council requirements"
+                }
+                if match.how != "exact":
+                    result["interpreted_as"] = f"Read '{section}' as section '{match.key}'."
+            else:
+                result = unresolved_error(section, match, "SEE section", SEE_TEMPLATES)
 
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
