@@ -68,16 +68,43 @@ class TestSchemaDoesNotBlockAcceptedInput:
         assert payload["success"] is False
         assert "generate_see_draft" in payload["blocking_issues"][0]
 
-    def test_no_enum_narrower_than_its_tool_resolves(self):
-        """Any argument the vocabulary layer resolves must not also carry an enum
-        — the enum wins, and the resolution becomes unreachable."""
-        resolved_arguments = {"minor_development_type", "development_type", "setback_type"}
-        offenders = []
-        for name, tool in registered().items():
-            for argument, spec in tool.schema.get("properties", {}).items():
-                if argument in resolved_arguments and "enum" in spec:
-                    offenders.append(f"{name}.{argument}")
-        assert offenders == []
+    def test_no_tool_declares_an_enum(self):
+        """No enums anywhere, deliberately.
+
+        Every handler here normalises or resolves its own inputs and refuses with
+        a message that names the valid values and, where relevant, points at the
+        right tool instead. A schema enum runs *before* the handler and is
+        strictly less capable, so it can only ever reject input the handler would
+        have accepted.
+
+        Two bugs came from exactly that:
+
+          * `minor_development_type` had an enum, so "shed" and "carport" were
+            rejected and the vocabulary resolution was unreachable over the real
+            transport, while every direct-call test passed.
+          * `plan_type` had `['DP','SP','CP']`, so `"dp"` was rejected even though
+            the parser upper-cases it.
+
+        An earlier version of this test checked a hardcoded list of arguments and
+        missed the second one. Ban the construct instead of listing its victims.
+        """
+        offenders = [
+            f"{name}.{argument}"
+            for name, tool in registered().items()
+            for argument, spec in tool.schema.get("properties", {}).items()
+            if "enum" in spec
+        ]
+        assert offenders == [], (
+            "Schema enums gate values before the handler runs. State the valid "
+            "values in the description and let the handler resolve and refuse."
+        )
+
+    @pytest.mark.parametrize("value", ["DP", "dp", "Dp", "sp"])
+    def test_plan_type_case_is_normalised_not_rejected(self, value):
+        is_error, text = through_sdk("preview_see_form", {
+            **MINIMAL_SEE, "minor_development_type": "shed", "plan_type": value,
+        })
+        assert not is_error, text
 
 
 class TestOrdinaryCallsStillWork:
