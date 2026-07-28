@@ -387,7 +387,7 @@ Pinned as a strict xfail in `test_fees.py::TestPartThousandRounding`. Added belo
 | 1.2 | Reconcile `CLAUDE.md` with reality | ✅ | Removed RU4/RU6/C4/E5; recorded the 21-zone set |
 | 1.3 | Add SEPP caveat to prohibited/not-found results | ✅ | `scope_of_this_answer`, on refusals only |
 | 1.4 | Encode high-traffic SEPP pathways | ⏸️ **deferred** | Needs planner review — see below |
-| 1.5 | Tag documents with instrument; label LEP 2000 as superseded | ☐ | U8, still open |
+| 1.5 | Tag documents with instrument; label LEP 2000 as superseded | ✅ | `data/instruments.py` |
 | 1.6 | `get_da_checklist` refuses unknown types | ✅ | Still returns the universal documents |
 | 1.7 | Add effective dates to responses | ◐ partial | Done for fees; zone/DCP responses still undated |
 | 1.8 | Round the fee increment up per part-$1,000 | ✅ | Schedule now data-driven, not a chain of `elif` |
@@ -420,6 +420,24 @@ list reads `"Aquaculture Boat launching ramps"` with the separating semicolon mi
 lost when the page was scraped. Both are standard defined terms, so it was split on transcription.
 **Assume other extracts may carry similar defects** — transcribe by reading, not by trusting the
 delimiter.
+
+### 1.5 — instrument labelling
+
+Every search hit, document listing and section read now names its instrument, and the four LEP 2000
+chapters carry a warning pointing at the current control.
+
+The wording is deliberately not "superseded" full stop: **LEP 2000 is not repealed**. It still
+applies to areas under Ministerial review for the former E2/E3 zones, so a LEP 2000 hit is usually
+the wrong control and occasionally exactly the right one. Flagged rather than hidden.
+
+Classification was verified rather than assumed — each PDF was scanned for its own *"applying to
+land to which LEP 20xx applies"* header. Every document that self-identifies says LEP 2012; none
+says LEP 2000, so the LEP 2000 set rests on the download naming convention, corroborated by each
+having a LEP 2012 counterpart of the same chapter number.
+
+One detail worth keeping: **chapter 14 changed title between instruments** — "Tree Preservation
+Order" under LEP 2000, "Vegetation Protection" under LEP 2012. So the counterpart cannot be found
+by name, which is why the warning points at the chapter *number*.
 
 ### Why 1.4 is deferred
 
