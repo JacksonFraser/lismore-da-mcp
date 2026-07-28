@@ -118,6 +118,68 @@ def search_document(path: Path, query: str, max_results: int = 5) -> list[dict]:
         return search_text_file(path, query, max_results)
     return search_pdf(path, query, max_results)
 
+def search_all(
+    query: str, chapter: str = "", max_results: int = 10, per_document: int = 5
+) -> list[dict]:
+    """Search every document, using the FTS index when one is available.
+
+    Falls back to a full scan when the index is missing or unreadable, so the
+    server still answers — just slowly — rather than failing. Results are the
+    same either way: the index only narrows which segments get scored, and a line
+    can only score above zero if its segment contains a query token.
+    """
+    tokens = _query_tokens(query)
+    if not tokens:
+        return []
+
+    from lismore_da_mcp.index import lookup
+
+    candidates = lookup(tokens, chapter)
+    if candidates is None:
+        results = []
+        for path in searchable_documents(chapter):
+            results.extend(search_document(path, query))
+        results.sort(key=lambda r: r.get("score", 0), reverse=True)
+        return results[:max_results]
+
+    # FTS5 returns matching segments in its own order. Scores tie constantly —
+    # every hit on a single-token query scores 1 — so the order candidates are
+    # visited decides which survive the per-document cap and the global top-N.
+    # Sort into the same order a full scan walks them (documents as
+    # searchable_documents lists them, then page/segment number) so the two paths
+    # cannot disagree.
+    document_order = {p.name: i for i, p in enumerate(searchable_documents(chapter))}
+    candidates = sorted(
+        candidates,
+        key=lambda row: (document_order.get(row[0], len(document_order)), row[3]),
+    )
+
+    per_file: dict[str, list[dict]] = {}
+    for file_name, _category, kind, number, body in candidates:
+        for i, score, matched, context in _score_lines(body.split("\n"), tokens, query):
+            if kind == "page":
+                where = {"page": number, "location": f"page {number}"}
+            else:
+                where = {"line": i + 1, "location": f"line {i + 1}"}
+            per_file.setdefault(file_name, []).append(
+                {"score": score, "matched_terms": matched, **where,
+                 "context": context, "file": file_name}
+            )
+
+    # A full scan caps each document at `per_document` hits before ranking
+    # globally, which keeps one large document from filling every slot — the LEP
+    # text alone would otherwise take 9 of 10 for a query like "acid sulfate
+    # soils". Reproduced here so the index changes speed and nothing else.
+    results = []
+    for file_name in per_file:
+        hits = per_file[file_name]
+        hits.sort(key=lambda r: r["score"], reverse=True)
+        results.extend(hits[:per_document])
+
+    results.sort(key=lambda r: r.get("score", 0), reverse=True)
+    return results[:max_results]
+
+
 def searchable_documents(chapter: str = "") -> list[Path]:
     """Every searchable document across all categories, optionally filtered by filename."""
     paths = []

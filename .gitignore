@@ -13,3 +13,7 @@ _quarantined/
 
 # The repo owner's own real business/address details.
 my-application/
+
+# Built at deploy time from documents/; rebuilt automatically if absent.
+.search-index.sqlite3
+*.sqlite3.building

@@ -3,7 +3,11 @@ services:
     name: lismore-da-mcp
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    # The search index is built at deploy time rather than on first request, so
+    # that no user pays the ~8s extraction cost. It lands in the build's
+    # filesystem, which the running instance keeps. If this step is ever skipped
+    # the server still answers — search falls back to a full scan.
+    buildCommand: pip install -r requirements.txt && PYTHONPATH=src python -m lismore_da_mcp.index
     startCommand: python -m lismore_da_mcp.server
     envVars:
       - key: MCP_TRANSPORT
