@@ -456,6 +456,11 @@ def _see_form(arguments: dict, name: str):
             ticks[label] = "Yes" if value else "No" if value is False else "— unanswered"
 
         return [TextContent(type="text", text=json.dumps({
+            # Present on both paths. This tool used to return success=False when
+            # it refused and omit the key entirely when it worked, so a caller
+            # checking response["success"] saw None on the happy path and could
+            # reasonably read it as failure.
+            "success": True,
             "summary": summary,
             "text_fields": {
                 key: value for key, value in form_data.items()

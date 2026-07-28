@@ -223,6 +223,11 @@ class TestKnownGaps:
         result = call("check_permissibility", {"zone_code": "R2", "land_use": "dwelling houses"})
         assert "scope_of_this_answer" not in result
 
-    @pytest.mark.xfail(strict=True, reason="success key absent on happy path; IMPROVEMENT_PLAN 3.5")
     def test_preview_see_form_always_reports_success(self, call):
-        assert "success" in call("preview_see_form", VALID_ARGS["preview_see_form"])
+        """Same tool, same key on both paths — it previously returned
+        success=False when it refused and omitted the key when it worked."""
+        assert call("preview_see_form", VALID_ARGS["preview_see_form"])["success"] is True
+
+    def test_preview_see_form_reports_failure_the_same_way(self, call):
+        out_of_scope = {**VALID_ARGS["preview_see_form"], "minor_development_type": "shopping centre"}
+        assert call("preview_see_form", out_of_scope)["success"] is False
