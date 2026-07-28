@@ -306,3 +306,70 @@ class TestSetbackRequirements:
 
     def test_unknown_setback_type_refused(self, call):
         assert "error" in call("get_setback_requirements", {"setback_type": "diagonal"})
+
+
+class TestSeeMinimalCall:
+    """The SEE tools declare 34-35 properties, which reads as a heavy surface.
+    Only eight are required: the address and lot/DP components are parsed out of
+    property_address and lot_dp, and the rest refine the answer.
+
+    Nothing guarded that before, and the schema actively steered callers the
+    other way — property_address said "prefer the separate unit/street_number/
+    street/suburb fields". These tests pin the derivation so the composites stay
+    a complete call.
+    """
+
+    MINIMAL = {
+        "applicant_name": "A Person",
+        "minor_development_type": "shed",
+        "property_address": "Shop 3, 88 Keen Street, Lismore NSW 2480",
+        "lot_dp": "Lot 12 Section 3 DP 758651",
+        "zone_code": "R2",
+        "proposed_use": "dwelling house",
+        "development_type": "dwelling",
+        "floor_area_sqm": 40,
+    }
+
+    def test_required_arguments_alone_produce_a_form(self, call):
+        assert call("preview_see_form", self.MINIMAL)["success"] is True
+
+    @pytest.mark.parametrize("field,expected", [
+        ("address_number", "Shop 3 88"),   # one box on the form for tenancy + number
+        ("street_name", "Keen Street"),
+        ("suburb", "Lismore"),
+        ("lot", "12"),
+        ("dp", "758651"),
+        ("section", "3"),
+    ])
+    def test_components_are_derived_from_the_composites(self, call, field, expected):
+        fields = call("preview_see_form", self.MINIMAL)["text_fields"]
+        assert fields[field] == expected
+
+    def test_explicit_components_still_override(self, call):
+        """The granular fields remain the correction path when a parse is wrong."""
+        fields = call("preview_see_form", {
+            **self.MINIMAL, "street": "Molesworth Street", "suburb": "Goonellabah",
+        })["text_fields"]
+        assert fields["street_name"] == "Molesworth Street"
+        assert fields["suburb"] == "Goonellabah"
+
+    def test_schema_marks_derived_fields_as_overrides(self):
+        """A caller reading the schema must be able to tell which of the 34 are
+        needed and which merely refine."""
+        import lismore_da_mcp.server  # noqa: F401  (registers tools)
+        from lismore_da_mcp.registry import get
+
+        properties = get("preview_see_form").schema["properties"]
+        derived = ("unit", "street_number", "street", "suburb",
+                   "lot", "plan_type", "plan_number", "section")
+        unmarked = [f for f in derived if "Optional override" not in properties[f]["description"]]
+        assert unmarked == []
+
+    def test_composite_descriptions_do_not_push_callers_to_the_components(self):
+        import lismore_da_mcp.server  # noqa: F401
+        from lismore_da_mcp.registry import get
+
+        properties = get("preview_see_form").schema["properties"]
+        for field in ("property_address", "lot_dp"):
+            assert "Prefer the separate" not in properties[field]["description"]
+            assert "normally all that is needed" in properties[field]["description"]
