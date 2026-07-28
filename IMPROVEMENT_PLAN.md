@@ -1,6 +1,24 @@
 # Lismore DA MCP Server — Evaluation & Improvement Plan
 
-Evaluation date: 2026-07-27. Against commit `dd84164` (`main`).
+> ## Status: 2026-07-28 — the plan is essentially done
+>
+> Original evaluation 2026-07-27 against `dd84164`. Everything below is preserved as written,
+> **including the findings that later turned out to be wrong**, because how they were wrong is the
+> most useful thing in this document. Corrections are marked at each finding.
+>
+> | | Then | Now |
+> |---|---|---|
+> | Tests | 0 | **429**, zero xfails |
+> | CI | none | 3.10 + 3.13, plus HTTP-app and index-build checks |
+> | `server.py` | 4,185 lines | **143** |
+> | Hosted search | 16–26s | **0.24–0.69s** |
+> | Logging | none | per-call, applicant data structurally excluded |
+> | Server instructions | `None` | shipped to every connecting agent |
+>
+> **Read [What this process taught](#what-this-process-taught) before using the findings below as a
+> specification.** Three were wrong and a fourth thing was missed entirely.
+>
+> Remaining items are decisions, not defects. See [What's left](#whats-left).
 
 Two evaluations — **user perspective** (what an applicant or an LLM acting for one
 experiences) and **technical perspective** (what maintaining and running this costs) — followed
@@ -12,6 +30,9 @@ legal/planning claim rather than a code observation it is marked **[verify with 
 ---
 
 ## Executive summary
+
+*(As written on 2026-07-27. Points 1 and 3 have since been addressed; point 1's headline number was
+also wrong — four zones, not ten. Kept for the record.)*
 
 The server is more thoughtfully built than its single-file shape suggests. Argument validation
 refuses rather than guesses, retired zone codes return proper redirects, the public HTTP mode has
@@ -35,6 +56,12 @@ specifically so the structural split can be verified rather than hoped at.
 # Part 1 — User perspective
 
 ## U1. Ten real zones are missing, including all rural zones — **critical**
+
+> ⚠️ **Wrong: four were missing, not ten.** RU4, RU6, R4, E5, C4 and SP1 exist in the Standard
+> Instrument but have no land use table in Lismore LEP 2012 and do not apply here — the LEP says so
+> itself in a note to clause 4.2. The error came from comparing `ZONES` against a generic zone list
+> rather than against Lismore's actual LEP. The *impact* claim held: the four genuinely missing were
+> RU1, RU2, RU3 and W2, i.e. every rural zone except RU5. Fixed in 1.1.
 
 ```
 get_zone_info("RU1") → "Zone 'RU1' not found"
@@ -137,6 +164,12 @@ bites.
 
 ## U6. The SEE tools take 34–35 parameters
 
+> ⚠️ **The recommendation below was already implemented.** Composites were already required and the
+> components already optional overrides — a call with only the eight required arguments works and
+> derives everything. The real defect was the opposite: the schema said *"Prefer the separate
+> unit/street_number/street/suburb fields"*, steering callers away from parsers that worked. Fixed
+> in 3.4 by inverting the guidance. Counting parameters and inferring a problem was the mistake.
+
 `fill_see_pdf` has 35 properties, `preview_see_form` 34, `generate_see_draft` 17. That is a lot of
 surface for a caller to populate correctly, and the fields are heavily correlated (`property_address`
 alongside `unit`, `street_number`, `street`, `suburb`; `lot_dp` alongside `lot`, `plan_type`,
@@ -147,6 +180,12 @@ components. Consider accepting the composite fields and deriving the rest, with 
 fields as optional overrides.
 
 ## U7. Setback advice ignores the things setbacks depend on
+
+> ⚠️ **Premise partly wrong: setbacks do not depend on zone.** DCP Chapter 1 applies by development
+> type — "residential development, including ancillary structures such as sheds, pools and garages",
+> wherever it occurs. Gating on zone, as suggested below, would have refused valid questions about
+> a dwelling in RU5 or MU1. What the controls *do* depend on is lot configuration (front) and
+> storeys (side, rear), neither of which the tool took. Fixed in 3.6.
 
 `get_setback_requirements(setback_type, development_type)` — no zone, no lot size, no street
 frontage, no adjoining development. `CLAUDE.md` states setbacks depend on zone, lot size and
@@ -697,6 +736,9 @@ was caught only by timing the endpoint.
 
 ## Suggested order
 
+*(Followed as written. Phase 0 before Phase 2 proved correct — the split broke the HTTP transport
+and only a test written in Phase 0 caught it.)*
+
 **Phase 0 → 1 → 2 → 3 → 4 → 5**, with two deviations worth considering:
 
 - **5.3** (dead code) is 15 minutes and can ride along with anything.
@@ -704,6 +746,62 @@ was caught only by timing the endpoint.
   the test suite. If only one thing gets done, do that.
 
 Phase 2 genuinely should wait for Phase 0. Everything else can be reordered to taste.
+
+---
+
+## What this process taught
+
+The most transferable content in this document is not the findings — it is how several of them were
+wrong, and what actually caught the bugs.
+
+### Three findings were wrong, and checking the source produced better work each time
+
+| Finding | Claimed | Actually |
+|---|---|---|
+| **U1** | Ten zones missing | Four. Six of the ten do not exist in Lismore at all |
+| **U7** | Setbacks depend on zone | They depend on development type; zone-gating would have refused valid questions |
+| **U6** | Collapse composites into components | Already implemented; the defect was the schema steering callers *away* from it |
+
+In each case implementing the plan as written would have made the server worse. **Treat the
+findings below as leads to verify, not a specification.** Read the LEP, the DCP chapter, or the
+schema before acting on a claim about it.
+
+### The two worst bugs were invisible to the test suite
+
+Both were features that worked only when called the way the tests called them.
+
+1. **`build_http_app()` raised `NameError`** after the Phase 2 split. All 216 tests passed; nothing
+   exercised the HTTP path. Caught by the CI import check added in Phase 0.
+2. **`minor_development_type` carried a schema `enum`**, so the plain-wording resolution shipped in
+   3.1/3.2 was dead in production — `"shed"` was rejected before the handler ran. All 394 tests
+   passed. Caught by a user trying the tool with `curl`.
+
+The common cause: tests invoked `call_tool()` directly, bypassing the MCP SDK's schema validation.
+`tests/test_transport_dispatch.py` now goes through the real request handler, and a guard bans
+schema enums outright — the second instance (`plan_type`, where `"dp"` was rejected despite the
+parser upper-casing it) was found by sweeping for siblings rather than by waiting for a report.
+
+**Test through the real entry point.** A green suite proved nothing about either bug.
+
+### Guard the class, not the instance
+
+The first enum fix shipped with a test checking a hardcoded list of arguments. It missed
+`plan_type` immediately. The replacement bans the construct. Same pattern elsewhere: the instrument
+registry test fails if a `-lep2000` file is added *or* removed; the instructions test reads the zone
+count out of `ZONES` rather than asserting a literal.
+
+### Refusing to guess is a feature
+
+Several tools now return "no rate for that" or "supply storeys" instead of a plausible default.
+`hairdresser` gets no parking rate because Chapter 7 has none — quoting warehouse rates would be a
+wrong answer wearing a helpful face. For something an applicant may rely on, an honest gap beats a
+confident invention. The server instructions tell connecting agents not to paper over these.
+
+### Deploy status is not deployment
+
+`render.yaml` never drove the live service — it was created from the dashboard, so the file is
+inert. An index-build step added there silently never ran; the deploy reported `live`, `/health`
+returned 200, and every search quietly took 24s. **Only timing the real endpoint revealed it.**
 
 ## Server instructions (added 2026-07-28, not from the original evaluation)
 
@@ -725,9 +823,72 @@ brief it, not to build a worse orchestrator inside the server.
 factual claims still match the data (the zone count is read from `ZONES`, the retired-code
 redirects are checked against it, and every tool named must still be registered).
 
+## What's left
+
+Nothing outstanding is a defect. Each is a decision.
+
+### 1. Address → zone lookup — the biggest remaining gap
+
+**Five tools require `zone_code`** and nothing derives it. The intended audience is people applying
+for the first time, who know their address and not their zone — so the server cannot answer the
+first question anyone asks. The SEE tools take `property_address` *and* `zone_code` and never
+cross-check them, so a wrong zone silently produces a wrong SEE.
+
+Proven feasible on 2026-07-28 against two free, unauthenticated APIs:
+
+```
+12 Keen Street, Lismore       → E2 Commercial Centre
+43 Oliver Avenue, Goonellabah → RE1 Public Recreation
+1 Cullen Street, Nimbin       → RU1 Primary Production
+```
+
+NSW Spatial Services geocodes the address (`maps.six.nsw.gov.au`); the ePlanning ArcGIS layer
+returns the zone with `EPI_NAME` confirming the instrument
+(`mapprod3.environment.nsw.gov.au/arcgis/.../Planning_Portal_Principal_Planning/MapServer/19`).
+Sibling **Hazard** and **Heritage** layers would turn `is_flood_affected` and `is_heritage` from
+caller assertions into checks.
+
+**The decision:** this server is currently self-contained and works offline. A live API introduces
+network failure modes, latency and outbound traffic from the hosted instance. Recommend making it
+optional so failure degrades to today's behaviour.
+
+**Design notes if built:** echo the matched address back so a wrong match is visible; handle split
+zoning — the query returns *features*, plural, and LEP clause 4.2E exists precisely for lots
+spanning zones.
+
+### 2. SEPP pathways (1.4) — needs a planner, not a developer
+
+`check_permissibility` reads the LEP land use table and now says so on every refusal. Encoding the
+pathways means tracking amendments across at least four policies, and getting it wrong yields
+confident advice that a use *is* permitted — worse than the present gap, which errs toward "check
+with Council".
+
+### 3. Argument naming (3.3) — breaking, evidence-backed
+
+Seven names for "the thing you're asking about". The evidence: **four of seven guessed wrong in a
+single batch with the source open.** An LLM caller does worse, and `validate_arguments` turns each
+near-miss into a hard failure. Fixable non-breakingly with the alias pattern already used for
+`development_type` and `plan_type`.
+
+### 4. SEE parameter grouping (3.4, remainder) — breaking
+
+Nesting the 26 optional arguments into `address_parts`, `land_parts`, `site_constraints`,
+`operation_details` would take 34 top-level to about 18. Cannot be cleanly aliased: keeping both
+forms pushes the count to ~40 while the schema is being read.
+
+### 5. Auto-deploy (5.5) — blocked
+
+Three pushes to `main` produced no deploy. The service is dashboard-created rather than
+Blueprint-created, so there is no webhook. Needs the Render GitHub App linked to the repo —
+check <https://github.com/settings/installations>. Until then every deploy is
+`render deploys create srv-d9jibcb7uimc739lnv60`.
+
 ## Open questions
 
-1. Should `check_permissibility` attempt SEPP reasoning at all, or explicitly scope itself to the
-   LEP and say so loudly? Encoding SEPPs is a large, ongoing maintenance commitment.
-2. Is the public hosted server intended to stay unauthenticated as usage grows?
-3. Are the LEP 2000 documents still needed, or can they move to an archive directory?
+1. Is the public hosted server intended to stay unauthenticated as usage grows? The in-process
+   limiter is best-effort and per-instance.
+2. Are the LEP 2000 documents still needed, or can they move to an archive directory now that
+   results are labelled?
+3. Should the server expose MCP **prompts**? For a first-time applicant, an offered starting point
+   ("Help me work out if I need a DA") may beat a blank prompt — a smaller version of the same
+   reasoning behind the server instructions.
