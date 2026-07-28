@@ -135,5 +135,19 @@ def record_index_state(status: str, segments: int | None = None) -> None:
     logger.info(message)
 
 
+def record_document_error(operation: str, document: str, error_type: str, detail: str) -> None:
+    """A document could not be read.
+
+    Document names are safe to log — they are public planning documents, not
+    applicant material. Before logging existed, a PDF that failed to open was
+    indistinguishable from one containing no matches, so a silently unsearchable
+    document could sit there indefinitely.
+    """
+    logger.error(
+        f"event=document_error operation={operation} document={document} "
+        f"error_type={error_type} detail={detail!r}"
+    )
+
+
 def record_startup(transport: str) -> None:
     logger.info(f"event=startup transport={transport}")

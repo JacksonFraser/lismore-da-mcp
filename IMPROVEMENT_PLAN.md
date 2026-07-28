@@ -575,11 +575,27 @@ the 22 seconds.
 | # | Task | Effort | Notes |
 |---|---|---|---|
 | 5.1 | Structured logging: tool name, duration, outcome — never applicant data | ✅ | `observability.py` |
-| 5.2 | Evict idle IPs from the rate limiter | 1h | T6 |
-| 5.3 | Remove dead `fee_unit` and `Resource` import | 0.25h | T7 |
-| 5.4 | Narrow broad `except Exception`; distinguish "no match" from "read failed" | 2h | T8 |
+| 5.2 | Evict idle IPs from the rate limiter | ✅ | Amortised sweep every 5 min |
+| 5.3 | Remove dead code | ✅ | Both already gone; removed 5 imports the refactors left |
+| 5.4 | Narrow broad `except Exception` | ✅ | Found a real bug — see below |
 | 5.5 | Fix Render auto-deploy (GitHub App linkage) | — | Deferred; three pushes to `main` have not triggered a deploy |
 | 5.6 | Trim AustLII nav chrome from the four `.txt` extracts | 1h | Minor search noise |
+
+### 5.4 — a real bug behind the style issue
+
+`search_pdf` caught `Exception` and returned `[{"error": ...}]`. `search_all` merged that into the
+result list, where it sorted as a scoreless entry and could be returned to the caller as a search
+hit **with no file, location or context** whenever a query had fewer than ten real matches.
+Confirmed by running a search against a deliberately corrupt PDF.
+
+An unreadable document now contributes no hits and the failure goes to the log. `read_dcp_section`
+still reports the error to the caller, because there the caller named that document and the failure
+*is* the answer.
+
+Catches are narrowed to `(OSError, RuntimeError, ValueError)` — PyMuPDF's `FileDataError`,
+`EmptyFileError` and `FileNotFoundError` all subclass `RuntimeError`. A `TypeError` in the scorer is
+a bug in this code and now surfaces as one instead of being reported as an unreadable document;
+there is a test asserting that.
 
 ### 5.1 — logging
 
