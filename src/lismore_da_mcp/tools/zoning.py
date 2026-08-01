@@ -4,6 +4,8 @@ import json
 
 from mcp.types import TextContent
 
+from lismore_da_mcp.addresses import lookup_constraints
+from lismore_da_mcp.addresses import lookup_zone
 from lismore_da_mcp.data.definitions import LAND_USE_DEFINITIONS
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.landuse import canonical_use
@@ -18,7 +20,7 @@ from lismore_da_mcp.vocabulary import unresolved_error
     name='get_zone_info',
     description='Get information about a zoning classification in Lismore LEP 2012, including objectives, permitted uses, and development standards.',
     properties={
-        'zone_code': {'type': 'string', 'description': "Zone code (e.g., 'R1', 'R2', 'R3', 'B2', 'B3', 'IN1', 'RU5')"},
+        'zone_code': {'type': 'string', 'description': "Zone code under Lismore LEP 2012, e.g. 'R2', 'E2', 'MU1', 'RU5'. The B and IN series were retired in 2023 — they still resolve, but they redirect."},
     },
     required=['zone_code'],
 )
@@ -38,9 +40,67 @@ def get_zone_info(arguments: dict):
             type="text",
             text=json.dumps({
                 "error": f"Zone '{zone_code}' not found",
-                "available_zones": list(ZONES.keys())
+                # Current zones only. Offering the six retired B/IN entries here
+                # invited the caller to pick one — they exist to redirect a code
+                # someone already has, not to be chosen from a menu.
+                "available_zones": [k for k in ZONES if "redirect_to" not in ZONES[k]]
             }, indent=2)
         )]
+
+
+@tool(
+    name='lookup_zone_by_address',
+    description=(
+        'Find the LEP zone that applies to a street address. Use this first when the applicant '
+        'knows their address but not their zone code — several tools require zone_code and this '
+        'is the only thing that derives it. Needs a street number and a suburb or postcode. '
+        'Live lookup against NSW Government mapping; if it is unavailable the tool says so '
+        'rather than guessing.'
+    ),
+    properties={
+        'address': {'type': 'string', 'description': "Street address, e.g. '12 Keen Street, Lismore' or '43 Oliver Avenue Goonellabah 2480'"},
+    },
+    required=['address'],
+)
+def lookup_zone_by_address(arguments: dict):
+    result = lookup_zone(arguments["address"].strip())
+
+    # The state map can carry a code this server holds no land use table for —
+    # a deferred area, or a zone Lismore's LEP does not use. Saying so here is
+    # better than the caller passing it to check_permissibility and getting a
+    # bare "zone not found" with no explanation of where the code came from.
+    unknown = [
+        z["zone_code"] for z in result.get("zones", [])
+        if z["zone_code"] not in ZONES
+    ]
+    if unknown:
+        result["zones_not_held_by_this_server"] = unknown
+        result["note"] = (
+            f"The zoning map returned {', '.join(unknown)}, which has no land use table in "
+            "this server's copy of Lismore LEP 2012. The zone is real — confirm the "
+            "applicable controls with the Duty Planner."
+        )
+
+    return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+
+@tool(
+    name='lookup_site_constraints',
+    description=(
+        'Check what constrains a property, by address: maximum building height, minimum lot size, '
+        'heritage listing, bushfire prone land and flood mapping. Use this instead of asking the '
+        'applicant whether their site is heritage or bushfire affected — they usually do not know. '
+        'Note that the state flood layer holds no Lismore data, so this cannot rule flooding out; '
+        'it says so in the result.'
+    ),
+    properties={
+        'address': {'type': 'string', 'description': "Street address, e.g. '12 Keen Street, Lismore'"},
+    },
+    required=['address'],
+)
+def lookup_site_constraints(arguments: dict):
+    result = lookup_constraints(arguments["address"].strip())
+    return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
 
 @tool(

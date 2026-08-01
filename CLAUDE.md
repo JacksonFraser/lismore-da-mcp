@@ -75,6 +75,37 @@ and `extract_document_section()` dispatch PDF vs `.txt` behind it. PDFs are addr
 `.txt` extracts by line, and search results carry a `location` string that `read_dcp_section`
 accepts either way.
 
+**`addresses.py` is the only thing here that touches the network.** `lookup_zone_by_address`
+geocodes an address via NSW Spatial Services and reads the zone off the NSW ePlanning Land Zoning
+Map — the two free unauthenticated APIs behind the Planning Portal. Everything else answers
+offline. Three rules hold it together: nothing in the module raises (every failure returns a
+payload with `error` and a `fallback` telling the caller to read the zone off the Planning Portal
+by hand, so an outage restores the server's previous behaviour rather than breaking a tool);
+`LISMORE_ADDRESS_LOOKUP=off` disables it entirely; and **the geocoder's answer is verified, not
+trusted**. It matches loosely and silently — `99999 Keen Street` comes back as `387 Keen Street`,
+and a wrong suburb is ignored — both as `numRecs: 1`. `_verify_match()` re-checks number, road and
+suburb against the response, because a zone for the wrong property flows straight into
+`check_permissibility` and then into an SEE. Note it is a *point* query: a lot straddling a zone
+boundary reports only the zone under its address point, which the result's caveat states. Tests
+never hit the network — `tests/conftest.py` has an autouse fixture with canned responses; the live
+checks in `tests/test_addresses.py::TestLive` are opt-in via `LISMORE_LIVE_TESTS=1` and should be
+run after any change to the URLs or response fields.
+
+`lookup_site_constraints` queries the sibling layers at the same point — Height of Buildings (14),
+Minimum Lot Size (22), EPI Heritage (16), Bushfire Prone Land (Hazard 229) and Flood Planning
+(Hazard 230) — concurrently, since handlers run inline in the async dispatcher and five serial
+round trips would block it. One layer failing does not take the others with it. **The trap it
+exists to avoid: an empty layer result means either "not affected" or "this dataset does not cover
+this council", and those are opposite.** The state Flood Planning Map contains *zero features for
+the entire Lismore LGA*, so a naive reading reports the CBD — inundated in 2022 — as not flood
+affected. So an empty result triggers a per-layer coverage check (`LGA_NAME='LISMORE'`, cached per
+process), and an uncovered layer answers `unknown` with an explicit "this is not evidence the site
+is unaffected". Flood additionally always carries a Lismore-specific warning unless the site is
+positively flagged. Bushfire Prone Land has no `LGA_NAME` column, so its coverage was verified by
+hand instead (6,877 features across a Lismore bounding box, 2026-08-01). If you add a layer, add
+its coverage semantics too — reporting a mapping gap as an absence of constraint is the failure
+mode that matters here.
+
 **SEE PDF filling discovers geometry instead of hardcoding coordinates.** The Lismore template has
 no AcroForm fields, so `see_layout()` finds answer boxes (white-filled rects) and tick boxes
 (Wingdings glyphs U+F0A8 / U+F071) at fill time and sorts them into reading order.
@@ -254,19 +285,26 @@ prohibited or not-found result — do not report such a result as a settled refu
 
 ## Development Standards (Typical Values)
 
+⚠️ The figures below are indicative. For an actual site, `lookup_site_constraints` reads the
+height limit and minimum lot size straight off the NSW Height of Buildings and Minimum Lot Size
+maps by address — prefer it over these values, which vary block by block. It also returns heritage
+and bushfire status. (It does not read FSR; no tool does yet.)
+
 ### Height Limits
 - R1 General Residential: 8.5 metres
 - RU5 Village: 8.5 metres
-- Check Height of Buildings Map for site-specific limits
+- Site-specific limits come from `lookup_site_constraints` (e.g. 11.5m at 12 Keen Street, Lismore)
 
 ### Minimum Lot Sizes
 - R1 General Residential: Typically 400m² (varies by location)
 - RU5 Village: Varies (some areas 1 hectare)
-- Rural zones: 20 hectares typical (check Lot Size Map)
-- Check Minimum Lot Size Map for site-specific requirements
+- Rural zones: 20 hectares typical
+- Site-specific figures come from `lookup_site_constraints` — note it returns the map's own units,
+  which are hectares on rural land and square metres in town
 
 ### Floor Space Ratio (FSR)
-- Check Floor Space Ratio Map for applicable sites
+- Check Floor Space Ratio Map for applicable sites (layers 9/11 of the same ePlanning service —
+  not wired up)
 - Not all zones have FSR controls
 
 ### Clause 4.6 Variations

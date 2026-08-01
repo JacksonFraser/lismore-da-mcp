@@ -53,12 +53,14 @@ claude
 
 ## Available MCP Tools
 
-21 tools in total.
+23 tools in total.
 
 **Lookups**
 
 | Tool | Description |
 |------|-------------|
+| `lookup_zone_by_address` | Find the LEP zone applying to a street address (live NSW Government mapping lookup) |
+| `lookup_site_constraints` | Height limit, minimum lot size, heritage, bushfire and flood mapping for an address |
 | `get_zone_info` | Zone objectives, permitted uses, and development standards for an LEP 2012 zone |
 | `list_zones` | List all zone codes available in Lismore LEP 2012 |
 | `check_permissibility` | Check whether a specific land use is permitted (with/without consent) in a specific zone |

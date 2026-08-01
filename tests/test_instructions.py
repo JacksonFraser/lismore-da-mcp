@@ -1,6 +1,6 @@
 """Server instructions.
 
-A remote agent connecting to the hosted server receives these plus 21 tool
+A remote agent connecting to the hosted server receives these plus 23 tool
 descriptions, and nothing else. Everything an agent needs that it cannot infer
 from a schema — the order of work, and the caveats that must accompany planning
 advice — is here or is nowhere.
