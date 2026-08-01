@@ -8,7 +8,7 @@
 >
 > | | Then | Now |
 > |---|---|---|
-> | Tests | 0 | **496**, zero xfails |
+> | Tests | 0 | **500**, zero xfails |
 > | CI | none | 3.10 + 3.13, plus HTTP-app and index-build checks |
 > | `server.py` | 4,185 lines | **143** |
 > | Hosted search | 16–26s | **0.24–0.69s** |
@@ -825,7 +825,7 @@ redirects are checked against it, and every tool named must still be registered)
 
 ## What's left
 
-Nothing outstanding is a defect except where noted. Item 1 was taken up on 2026-08-01 and is
+Nothing outstanding is a defect (item 6 was one, and is fixed). Item 1 was taken up on 2026-08-01 and is
 now built; the rest stand as written.
 
 ### 1. Address → zone lookup — ✅ **BUILT 2026-08-01** (`addresses.py`, `lookup_zone_by_address`)
@@ -986,7 +986,40 @@ corrected rather than deleted.
 Verified end to end with a real mcp 2.0 client over both transports: initialize (instructions
 delivered), `tools/list` (23 tools, schemas intact), tool calls, and refusals.
 
-### 6. Auto-deploy (5.5) — blocked
+### 6. Blocking dispatch — ✅ **FIXED 2026-08-01**
+
+Not in the original evaluation, and the only item here that was a defect rather than a decision.
+
+Handlers are synchronous and were called inline inside the async `call_tool`, so each one held the
+single event loop thread for its whole duration. The public deployment therefore served **one
+caller at a time**, and `/health` — sharing that loop — stalled behind whatever tool was running.
+Measured with a 0.3s handler:
+
+```
+before:  1 call 0.30s | 5 concurrent 1.51s  (5.0x — serialised)
+after:   1 call 0.31s | 5 concurrent 0.30s  (1.0x)
+```
+
+It was always latent — PDF extraction and search are not instant — but the address tools made it
+serious: an unreachable upstream holds the loop for the full 8-second timeout, freezing every
+other user and the health check with it. Against the live HTTP transport, four concurrent address
+lookups now finish in 0.59s (serially ~2s) while `/health` stays at 4–7ms.
+
+`asyncio.to_thread` in the dispatcher, rather than making 23 handlers async: they are blocking by
+nature, since `fitz` and `sqlite3` have no async API, so each would have needed a thread anyway.
+
+**The change is only safe because nothing is shared**, which had to be checked rather than
+assumed: `sqlite3.connect` and `fitz.open` happen per call and never cross threads, and the data
+dicts are read-only. One thing genuinely was unsafe once concurrency became possible —
+`fill_see_pdf` wrote directly to a fixed default filename outside PUBLIC_MODE, so two fills in
+flight could interleave into one half-written PDF. It now stages beside the target and
+`os.replace`s it in, which is atomic. (PUBLIC_MODE already had a per-request temp dir.)
+
+The failure mode of getting any of this wrong is corrupted output under load, not an exception, so
+`tests/test_concurrency.py` pins both halves — and was checked against the unfixed code to
+confirm it actually fails there.
+
+### 7. Auto-deploy (5.5) — blocked
 
 Three pushes to `main` produced no deploy. The service is dashboard-created rather than
 Blueprint-created, so there is no webhook. Needs the Render GitHub App linked to the repo —

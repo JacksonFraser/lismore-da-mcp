@@ -5,6 +5,8 @@ cannot, so the caller knows a continuation attachment is needed rather than
 silently losing the text.
 """
 
+import os
+import threading
 from pathlib import Path
 
 import fitz  # PyMuPDF
@@ -176,8 +178,23 @@ def fill_see_pdf(form_data: dict, output_path: Path) -> dict:
             if checks:
                 _draw_tick(doc[0], checks[0])
 
-        doc.save(str(output_path))
-        doc.close()
+        # Write beside the target, then rename into place. Handlers run on
+        # worker threads now, so two fills can be in flight at once; with a
+        # direct save they would interleave in the same file and the caller
+        # could open a half-written PDF. os.replace is atomic on POSIX and
+        # Windows, so a reader sees either the old file or a complete new one.
+        # (In PUBLIC_MODE each call already has its own temp dir; this covers
+        # the local path, where output_filename defaults to a fixed name.)
+        staged = output_path.with_name(f".{output_path.name}.{os.getpid()}.{threading.get_ident()}")
+        try:
+            doc.save(str(staged))
+            doc.close()
+            os.replace(staged, output_path)
+        except BaseException:
+            # A failed save would otherwise leave a partial dotfile behind on
+            # every attempt, in a directory nothing prunes.
+            staged.unlink(missing_ok=True)
+            raise
 
         return {
             "success": True,
