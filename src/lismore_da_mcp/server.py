@@ -10,6 +10,7 @@ anything embedding this package, which is where these names lived before the
 Phase 2 and 2.3 splits. Prefer importing from the owning module in new code.
 """
 
+import asyncio
 import json
 
 import mcp.types as types
@@ -125,6 +126,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
     `arguments` is never passed to the logger — several tools carry an
     applicant's name and address. See observability.py.
+
+    **Handlers are synchronous and run on a worker thread.** Every handler here
+    blocks: PDF text extraction, SQLite reads, and — since the address tools —
+    HTTPS round trips with an 8-second timeout. Called inline, each one holds
+    the event loop for its whole duration, so the public deployment served one
+    caller at a time and `/health` stalled behind whatever tool was running.
+    Measured before this change: five concurrent calls to a handler taking 0.3s
+    took 1.51s, a clean 5x serialisation.
+
+    `to_thread` is the small fix rather than making 23 handlers async: they are
+    blocking by nature (fitz and sqlite3 have no async API), so they would each
+    need this treatment anyway. Thread-safety holds because nothing is shared —
+    `sqlite3.connect` and `fitz.open` are per call and never cross threads, the
+    data dicts are read-only, and `fill_see_pdf` already writes to a per-request
+    temp dir in PUBLIC_MODE.
     """
     with timed_tool_call(name) as outcome:
         argument_error = validate_arguments(name, arguments)
@@ -133,7 +149,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=json.dumps(argument_error, indent=2))]
 
         registration = registered()[name]
-        result = registration.handler(arguments)
+        result = await asyncio.to_thread(registration.handler, arguments)
         outcome[0] = OUTCOME_OK
         return result
 

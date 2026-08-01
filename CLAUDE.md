@@ -77,6 +77,20 @@ the next SDK break lands in two adapters rather than across 490 tests. Note `Too
 `Tool.input_schema` in 2.x (the wire format is unchanged — it is a pydantic alias), and
 `server.request_handlers` is now `server.get_request_handler(method)`.
 
+**Handlers are synchronous and run on a worker thread** — `call_tool` dispatches through
+`asyncio.to_thread`. Every handler blocks (PDF extraction, SQLite, and HTTPS with an 8s timeout in
+the address tools), so called inline each one held the single event loop thread for its whole
+duration: the public deployment served one caller at a time and `/health` stalled behind whatever
+tool was running. Five concurrent calls to a 0.3s handler took 1.51s before, 0.30s after.
+`to_thread` beats making 23 handlers async because they are blocking by nature — `fitz` and
+`sqlite3` have no async API. **This is safe only because nothing is shared:** `sqlite3.connect` and
+`fitz.open` happen per call and never cross threads, the data dicts are read-only, and
+`fill_see_pdf` stages its output beside the target and `os.replace`s it into place so two
+concurrent fills to the same filename cannot interleave into a half-written PDF. If you add a
+handler that caches a connection, an open `Document`, or any mutable module state, that assumption
+breaks and the symptom will be corrupted output under load rather than an exception —
+`tests/test_concurrency.py` guards it.
+
 **Knowledge lives in module-level dicts, not in the PDFs.** `ZONES`, `PARKING_RATES`,
 `LAND_USE_DEFINITIONS`, `RESIDENTIAL_STANDARDS`, `REFERRAL_REQUIREMENTS`, `FLOOD_PLANNING`,
 `SEE_TEMPLATES`, `CONTACT_INFO` are hand-transcribed from the source documents. The zone land use
