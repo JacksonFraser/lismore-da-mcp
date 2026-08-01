@@ -2,7 +2,11 @@
 
 import math
 
-from lismore_da_mcp.data.fees import DA_FEE_BRACKETS, DA_FEE_SCHEDULE_YEAR
+from lismore_da_mcp.data.fees import (
+    DA_FEE_BRACKETS,
+    DA_FEE_SCHEDULE_YEAR,
+    schedule_status,
+)
 
 
 def calculate_da_fee(development_cost: float) -> dict:
@@ -23,15 +27,30 @@ def calculate_da_fee(development_cost: float) -> dict:
     if development_cost > 3000000:
         cost_estimate_requirement = "Registered Quantity Surveyor report"
 
-    return {
+    result = {
         "estimated_fee": round(fee, 2),
         "development_cost": development_cost,
         "cost_estimate_requirement": cost_estimate_requirement,
         "fee_schedule_year": DA_FEE_SCHEDULE_YEAR,
-        "note": "This is the statutory DA lodgement fee only. Additional fees may apply for advertising, referrals, long service levy, and Section 7.11 contributions.",
+        "note": (
+            "This is the statutory DA lodgement fee only — it is not what the development "
+            "will cost to approve. A business should also expect advertising/notification "
+            "fees, the long service levy above the threshold, Section 7.11 contributions "
+            "(which for commercial development can exceed this fee), Section 64 water and "
+            "wastewater charges, and later a Construction Certificate and inspections."
+        ),
         "currency_warning": (
             f"Calculated from the {DA_FEE_SCHEDULE_YEAR} EP&A Regulation Schedule 4 scale. "
             "Statutory fees are re-set each July — confirm against Council's current fees and "
             "charges before relying on this figure."
         ),
     }
+
+    # Only present when the scale is actually behind, so it means something when
+    # it appears. The standing caveat above was already on every answer while
+    # the scale sat two years stale, which is exactly why nobody noticed.
+    stale = schedule_status()
+    if stale:
+        result["⚠️ FEE SCHEDULE OUT OF DATE"] = stale
+
+    return result

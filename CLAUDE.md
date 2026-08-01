@@ -187,8 +187,12 @@ pages** — 15 such files were committed to `documents/lep/` under names promisi
 had to be deleted (see `documents/DOCUMENT_INDEX.md`). Open anything a scraper produces before
 committing it; the document tools now search `.txt`, so junk extracts surface as answers.
 
-Fee figures are on the 2024-25 statutory schedule (`calculate_da_fee()`, fee unit $111.32) and
-need an annual July refresh. `calculate_da_fees` is the source of truth for a number — the tables
+Fee figures are on the **2026-27** statutory schedule (`calculate_da_fee()`), transcribed from
+`documents/fees/fees-and-charges-2026-27.pdf` p30. They need a July refresh every year — and that
+refresh had been missed twice before 2026-08-01, so the tool quoted figures ~6.5% low while a
+standing "confirm this figure" caveat sat on every answer. A caveat that is always present carries
+no information; `schedule_status()` now adds a loud warning **only** when the scale is actually
+behind, and `TestScheduleCurrency` fails once it is two years behind. `calculate_da_fees` is the source of truth for a number — the tables
 in Part 2 and `QUICK_REFERENCE.md` are indicative only.
 
 ---
@@ -654,20 +658,21 @@ Council will either:
 
 # FEES
 
-## DA Fees (NSW Statutory - 2024-25)
+## DA Fees (NSW Statutory - 2026-27)
 
-Fee unit value: $111.32 (from 1 July 2024)
+Set by EP&A Regulation 2021 Schedule 4 Part 2 Item 2.1. Base fees are indexed each July; the
+per-$1,000 increments are fixed dollar amounts and do not change.
 
 ### Based on Estimated Development Cost
 | Cost of Works | Fee Calculation |
 |--------------|-----------------|
-| Up to $5,000 | Base fee ~$144 |
-| $5,001 - $50,000 | ~$220 + $3 per $1,000 over $5,000 |
-| $50,001 - $250,000 | ~$459 + $3.64 per $1,000 over $50,000 |
-| $250,001 - $500,000 | ~$1,509 + $2.34 per $1,000 over $250,000 |
-| $500,001 - $1,000,000 | ~$2,272 + $1.64 per $1,000 over $500,000 |
-| $1,000,001 - $10,000,000 | ~$3,404 + $1.44 per $1,000 over $1,000,000 |
-| Over $10,000,000 | ~$20,667 + $1.19 per $1,000 over $10,000,000 |
+| Up to $5,000 | $153 |
+| $5,001 - $50,000 | $235 + $3.00 per $1,000 over $5,000 |
+| $50,001 - $250,000 | $488 + $3.64 per $1,000 over $50,000 |
+| $250,001 - $500,000 | $1,608 + $2.34 per $1,000 over $250,000 |
+| $500,001 - $1,000,000 | $2,420 + $1.64 per $1,000 over $500,000 |
+| $1,000,001 - $10,000,000 | $3,625 + $1.44 per $1,000 over $1,000,000 |
+| Over $10,000,000 | $22,009 + $1.19 per $1,000 over $10,000,000 |
 
 **Note**: These are indicative based on EP&A Regulation Schedule 4. Check current schedule for exact fees.
 
