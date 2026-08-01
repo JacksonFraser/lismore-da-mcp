@@ -35,7 +35,7 @@ class RegisteredTool:
     handler: Callable
 
     def as_mcp_tool(self) -> Tool:
-        return Tool(name=self.name, description=self.description, inputSchema=self.schema)
+        return Tool(name=self.name, description=self.description, input_schema=self.schema)
 
 
 _REGISTRY: dict[str, RegisteredTool] = {}
@@ -81,12 +81,46 @@ def get(name: str) -> RegisteredTool | None:
     return _REGISTRY.get(name)
 
 
+# JSON Schema type names → the Python types that satisfy them.
+#
+# `bool` is excluded from the numeric types deliberately: in Python it is a
+# subclass of int, so `True` would otherwise pass as a development cost.
+_JSON_TYPES: dict[str, tuple[type, ...]] = {
+    "string": (str,),
+    "number": (int, float),
+    "integer": (int,),
+    "boolean": (bool,),
+    "array": (list,),
+    "object": (dict,),
+}
+
+
+def _type_error(argument: str, expected: str, value) -> str | None:
+    """Return a description of the mismatch, or None if the value fits."""
+    allowed = _JSON_TYPES.get(expected)
+    if allowed is None:
+        return None
+    if isinstance(value, bool) and expected in ("number", "integer"):
+        return "boolean"
+    if isinstance(value, allowed):
+        return None
+    return type(value).__name__
+
+
 def validate_arguments(name: str, arguments: dict) -> dict | None:
     """Check arguments against the tool's own schema. Returns an error payload, or None if valid.
 
     Handlers read arguments with .get() and sensible-looking defaults, which means a
     misspelt or omitted argument used to produce a confident wrong answer rather than
     an error — an empty land_use reported 'permitted without consent'. Refuse instead.
+
+    Type checking is done here because mcp 2.0 stopped doing it. Under mcp 1.x the
+    SDK ran the tool's schema through jsonschema before dispatching, so a string
+    where a number belonged never reached a handler; 2.0 removed server-side
+    validation entirely (only mcp.client.session still carries jsonschema). Without
+    this, `development_cost: "lots"` reached `float()` and surfaced to the caller as
+    a raw MCPError reading "could not convert string to float" — an internal
+    traceback string standing in for an answer.
     """
     registration = _REGISTRY.get(name)
     if registration is None:
@@ -110,6 +144,27 @@ def validate_arguments(name: str, arguments: dict) -> dict | None:
         return {
             "error": "Missing or empty required argument(s): " + ", ".join(missing),
             "required_arguments": registration.schema.get("required", []),
+        }
+
+    wrong_type = []
+    for key, value in arguments.items():
+        if value is None:
+            continue
+        expected = properties.get(key, {}).get("type")
+        if not isinstance(expected, str):
+            continue
+        received = _type_error(key, expected, value)
+        if received:
+            wrong_type.append(
+                f"{key} expects {expected}, received {received}"
+            )
+    if wrong_type:
+        return {
+            "error": "Argument(s) of the wrong type: " + "; ".join(wrong_type),
+            "note": (
+                "Values are not coerced. Send the argument in the type the schema "
+                "declares — a number must be a number, not a string containing one."
+            ),
         }
 
     return None

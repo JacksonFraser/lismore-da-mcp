@@ -52,12 +52,30 @@ PDF inline (base64), and delete it — never into the shared `documents/output/`
 generated SEEs contain a named applicant's address and would otherwise be readable by the next
 caller. Any new tool that writes files must respect this branch.
 
-**Tools are declared data, dispatched by if/elif.** `TOOLS: list[Tool]` (~line 2001) holds every
-tool's schema; `call_tool()` is one long `if name == ... elif` chain. `validate_arguments()` runs
-first and checks each call against that tool's own `inputSchema` — rejecting unknown and
-missing/empty required arguments rather than letting handlers `.get()` a default and answer
-confidently wrong (an empty `land_use` once returned "permitted without consent"). Adding a tool
-means: append to `TOOLS`, add an `elif` branch, and update the tool table in `README.md`.
+**A tool is one decorated function that carries its own schema.** `registry.py` holds the `@tool`
+decorator and the registry; `tools/` holds the handlers, one module per domain. Adding a tool means
+writing the decorated function and updating the tool table in `README.md` — nothing else. (The old
+shape, a `TOOLS` list plus a 1,000-line `if/elif` chain in `call_tool`, is gone.)
+
+**`validate_arguments()` is the only gate on arguments, and that is newer than it looks.** It
+checks each call against that tool's own schema — rejecting unknown arguments, missing/empty
+required ones, and (since the mcp 2.0 port) wrong types — rather than letting handlers `.get()` a
+default and answer confidently wrong. An empty `land_use` once returned "permitted without
+consent". **mcp 1.x had the SDK run the schema through jsonschema server-side before dispatch;
+2.0 removed that entirely** — only `mcp.client.session` still carries jsonschema — so a string
+where a number belonged reached `float()` and surfaced as a raw `MCPError` reading "could not
+convert string to float". Type checking lives in `validate_arguments` now. Anything the schema
+can express that this function does not check is unenforced on the server: `_JSON_TYPES` covers
+the type keyword only, and a test fails if a schema declares a type it does not know.
+
+**The SDK's shape is confined to one seam.** mcp 2.0 replaced the `@server.call_tool()` /
+`@server.list_tools()` decorators with handlers registered by method name taking
+`(context, params)` and returning typed results. `server.py` keeps `call_tool(name, arguments)`
+and `list_tools()` as plain functions and wraps them in `_on_call_tool` / `_on_list_tools`
+adapters registered via `add_request_handler`. Tests and `conftest` call the plain functions, so
+the next SDK break lands in two adapters rather than across 490 tests. Note `Tool.inputSchema` is
+`Tool.input_schema` in 2.x (the wire format is unchanged — it is a pydantic alias), and
+`server.request_handlers` is now `server.get_request_handler(method)`.
 
 **Knowledge lives in module-level dicts, not in the PDFs.** `ZONES`, `PARKING_RATES`,
 `LAND_USE_DEFINITIONS`, `RESIDENTIAL_STANDARDS`, `REFERRAL_REQUIREMENTS`, `FLOOD_PLANNING`,

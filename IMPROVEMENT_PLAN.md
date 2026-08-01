@@ -8,7 +8,7 @@
 >
 > | | Then | Now |
 > |---|---|---|
-> | Tests | 0 | **486**, zero xfails |
+> | Tests | 0 | **496**, zero xfails |
 > | CI | none | 3.10 + 3.13, plus HTTP-app and index-build checks |
 > | `server.py` | 4,185 lines | **143** |
 > | Hosted search | 16–26s | **0.24–0.69s** |
@@ -825,7 +825,7 @@ redirects are checked against it, and every tool named must still be registered)
 
 ## What's left
 
-Nothing outstanding is a defect. Each is a decision. Item 1 was taken up on 2026-08-01 and is
+Nothing outstanding is a defect except where noted. Item 1 was taken up on 2026-08-01 and is
 now built; the rest stand as written.
 
 ### 1. Address → zone lookup — ✅ **BUILT 2026-08-01** (`addresses.py`, `lookup_zone_by_address`)
@@ -950,7 +950,43 @@ Nesting the 26 optional arguments into `address_parts`, `land_parts`, `site_cons
 `operation_details` would take 34 top-level to about 18. Cannot be cleanly aliased: keeping both
 forms pushes the count to ~40 while the schema is being read.
 
-### 5. Auto-deploy (5.5) — blocked
+### 5. mcp 2.x port — ✅ **DONE 2026-08-01** (was a stopgap pin)
+
+`mcp` 2.0.0 shipped mid-session and broke the build: it renames `Tool.inputSchema` →
+`input_schema`, which every tool registration goes through. `requirements.txt` is the Render
+deploy manifest and carried an uncapped `mcp>=1.0.0`, so the next deploy of the live server would
+have installed it and failed at import. Capped at `<2` first, then ported and re-pinned to
+`>=2.0.0,<3`.
+
+The rename was the visible break; two others mattered more.
+
+**The decorators are gone.** `@server.call_tool()` / `@server.list_tools()` are replaced by
+handlers registered against a method name, taking `(context, params)` and returning typed
+`CallToolResult` / `ListToolsResult`. Rather than propagate that shape, `call_tool(name,
+arguments)` and `list_tools()` stay plain functions and two adapters translate at the boundary —
+so ~490 tests and `conftest` needed no change, and the next SDK break lands in two functions.
+`server.request_handlers` also became `server.get_request_handler(method)`.
+
+**2.0 removed server-side argument validation, and that one is a silent behaviour change.** In
+1.28.1 `mcp/server/lowlevel/server.py` ran `jsonschema.validate()` against the tool's schema
+before dispatch; in 2.0 only `mcp.client.session` imports jsonschema. Nothing errors — malformed
+calls simply stop being rejected and reach the handler. Verified against the live HTTP transport:
+`calculate_da_fees(development_cost="lots")` came back to the caller as an `MCPError` reading
+*"could not convert string to float: 'lots'"* — an internal traceback string standing in for an
+answer, on a public endpoint. `validate_arguments()` now checks declared types too, which
+restores the gate and gives it this server's own refusal wording. A test fails if any schema
+declares a type the checker does not know, so the coverage cannot silently narrow.
+
+This also changes what `tests/test_transport_dispatch.py` is testing. Its premise — "the SDK
+validates before dispatching, so a schema enum can reject input the handler would have accepted"
+— now describes *clients*, not this server. The enum ban matters more for it, not less: a bad
+schema now fails in someone else's process, where nothing here can observe it. The docstring was
+corrected rather than deleted.
+
+Verified end to end with a real mcp 2.0 client over both transports: initialize (instructions
+delivered), `tools/list` (23 tools, schemas intact), tool calls, and refusals.
+
+### 6. Auto-deploy (5.5) — blocked
 
 Three pushes to `main` produced no deploy. The service is dashboard-created rather than
 Blueprint-created, so there is no webhook. Needs the Render GitHub App linked to the repo —
