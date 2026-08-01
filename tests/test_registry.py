@@ -14,7 +14,7 @@ from lismore_da_mcp.server import TOOLS
 
 class TestRegistration:
     def test_all_tools_registered(self):
-        assert len(registry.registered()) == 21
+        assert len(registry.registered()) == 23
 
     def test_registry_and_tools_list_agree(self):
         assert {t.name for t in TOOLS} == set(registry.registered())

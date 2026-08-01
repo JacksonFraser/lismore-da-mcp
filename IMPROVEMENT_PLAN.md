@@ -8,7 +8,7 @@
 >
 > | | Then | Now |
 > |---|---|---|
-> | Tests | 0 | **429**, zero xfails |
+> | Tests | 0 | **486**, zero xfails |
 > | CI | none | 3.10 + 3.13, plus HTTP-app and index-build checks |
 > | `server.py` | 4,185 lines | **143** |
 > | Hosted search | 16–26s | **0.24–0.69s** |
@@ -825,9 +825,83 @@ redirects are checked against it, and every tool named must still be registered)
 
 ## What's left
 
-Nothing outstanding is a defect. Each is a decision.
+Nothing outstanding is a defect. Each is a decision. Item 1 was taken up on 2026-08-01 and is
+now built; the rest stand as written.
 
-### 1. Address → zone lookup — the biggest remaining gap
+### 1. Address → zone lookup — ✅ **BUILT 2026-08-01** (`addresses.py`, `lookup_zone_by_address`)
+
+*(Original entry preserved below the rule, including the design note that turned out to be wrong.)*
+
+Built as recommended: optional, degrading to the previous behaviour. `LISMORE_ADDRESS_LOOKUP=off`
+disables it; nothing in the module raises, so every failure returns an `error` payload with a
+`fallback` pointing at the Planning Portal. No new dependency — `urllib` from the stdlib, so the
+Render image is unchanged. Two tools shipped (`lookup_zone_by_address` and, below,
+`lookup_site_constraints`), sharing one `resolve_address()` so they refuse identically. 57 new
+tests; the suite went 429 → 486 and never touches the network.
+
+**The design note about split zoning was wrong.** The layer does return *features*, plural, but
+this is a **point** query — a lot straddling a zone boundary returns only the zone under its
+address point, so a point query cannot detect split zoning at all. Doing it properly needs the
+lot's cadastral boundary polygon, not a point. The multi-feature handling is kept (it is correct
+if the layer ever returns two), but the result's caveat now says plainly that it reports the zone
+at the address point rather than a reading of the whole lot. Clause 4.2E was also narrower than
+the note implied: checked against the LEP text, it is specifically about *subdivision* lot sizes
+for split-zoned lots, not a general rule for them.
+
+**What the evaluation missed, and it is the important part: the geocoder lies quietly.** Probed
+2026-08-01:
+
+```
+houseNumber=99999 roadName=Keen suburb=Lismore  → "387 Keen Street East Lismore"
+houseNumber=12 roadName=Keen suburb=Goonellabah → "12 Keen Street Lismore"
+```
+
+Both return `numRecs: 1` and are indistinguishable from a good match. "Echo the matched address
+back so a wrong match is visible" is not enough — it makes a wrong match *visible to someone who
+reads carefully*, and the caller here is usually an LLM passing the zone straight to
+`check_permissibility` and then into an SEE. So `_verify_match()` re-checks the house number, road
+name, suburb and postcode against the response and **refuses** on a mismatch, naming what differed
+and what it rejected. Same principle as `validate_arguments`: the tools that refuse are the ones
+that work.
+
+One presentation bug was found by a test, not by reading: several separately-located records can
+print the *same* address text (units in one building), so the count of matched properties and the
+list of them disagreed. It now says how many there are and asks for the unit number.
+
+**The sibling layers were built too**, same day, as `lookup_site_constraints`: Height of Buildings
+(14), Minimum Lot Size (22), EPI Heritage (16), Bushfire Prone Land (Hazard 229) and Flood
+Planning (Hazard 230), queried concurrently at the same verified point, with per-layer failure
+isolation.
+
+**And they surfaced the worst bug in either tool, which no amount of reading would have found:**
+the state **Flood Planning Map contains zero features for the entire Lismore LGA**. Read naively,
+an empty layer result means "not affected" — so the tool would have reported the Lismore CBD,
+inundated in 2022, as not flood affected. In *this* LGA that is close to the most harmful thing
+this server could say.
+
+The fix generalises the problem rather than special-casing flood: an empty result means either
+"outside a mapped area" or "this dataset does not cover this council", and those are opposite. So
+an empty result triggers a per-layer coverage check (`LGA_NAME='LISMORE'`, cached per process), and
+an uncovered layer answers `unknown` with an explicit *"this is not evidence the site is
+unaffected"*. Flood additionally always carries a Lismore-specific warning unless the site is
+positively flagged. Bushfire has no `LGA_NAME` column so its coverage was verified by hand (6,877
+features across a Lismore bounding box).
+
+This is the same lesson as U1 and 3.4, a third time: **the finding written down from reading was
+not the finding that mattered.** The plan predicted these layers would "turn `is_flood_affected`
+from a caller assertion into a check". For flood in Lismore, it cannot — the data is not there.
+Knowing that is worth more than the feature would have been.
+
+Verified live: 12 Keen Street → 11.5m height limit (cl 4.3); 1 Cullen Street Nimbin → 40ha minimum
+lot, Bushfire Vegetation Category 2; Commonwealth Bank (I64) → heritage item *and* the Spinks Park
+conservation area (C5) it sits inside, both returned.
+
+**Correction to the URL recorded on 2026-07-28:** the service is under the `ePlanning` folder.
+The path as written (`.../services/Planning/Planning_Portal_Principal_Planning/...`) 404s.
+
+---
+
+*(Original entry, 2026-07-28:)*
 
 **Five tools require `zone_code`** and nothing derives it. The intended audience is people applying
 for the first time, who know their address and not their zone — so the server cannot answer the

@@ -40,6 +40,9 @@ VALID_ARGS = {
     "list_zones": {},
     "get_definition": {"term": "dwelling house"},
     "check_permissibility": {"zone_code": "R2", "land_use": "dwelling houses"},
+    # Answered from the canned upstream responses in conftest, not the network.
+    "lookup_zone_by_address": {"address": "12 Keen Street, Lismore"},
+    "lookup_site_constraints": {"address": "12 Keen Street, Lismore"},
     "get_setback_requirements": {"setback_type": "front"},
     "check_referrals": {"development_characteristics": ["bushfire"]},
     "get_see_template": {"section": "site_description"},
@@ -140,6 +143,23 @@ class TestZoneData:
     def test_retired_codes_redirect_rather_than_fail(self, call):
         result = call("get_zone_info", {"zone_code": "B3"})
         assert result.get("redirect_to") == "E2"
+
+    def test_retired_codes_are_not_offered_as_choices(self, call):
+        """They exist to redirect a code someone already has, not to be picked.
+
+        The not-found branch used to list all of ZONES, so failing to find a
+        zone advertised B1/B2/B3/B4/IN1/IN2 as available — codes that have not
+        existed since 2023.
+        """
+        offered = call("get_zone_info", {"zone_code": "ZZ9"})["available_zones"]
+        assert not [z for z in offered if z in ("B1", "B2", "B3", "B4", "IN1", "IN2")]
+        assert "E2" in offered
+
+    def test_schema_does_not_teach_retired_codes(self):
+        """The examples in the schema are what an LLM caller copies."""
+        description = TOOL_SCHEMAS["get_zone_info"]["properties"]["zone_code"]["description"]
+        for retired in ("'B2'", "'B3'", "'IN1'"):
+            assert retired not in description
 
     def test_case_insensitive(self, call):
         assert call("get_zone_info", {"zone_code": "r2"})["zone_code"] == "R2"
