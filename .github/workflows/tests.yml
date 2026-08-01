@@ -42,3 +42,10 @@ jobs:
         # render.yaml runs this at deploy time; if it breaks, search silently
         # degrades to a full scan (~8s a query) rather than failing loudly.
         run: python -m lismore_da_mcp.index
+
+      - name: Check the documents are real
+        # Everything under documents/ is published and searched, so a file that
+        # is secretly an error page becomes an answer to a planning question.
+        # Fifteen such files were committed once. This also catches a superseded
+        # LEP 2000 chapter filed as if it were current.
+        run: python scripts/check_documents.py

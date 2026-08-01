@@ -2,7 +2,11 @@
 __pycache__/
 *.pyc
 .DS_Store
-.claude/
+
+# Claude Code config is shared, except the per-machine permission file.
+# .claude/settings.json, commands/, agents/ and hooks/ are committed on purpose —
+# the document-safety hook below is only useful if everyone gets it.
+.claude/settings.local.json
 
 # Generated SEE PDFs contain applicant PII — never commit them.
 documents/output/*

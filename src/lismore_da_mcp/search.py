@@ -196,9 +196,9 @@ def annotate_instrument(result: dict) -> dict:
     quoted as a current control.
     """
     from lismore_da_mcp.data.instruments import (
-        SUPERSEDED_NOTE,
         instrument_for,
         is_superseded,
+        superseded_note_for,
     )
 
     file_name = result.get("file", "")
@@ -210,7 +210,7 @@ def annotate_instrument(result: dict) -> dict:
 
     result["instrument"] = instrument_for(file_name, category)
     if is_superseded(file_name):
-        result["superseded"] = SUPERSEDED_NOTE
+        result["superseded"] = superseded_note_for(file_name)
     return result
 
 

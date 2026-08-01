@@ -9,6 +9,15 @@ This file has two halves:
   onward): domain content loaded as context when *using* the agent to answer planning questions.
   Do not delete it when editing this file.
 
+**Who this is for: local businesses in the Lismore LGA going through a DA** — opening, changing
+use, fitting out or expanding — where the friction is between the business and Council. Not
+primarily householders, though the server was largely built as though it were: the SEE form tooling,
+residential standards and setback tools all target R zones, while a business is usually doing a
+**change of use** in E1–E4, MU1 or RU5. See **`PLAN.md`** for what that reframing implies and what
+is being done about it; read it before picking up work, because the previous plan
+(`IMPROVEMENT_PLAN.md`, deleted — `git show 4ded0a8:IMPROVEMENT_PLAN.md`) kept generating
+engineering work that is no longer the constraint.
+
 ---
 
 # PART 1 — WORKING ON THE CODE
@@ -24,7 +33,19 @@ MCP_TRANSPORT=http PYTHONPATH=src PORT=8080 \
 curl localhost:8080/health                # → "ok"
 ```
 
-There is no test suite, linter, or formatter configured. Changes are verified by calling the
+## Repo tooling (`.claude/`, committed on purpose)
+
+| | |
+|---|---|
+| `/check-documents` | Validates `documents/`: real PDFs, no error pages, right LEP edition, indexed, in a searched category. Also runs in CI. |
+| `/smoke` | Drives the server with a real MCP client over **both** transports. The unit tests call handlers directly and CI only imports the HTTP app — neither opens a session, and two shipped bugs were visible only to a real client. |
+| `planning-data-reviewer` agent | Checks transcribed data in `data/` against the source documents. The repo's core risk is that this data is hand-copied and nothing verifies it; the tests pin that it has not *changed*, not that it is *right*. |
+| `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
+
+`.claude/settings.local.json` stays out of git (per-machine permissions); everything else in
+`.claude/` is shared, because a guardrail only one person has is not a guardrail.
+
+There is no linter or formatter configured. Changes are verified by calling the
 tools through an MCP client (the local `lismore-da` server from `.mcp.json`, or the deployed
 `lismore-da-public`), or by importing `lismore_da_mcp.server` and calling handlers directly:
 
