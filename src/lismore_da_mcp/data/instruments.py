@@ -29,6 +29,13 @@ LEP_2000_DOCUMENTS = {
     "chapter-12-heritage-lep2000.pdf",
     "chapter-14-tree-preservation-lep2000.pdf",
     "part-b-chapter-6-nimbin-village-lep2000.pdf",
+    # Found 2026-08-01 by scripts/check_documents.py: this was filed as
+    # `part-b-chapter-1-lismore-urban-area.pdf`, with no marker, and so was
+    # being reported as current. Its own text zones the area 2(a) Residential,
+    # 3(a) Business, 3(b) Neighbourhood Business — LEP 2000 codes. The council
+    # publishes no LEP 2012 edition of this chapter, so this is the only
+    # version there is; it just has to say so.
+    "part-b-chapter-1-lismore-urban-area-lep2000.pdf",
 }
 
 # Guidance, forms and handbooks that are not tied to either LEP.
@@ -50,6 +57,29 @@ SUPERSEDED_NOTE = (
     "areas, the LEP 2012 chapter of the same number is the applicable control — check "
     "which instrument applies to the site before relying on this."
 )
+
+# Superseded chapters the council never reissued under LEP 2012. The standard
+# note above sends the reader to "the LEP 2012 chapter of the same number",
+# which for these does not exist — so they get their own wording. Verified
+# against the council's DCP page on 2026-08-01: only the LEP 2000 edition of
+# Part B Chapter 1 is published.
+LEP_2000_WITHOUT_COUNTERPART = {
+    "part-b-chapter-1-lismore-urban-area-lep2000.pdf",
+}
+
+NO_COUNTERPART_NOTE = (
+    "This document applies to land under Lismore LEP 2000, which for most of the LGA has "
+    "been superseded by LEP 2012. Council has not reissued this chapter under LEP 2012, so "
+    "there is no current equivalent to read instead — this is the only version of these "
+    "controls. Treat it as indicative and confirm with Council which controls apply to the "
+    "site, because the zone codes it uses (2(a), 3(a) and similar) were replaced in 2012."
+)
+
+
+def superseded_note_for(filename: str) -> str:
+    """The warning to attach to a superseded document."""
+    name = filename.rsplit("/", 1)[-1]
+    return NO_COUNTERPART_NOTE if name in LEP_2000_WITHOUT_COUNTERPART else SUPERSEDED_NOTE
 
 
 def instrument_for(filename: str, category: str = "") -> str:

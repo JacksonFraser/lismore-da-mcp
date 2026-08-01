@@ -13,11 +13,15 @@ from lismore_da_mcp.data.instruments import (
     GENERAL_DOCUMENTS,
     LEP_2000,
     LEP_2000_DOCUMENTS,
+    LEP_2000_WITHOUT_COUNTERPART,
     LEP_2012,
+    NO_COUNTERPART_NOTE,
     NOT_INSTRUMENT_SPECIFIC,
     STATE,
+    SUPERSEDED_NOTE,
     instrument_for,
     is_superseded,
+    superseded_note_for,
 )
 from lismore_da_mcp.search import list_available_documents, search_all, searchable_documents
 
@@ -61,7 +65,27 @@ class TestRegistryMatchesDisk:
 
         current = {chapter_id(p.name) for p in searchable_documents() if "lep2000" not in p.name}
         for name in LEP_2000_DOCUMENTS:
+            if name in LEP_2000_WITHOUT_COUNTERPART:
+                # Declared exception: Council never reissued this chapter under
+                # LEP 2012, so there is nothing to point the reader at. It gets
+                # NO_COUNTERPART_NOTE instead, which says so. The exception must
+                # be declared rather than inferred — a chapter that silently has
+                # no counterpart is the bug this test exists to catch.
+                continue
             assert chapter_id(name) in current, f"{name} has no current counterpart"
+
+    def test_chapters_without_a_counterpart_say_so(self):
+        """The standard note sends the reader to "the LEP 2012 chapter of the
+        same number". For these there is no such chapter, so that wording would
+        be an instruction to go and find something that does not exist."""
+        for name in LEP_2000_WITHOUT_COUNTERPART:
+            assert name in LEP_2000_DOCUMENTS, f"{name} is not marked superseded at all"
+            note = superseded_note_for(name)
+            assert note is NO_COUNTERPART_NOTE
+            assert "of the same number" not in note
+
+    def test_ordinary_superseded_chapters_keep_the_standard_note(self):
+        assert superseded_note_for("chapter-12-heritage-lep2000.pdf") is SUPERSEDED_NOTE
 
 
 class TestClassification:

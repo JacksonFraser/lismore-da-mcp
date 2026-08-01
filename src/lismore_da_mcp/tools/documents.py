@@ -5,7 +5,7 @@ import json
 from mcp.types import TextContent
 
 from lismore_da_mcp.config import DOCS_DIR
-from lismore_da_mcp.data.instruments import SUPERSEDED_NOTE
+from lismore_da_mcp.data.instruments import superseded_note_for
 from lismore_da_mcp.data.instruments import is_superseded
 from lismore_da_mcp.registry import tool
 from lismore_da_mcp.search import extract_document_section
@@ -95,7 +95,7 @@ def read_dcp_section(arguments: dict):
     # A reader who opens a chapter directly gets no search result to carry the
     # warning, so it goes on the content itself.
     if is_superseded(doc_path.name):
-        text = f"⚠️ SUPERSEDED FOR MOST LAND — {SUPERSEDED_NOTE}\n\n{text}"
+        text = f"⚠️ SUPERSEDED FOR MOST LAND — {superseded_note_for(doc_path.name)}\n\n{text}"
     return [TextContent(
         type="text",
         text=text

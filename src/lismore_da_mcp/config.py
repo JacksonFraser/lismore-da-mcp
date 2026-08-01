@@ -16,7 +16,7 @@ PUBLIC_MODE = os.environ.get("MCP_TRANSPORT", "stdio").lower() == "http"
 # Every category the document tools search and list. `exempt-development` holds the
 # state-wide NSW DPE fact sheets used for "do I need a DA?" questions; leaving it out
 # meant those PDFs shipped with the repo but were unreachable through any tool.
-DOC_CATEGORIES = ["dcp", "lep", "forms", "fees", "exempt-development"]
+DOC_CATEGORIES = ["dcp", "lep", "forms", "fees", "exempt-development", "business"]
 
 # .txt is included because parts of the LEP only exist here as text extracts
 # (legislation.nsw.gov.au and austlii both 403 automated fetches, so they were

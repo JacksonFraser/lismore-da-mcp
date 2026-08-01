@@ -14,6 +14,8 @@ This directory contains official planning documents downloaded from Lismore City
 | `chapter-1-residential-lep2000.pdf` | Chapter 1 - Residential Development (LEP 2000) |
 | `chapter-2-commercial-development.pdf` | Chapter 2 - Commercial Development CBD & Health Precinct |
 | `chapter-3-industrial-development.pdf` | Chapter 3 - Industrial Development |
+| `chapter-4-rural-nature-based-tourism.pdf` | Chapter 4 - Rural and Nature-Based Tourism Development (LEP 2012) |
+| `chapter-5b-commercial-industrial-subdivision.pdf` | Chapter 5B - Commercial and Industrial Subdivision (LEP 2012) |
 | `chapter-5a-urban-residential-subdivision.pdf` | Chapter 5A - Urban Residential Subdivision (with Amd 34) |
 | `chapter-7-off-street-carparking.pdf` | Chapter 7 - Off-Street Carparking requirements |
 | `chapter-8-flood-prone-lands.pdf` | Chapter 8 - Flood Prone Lands |
@@ -22,15 +24,23 @@ This directory contains official planning documents downloaded from Lismore City
 | `chapter-12-heritage-conservation.pdf` | Chapter 12 - Heritage Conservation (LEP 2012) |
 | `chapter-12-heritage-lep2000.pdf` | Chapter 12 - Heritage Conservation (LEP 2000) |
 | `chapter-14-vegetation-protection.pdf` | Chapter 14 - Vegetation Protection |
+| `chapter-13-crime-prevention-environmental-design.pdf` | Chapter 13 - Crime Prevention Through Environmental Design (LEP 2012) |
 | `chapter-14-tree-preservation-lep2000.pdf` | Chapter 14 - Tree Preservation Order (LEP 2000) |
+| `chapter-15-waste-minimisation.pdf` | Chapter 15 - Waste Minimisation (LEP 2012) |
+| `chapter-17-acid-sulfate-soils.pdf` | Chapter 17 - Acid Sulfate Soils (LEP 2012) |
 | `chapter-18-extractive-industries.pdf` | Chapter 18 - Extractive Industries |
+| `chapter-21-public-art.pdf` | Chapter 21 - Public Art (LEP 2012) |
 | `chapter-22-water-sensitive-design.pdf` | Chapter 22 - Water Sensitive Design |
 
 ### Part B - Area-Specific Controls
 
 | File | Description |
 |------|-------------|
-| `part-b-chapter-1-lismore-urban-area.pdf` | Chapter 1 - Lismore Urban Area |
+| `part-b-chapter-1-lismore-urban-area-lep2000.pdf` | Chapter 1 - Lismore Urban Area (**LEP 2000** — the council publishes no LEP 2012 edition of this chapter. Renamed 2026-08-01: it was filed without the marker and therefore reported as current.) |
+| `part-b-chapter-3-lismore-cultural-precinct.pdf` | Chapter 3 - Lismore Cultural Precinct (LEP 2012) |
+| `part-b-chapter-4-airport-industrial-estate.pdf` | Chapter 4 - Airport Industrial Estate (LEP 2012) |
+| `part-b-chapter-5-wyrallah-road-industrial-estate.pdf` | Chapter 5 - Wyrallah Road Industrial Estate (LEP 2012) |
+| `part-b-chapter-9-north-lismore-industrial-estate.pdf` | Chapter 9 - North Lismore Industrial Estate (LEP 2012) |
 | `part-b-chapter-6-nimbin-village.pdf` | Chapter 6 - Nimbin Village (LEP 2012) |
 | `part-b-chapter-6-nimbin-village-lep2000.pdf` | Chapter 6 - Nimbin Village (LEP 2000) |
 
@@ -63,11 +73,21 @@ hit quoting a bot-verification page is worse than no hit. Recoverable from git h
 committing it.** The zone land use tables live in `lep-2012-nsw-full.txt` and, transcribed, in the
 `ZONES` dict behind the `get_zone_info` / `check_permissibility` tools.
 
+| File | Description |
+|------|-------------|
+| `land-use-matrix-august-2023.pdf` | **Added 2026-08-01.** Council's Land Use Matrix (August 2023) — permitted/prohibited uses across every zone on four pages. Useful as an **independent cross-check** on the hand-transcribed `ZONES` tables (`PLAN.md` item 0.2), since it is a different rendering of the same land use tables. |
+
 ## Fees & Charges
+
+> ⚠️ `calculate_da_fees` computes from the **2024-25** statutory scale (`data/fees.py`). The
+> 2026-27 schedule below is newer than the code — see `PLAN.md` item 0.1.
 
 | File | Description |
 |------|-------------|
+| `fees-and-charges-2026-27.pdf` | **Added 2026-08-01.** Lismore City Council Fees and Charges 2026-27 — the current year, and newer than the scale `calculate_da_fees` uses |
 | `fees-and-charges-2025-26.pdf` | Lismore City Council Fees and Charges 2025-26 |
+| `section-7.11-contributions-plan-2024-2041.pdf` | **Added 2026-08-01.** Lismore City Section 7.11 Infrastructure Contributions Plan 2024-2041 (33MB). For a commercial development these contributions can exceed the DA lodgement fee |
+| `development-servicing-plans-water-wastewater.pdf` | **Added 2026-08-01.** Development Servicing Plans for Water Supply and Wastewater — the Section 64 headworks charges, significant for food premises |
 | `nsw-planning-fees-2024-25.pdf` | NSW Planning Development Fees Schedule 2024-25 |
 
 ## Forms & Guidelines
@@ -107,6 +127,20 @@ No dedicated DPE exempt-development fact sheet exists for swimming pools — sma
 generally handled as **complying development** (via a CDC), not exempt development, largely due
 to mandatory pool safety fencing/barrier requirements. Don't fabricate a pool exemption; direct
 those queries to the Housing Code / CDC pathway instead.
+
+## Business & Food Premises
+
+Added 2026-08-01 for business applicants (see `PLAN.md`). Retrieved from lismore.nsw.gov.au
+`/Business/Food-businesses-in-Lismore` — see `SCRAPER.md` for the method.
+
+| File | Description |
+|------|-------------|
+| `requirements-for-set-up-of-food-premises.pdf` | Council requirements for establishing, constructing and setting up a food premises |
+| `home-based-food-business.pdf` | Home-based food business fact sheet |
+| `food-businesses-at-temporary-events.pdf` | NSW Food Authority — food businesses at temporary events |
+| `food-standard-3-2-2a-guideline.pdf` | Food Standards Code Standard 3.2.2A guideline for businesses |
+| `nsw-outdoor-dining-policy-2019.pdf` | NSW Outdoor Dining Policy 2019 — footpath/outdoor dining approvals |
+| `home-occupation-work-from-home.pdf` | Work-from-home / home occupation fact sheet |
 
 ## Using These Documents
 
