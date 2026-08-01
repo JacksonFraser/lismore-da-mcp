@@ -9,6 +9,7 @@ import json
 
 import pytest
 
+from lismore_da_mcp.registry import registered
 from lismore_da_mcp.server import TOOLS, TOOL_SCHEMAS, ZONES, validate_arguments
 
 TOOL_NAMES = sorted(t.name for t in TOOLS)
@@ -82,8 +83,8 @@ class TestRegistry:
 
     def test_required_arguments_are_declared_properties(self):
         for tool in TOOLS:
-            props = set(tool.inputSchema.get("properties", {}))
-            required = set(tool.inputSchema.get("required", []))
+            props = set(tool.input_schema.get("properties", {}))
+            required = set(tool.input_schema.get("required", []))
             assert required <= props, f"{tool.name}: {required - props} required but not declared"
 
     def test_smoke_coverage_is_complete(self):
@@ -113,6 +114,65 @@ class TestValidation:
 
     def test_valid_arguments_accepted(self):
         assert validate_arguments("get_zone_info", {"zone_code": "R2"}) is None
+
+
+class TestTypeValidation:
+    """Types are checked here because mcp 2.0 stopped checking them.
+
+    Under mcp 1.x the SDK ran the tool's schema through jsonschema before
+    dispatching. 2.0 removed server-side validation, so a string where a number
+    belonged reached `float()` and came back to the caller as a raw MCPError
+    reading "could not convert string to float" — an internal traceback string
+    standing in for an answer.
+    """
+
+    @pytest.mark.parametrize("value,received", [
+        ("lots", "str"),
+        ([1, 2], "list"),
+        ({"a": 1}, "dict"),
+    ])
+    def test_wrong_type_refused(self, value, received):
+        error = validate_arguments("calculate_da_fees", {"development_cost": value})
+        assert error and "wrong type" in error["error"]
+        assert f"expects number, received {received}" in error["error"]
+
+    def test_boolean_is_not_a_number(self):
+        """True == 1 in Python, so bool passes an isinstance check for int."""
+        error = validate_arguments("calculate_da_fees", {"development_cost": True})
+        assert error and "received boolean" in error["error"]
+
+    @pytest.mark.parametrize("value", [250000, 250000.50])
+    def test_int_and_float_both_satisfy_number(self, value):
+        assert validate_arguments("calculate_da_fees", {"development_cost": value}) is None
+
+    def test_string_argument_refuses_a_number(self):
+        error = validate_arguments("get_zone_info", {"zone_code": 123})
+        assert error and "expects string, received int" in error["error"]
+
+    def test_integer_argument_refuses_a_string(self):
+        error = validate_arguments("read_dcp_section", {
+            "chapter": "chapter-7-off-street-carparking.pdf",
+            "start_page": "x",
+            "end_page": 1,
+        })
+        assert error and "start_page expects integer" in error["error"]
+
+    def test_array_argument_accepts_a_list(self):
+        assert validate_arguments(
+            "check_referrals", {"development_characteristics": ["bushfire"]}
+        ) is None
+
+    def test_every_declared_type_is_one_this_checker_knows(self):
+        """A schema type with no entry in _JSON_TYPES is silently unchecked."""
+        from lismore_da_mcp.registry import _JSON_TYPES
+
+        unknown = {
+            f"{name}.{argument}={spec['type']}"
+            for name, tool in registered().items()
+            for argument, spec in tool.schema.get("properties", {}).items()
+            if isinstance(spec.get("type"), str) and spec["type"] not in _JSON_TYPES
+        }
+        assert unknown == set()
 
 
 class TestSmoke:

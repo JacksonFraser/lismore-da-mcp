@@ -1,14 +1,27 @@
 """Calls routed the way a real client makes them.
 
-Every other test invokes `call_tool` directly. The MCP SDK wraps it and runs
-`jsonschema.validate(instance=arguments, schema=tool.inputSchema)` **before**
-dispatching, so a schema constraint can reject a call that the handler would
-have accepted — and no direct-call test can see it.
+Every other test invokes `call_tool` directly; these go through the handler the
+SDK dispatches to, so the request/response translation is exercised too.
+
+**The schema is still a gate, but the gate moved.** Under mcp 1.x the *server*
+ran `jsonschema.validate(instance=arguments, schema=tool.inputSchema)` before
+dispatching, so a schema constraint could reject a call the handler would have
+accepted. mcp 2.0 removed that — server-side argument validation is gone, and
+only `mcp.client.session` still carries jsonschema. So the same constraint is
+now enforced by *clients* instead: a schema enum still silently rejects input
+the handler would have resolved, it just fails one hop earlier and this server
+never sees it.
 
 That is not hypothetical. `minor_development_type` carried an `enum`, so the
 synonym resolution added in 3.1/3.2 was dead over HTTP: "shed" was rejected by
 schema validation and the handler never ran. Every direct-call test passed. It
 was found by trying the tool with curl.
+
+The enum ban below therefore matters *more* after the 2.0 upgrade, not less —
+a bad schema now fails in someone else's process, where nothing here can see
+it. What this server no longer gets for free is type checking: with the SDK's
+validation gone, `validate_arguments()` is the only thing standing between a
+malformed call and a handler.
 """
 
 import asyncio
@@ -33,14 +46,17 @@ MINIMAL_SEE = {
 
 
 def through_sdk(name: str, arguments: dict):
-    """Invoke a tool the way a connected client does, schema validation included."""
-    handler = server.request_handlers[types.CallToolRequest]
-    request = types.CallToolRequest(
-        method="tools/call",
-        params=types.CallToolRequestParams(name=name, arguments=arguments),
-    )
-    result = asyncio.run(handler(request)).root
-    return result.isError, result.content[0].text
+    """Invoke a tool through the handler the SDK dispatches to.
+
+    mcp 2.0 dropped the `request_handlers` dict keyed by request type; handlers
+    are registered against the method name and take (context, params). The
+    context is unused by this server's handler, so None stands in for it.
+    """
+    entry = server.get_request_handler("tools/call")
+    assert entry is not None, "tools/call handler is not registered"
+    params = types.CallToolRequestParams(name=name, arguments=arguments)
+    result = asyncio.run(entry.handler(None, params))
+    return bool(result.is_error), result.content[0].text
 
 
 class TestSchemaDoesNotBlockAcceptedInput:

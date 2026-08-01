@@ -1,8 +1,8 @@
-# Capped below 2.0: it renames Tool.inputSchema to input_schema, which every
-# tool registration here goes through. This file is the Render deploy manifest,
-# so an uncapped range meant the next deploy of the live server would install a
-# major version it has not been ported to. Migrating is separate work.
-mcp>=1.0.0,<2
+# Pinned to the 2.x major. 2.0 renamed Tool.inputSchema to input_schema and
+# replaced the server's handler decorators; the code targets that API. This file
+# is the Render deploy manifest, so the upper bound is what stops the next major
+# from reaching the live server before anyone has ported to it.
+mcp>=2.0.0,<3
 pymupdf>=1.24.0
 starlette>=0.37.0
 uvicorn>=0.30.0

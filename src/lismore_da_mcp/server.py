@@ -12,6 +12,7 @@ Phase 2 and 2.3 splits. Prefer importing from the owning module in new code.
 
 import json
 
+import mcp.types as types
 from mcp.types import TextContent
 
 from lismore_da_mcp.app import server
@@ -111,16 +112,14 @@ def _tools():
 
 # Kept as module attributes because callers and tests read them directly.
 TOOLS = _tools()
-TOOL_SCHEMAS = {t.name: t.inputSchema for t in TOOLS}
+TOOL_SCHEMAS = {t.name: t.input_schema for t in TOOLS}
 
 
-@server.list_tools()
 async def list_tools():
     """List available tools."""
     return mcp_tools()
 
 
-@server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Validate arguments, then hand off to the registered handler.
 
@@ -137,6 +136,28 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         result = registration.handler(arguments)
         outcome[0] = OUTCOME_OK
         return result
+
+
+# --- SDK boundary -----------------------------------------------------------
+#
+# mcp 2.0 replaced the `@server.call_tool()` / `@server.list_tools()` decorators
+# with handlers registered against a method name, taking a request context and
+# typed params and returning a typed result. The two functions above keep their
+# plain shape — a name and a dict in, content blocks out — and these adapters
+# translate. That keeps the SDK's shape at one seam instead of through every
+# caller and test, and it is the seam that moved last time.
+
+
+async def _on_call_tool(_context, params: types.CallToolRequestParams) -> types.CallToolResult:
+    return types.CallToolResult(content=await call_tool(params.name, params.arguments or {}))
+
+
+async def _on_list_tools(_context, _params) -> types.ListToolsResult:
+    return types.ListToolsResult(tools=await list_tools())
+
+
+server.add_request_handler("tools/call", types.CallToolRequestParams, _on_call_tool)
+server.add_request_handler("tools/list", types.PaginatedRequestParams, _on_list_tools)
 
 
 # ============================================================================
