@@ -63,9 +63,9 @@ its site — are the three that fail.
 Nothing else on this plan matters if the numbers are wrong. Each item is concrete and checkable,
 and none needs a planner.
 
-0.1 and 0.2 are done. 0.2 is the one to read: the zone tables came back **clean**, and the same
-audit applied to parking found that **`data/parking.py` does not match the DCP** — which is now
-0.3, and is the largest known correctness problem in the repo.
+0.1, 0.2 and 0.3 are done. The zone tables came back **clean**; the parking rates did not, and
+0.3 is the one to read — most of the 22 entries were wrong, in both directions, on the numbers a
+CBD assessment argues about.
 
 ### 0.1 Refresh the fee schedule — ✅ **DONE 2026-08-01**
 
@@ -131,46 +131,46 @@ behind a standing caveat.
 either side, and includes tests that the audit *can* fail — a checker that cannot detect a fault
 manufactures confidence rather than providing it.
 
-### 0.3 Correct the parking rates — **found by 0.2, not yet fixed**
+### 0.3 Correct the parking rates — ✅ **DONE 2026-08-02**
 
-The other half of 0.2 was DCP Chapter 7. **Those rates do not match the DCP.** The council document
-is fine; `data/parking.py` is wrong. The values look written from general knowledge rather than
-transcribed from Lismore's schedule.
+`data/parking.py` did not match the DCP, and the errors were not marginal. Every one of the 22
+entries has been re-transcribed from Chapter 7 Schedule 1 (pp. 11-15), and the file now carries
+each requirement **verbatim** alongside the Schedule 1 land use name and page.
 
-Quoted verbatim from Chapter 7 Schedule 1, pp. 11–15:
+What was wrong:
 
-| Use | DCP (correct) | `data/parking.py` (wrong) | Effect |
+| | DCP | was | |
 |---|---|---|---|
-| Restaurant or cafe | "1 per 3 seats, plus 1 per 2 employees **or** 15 per 100m² GFA (whichever is greater)" | "1 per 10m² dining area" | 15/100m² = 1 per 6.67m². Understates ~33%, and omits the seats basis |
-| Office premises | "1 per 30m² GFA for ground or 1st floor level and 1 per 40m² at subsequent upper levels. Minimum 2 spaces" | "1 per 40m² GFA" | Understates for ground/1st floor, where most small offices are; drops the minimum |
-| Warehouse or distribution centre | "1 per 300m²" | "1 per 100m² GFA" | **Overstates 3×** — could kill a viable proposal |
-| Industry (heavy, general, light) | "1 per 100m² GFA or part thereof. Minimum 2 spaces per unit or separate leased area" | "1 per 75m² GFA" | Overstates ~33% |
-| Shop (individual) | "4.4 per 100m² GFA" | "1 per 25m² GFA" | 4.4/100 = 1 per 22.7m². Understates ~9% |
-| Bulky goods premises | "≤400m² GFA – 3 per 100m²; >400m² – 2 per 100m²" | "1 per 50m² GFA" | Tiered in the DCP, flat here; wrong below 400m² |
-| Gymnasium/fitness centre | "1 per 25m² GFA, plus 1 per 2 employees" | "1 per 25m² GFA" | Understates |
-| Medical centre | "4 per practitioner, plus 1 per employee" | "4 per practitioner" | Understates |
+| Restaurant or cafe | 1 per 3 seats + 1 per 2 employees, **or** 15 per 100m² GFA (greater) | "1 per 10m² dining area" | a basis appearing nowhere in Schedule 1 |
+| Warehouse | 1 per 300m² | 1 per 100m² | **overstated 3×** |
+| Dwelling house | 2 per dwelling (1 undercover) | 1 per dwelling, 2 if >125m² | that is the **dual occupancy** rule |
+| Dual occupancy | 1 per dwelling <125m², 2 per dwelling >125m² | 1 per dwelling | tier lost |
+| Office / business premises | 1 per 30m² ground/1st floor, 1 per 40m² above, min 2 | 1 per 40m² | understated where most offices are |
+| Industry | 1 per 100m², min 2 per unit | 1 per 75m² | overstated |
+| Shop (individual) | 4.4 per 100m² GFA | 1 per 25m² | |
+| Bulky goods | 3 per 100m² ≤400m², 2 per 100m² above | flat 1 per 50m² | tier lost |
+| Multi dwelling / flats | 1 / 1.5 / 2 per 1-, 2-, 3-bed + 1 per 5 visitor | 1 / 1.5 per 1-, 2+-bed + 1 per 4 | wrong tiers and ratio |
+| Gym, medical centre | …plus the employees component | component omitted | understated |
+| Take away, secondary dwelling | **not in Schedule 1** | confident rates | invented |
 
-`take_away` and `retail` have no entry under those names in the DCP schedule and are **unverified**
-rather than presumed wrong.
+An 80m² café with 40 seats and 6 staff now returns **17 spaces**; the old data said 8. A business
+acting on 8 would have had its DA come back.
 
-The errors run both ways, and both directions cost a business. Understating means being told fewer
-spaces are needed than Council will require — the DA comes back, weeks lost on a leased tenancy.
-Overstating means abandoning a proposal that was actually viable. Parking is the flashpoint this
-plan already identified as the recurring CBD argument.
+The rate model changed to make this expressible. Each entry carries a structured `spec` supporting
+added components, "whichever is greater" alternatives, tiers by floor area, and minimums — and
+`spec` is **None** wherever the DCP assesses a use on merits, the rule needs an input the caller has
+not given, or the use is not in the schedule. `estimate_spaces()` then shows the rule and declines
+to produce a number. Declining is right more often than it looks here: a confident wrong space
+count is what sends a DA back. The old estimator read the rate out of prose with a regex, so it
+could only ever see one area-based component — the café rule was unreadable to it.
 
-**This is a schema change, not a value edit**, which is why it is its own item. Each entry is a
-single rate string, so there is nowhere to put "whichever is greater", a rate that tiers by floor
-area, or a per-unit minimum. `estimate_parking_requirement()` also parses that string with a regex,
-so it can only ever read one basis. Doing this properly means:
+`scripts/audit_parking_rates.py` checks every stored requirement still appears in the PDF, and
+`tests/test_parking_rates.py` runs the same check plus the specific corrections, so a regression
+names the fault rather than showing a diff. All 25 sourced entries verify verbatim.
 
-- a rate model that carries alternative bases with a `max()` between them, size tiers, minimums,
-  and a per-employee component
-- an audit script for Chapter 7 in the shape of `audit_zone_tables.py`, so this cannot drift back
-- checking the remaining ~20 entries in `PARKING_RATES`, not only the eight above
-- keeping the existing honesty about area basis — the current caveat that the DCP rate may apply
-  to a narrower area than GFA is right and should survive
-
----
+Schedule 1 is a three-column PDF table, so unlike the LEP's semicolon lists it cannot be diffed
+structurally with confidence — hence verbatim storage plus a presence check rather than a parser
+pretending to more precision than it has.
 
 ### 0.4 Watch the council site instead of sampling it
 

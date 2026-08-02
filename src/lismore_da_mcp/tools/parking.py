@@ -6,7 +6,7 @@ from mcp.types import TextContent
 
 from lismore_da_mcp.data.parking import PARKING_RATES
 from lismore_da_mcp.registry import tool
-from lismore_da_mcp.see.parsers import estimate_parking_requirement
+from lismore_da_mcp.parking import estimate_spaces
 from lismore_da_mcp.vocabulary import PARKING_SYNONYMS
 from lismore_da_mcp.vocabulary import resolve
 from lismore_da_mcp.vocabulary import unresolved_error
@@ -19,6 +19,7 @@ from lismore_da_mcp.vocabulary import unresolved_error
         'development_type': {'type': 'string', 'description': "Type of development (e.g., 'dwelling_house', 'restaurant', 'shop', 'office', 'warehouse')"},
         'floor_area_sqm': {'type': 'number', 'description': 'Optional. Floor area the rate applies to, in square metres.'},
         'num_employees': {'type': 'integer', 'description': 'Optional. Number of employees, for rates with a staff component.'},
+        'seats': {'type': 'integer', 'description': 'Optional. Seats, for rates based on seating (restaurants, places of worship, function centres).'},
         'spaces_provided': {'type': 'integer', 'description': 'Optional. Spaces provided on site, to calculate the shortfall.'},
     },
     required=['development_type'],
@@ -33,9 +34,12 @@ def get_parking_rates(arguments: dict):
             "development_type": dev_type,
             "parking_spaces": result["spaces"],
             "rate_description": result["rate"],
-            "source": "Lismore DCP Chapter 7 - Off-Street Carparking",
+            "dcp_land_use": result.get("dcp_use"),
+            "source": result.get("source", "Lismore DCP Chapter 7 - Off-Street Carparking"),
             "note": "Rates may vary by location. Check specific DCP provisions for exact requirements."
         }
+        if result.get("note"):
+            response["what_to_check"] = result["note"]
         if match.how != "exact":
             response["interpreted_as"] = (
                 f"Read '{requested}' as '{dev_type}'. If that is not the use you meant, "
@@ -44,10 +48,13 @@ def get_parking_rates(arguments: dict):
 
         # Turn the rate into a number where the inputs allow it, so a shortfall
         # gets stated rather than left as an exercise for the reader.
-        estimate = estimate_parking_requirement(
-            result["spaces"],
-            arguments.get("floor_area_sqm", 0) or 0,
-            arguments.get("num_employees", 0) or 0,
+        estimate = estimate_spaces(
+            result,
+            arguments.get("floor_area_sqm") or None,
+            {
+                "employees": arguments.get("num_employees") or 0,
+                "seats": arguments.get("seats") or 0,
+            },
         )
         if estimate:
             provided = arguments.get("spaces_provided")
@@ -61,6 +68,12 @@ def get_parking_rates(arguments: dict):
                     if shortfall else "The rate is met by the spaces provided."
                 )
             response["calculation"] = estimate
+        elif result.get("spec") is None:
+            response["no_calculation"] = (
+                "This rate cannot be turned into a number from the inputs given — read "
+                "rate_description and what_to_check. Guessing a space count here is worse "
+                "than not giving one."
+            )
 
         return [TextContent(type="text", text=json.dumps(response, indent=2))]
     else:

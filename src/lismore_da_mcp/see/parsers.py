@@ -128,33 +128,3 @@ def parse_land_identifier(
                 resolved["plan_number"] = m.group(2)
 
     return resolved
-
-def estimate_parking_requirement(rate_text: str, floor_area_sqm: float, num_employees: int) -> dict | None:
-    """Turn a DCP Chapter 7 rate string into an indicative number of spaces.
-
-    Returns None when the rate can't be read numerically, rather than guessing.
-    """
-    total = 0.0
-    basis = []
-
-    area_rate = re.search(r"1\s*(?:space)?\s*per\s*(\d+(?:\.\d+)?)\s*m", rate_text, re.I)
-    if area_rate and floor_area_sqm:
-        per = float(area_rate.group(1))
-        total += floor_area_sqm / per
-        basis.append(f"{floor_area_sqm:g}m² at 1 space per {per:g}m²")
-
-    staff_rate = re.search(r"1\s*(?:space)?\s*per\s*(\d+)\s*(?:staff|employee)", rate_text, re.I)
-    if staff_rate and num_employees:
-        per = float(staff_rate.group(1))
-        total += num_employees / per
-        basis.append(f"{num_employees} staff at 1 space per {per:g}")
-
-    if not basis:
-        return None
-
-    return {
-        "spaces_required": math.ceil(total),
-        "basis": basis,
-        "rate": rate_text,
-        "caveat": "Indicative only. The DCP rate may apply to a narrower area (e.g. dining area rather than gross floor area) — confirm the area basis with Council.",
-    }

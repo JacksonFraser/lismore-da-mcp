@@ -18,8 +18,8 @@ from lismore_da_mcp.vocabulary import (
     PARKING_SYNONYMS,
     resolve,
 )
+from lismore_da_mcp.parking import estimate_spaces
 from lismore_da_mcp.see.parsers import (
-    estimate_parking_requirement,
     parse_land_identifier,
     parse_street_address,
 )
@@ -175,7 +175,7 @@ def generate_see_form_data(
     rate_match = resolve(proposed_use or "", PARKING_RATES, PARKING_SYNONYMS)
     rate_entry = PARKING_RATES.get(rate_match.key) if rate_match else None
     if rate_entry:
-        parking = estimate_parking_requirement(rate_entry["spaces"], floor_area_sqm, num_employees)
+        parking = estimate_spaces(rate_entry, floor_area_sqm, {"employees": num_employees})
         if parking:
             parking["spaces_provided"] = parking_spaces_provided
             if parking_spaces_provided is None:
