@@ -177,7 +177,48 @@ Schedule 1 is a three-column PDF table, so unlike the LEP's semicolon lists it c
 structurally with confidence — hence verbatim storage plus a presence check rather than a parser
 pretending to more precision than it has.
 
-### 0.4 Watch the council site instead of sampling it
+### 0.4 Watch the council site instead of sampling it — ✅ **DONE 2026-08-02**
+
+`scripts/verify_against_council.py`. The gap it closes is narrower than it sounds and worth naming
+precisely: the three `audit_*.py` scripts check the transcribed data against the PDFs **in this
+repository**, so a reissued chapter or an amended fee schedule would leave every audit green while
+the server quoted superseded figures. Nothing checked the documents themselves.
+
+Three passes: re-download every document with a recorded source URL and compare byte for byte;
+re-verify every figure the server would quote against the *freshly downloaded* copy; crawl
+Council's planning pages for PDFs the repo does not carry. It never writes to `documents/`.
+
+**First run, 2026-08-02 — everything verifies.** All four source documents are byte-identical to
+what Council publishes today, and all 80 figures still appear in them: 20 fee and charge figures,
+41 Section 7.11 rates, 11 Section 64 charges, 25 parking requirements.
+
+Three things that run turned up:
+
+- **No current indexed Section 7.11 rate sheet exists.** The contributions page links the plan and
+  nothing else, so "the plan's published rates, treat them as a floor, ask Council for the indexed
+  figure" is the complete and correct position rather than a hedge.
+- **Four current DCP chapters named in CLAUDE.md's own tables are not in `documents/`** — Part A
+  chapters 6 and 16, Part B chapters 10 and 11. Not fetched; that is a separate decision.
+- **A regular agent cannot read the council website at all.** `lismore.nsw.gov.au` returns 403 to
+  plain HTTP, confirmed against three pages. Without a browser there is nothing to compare against,
+  which is a large part of why this server is worth having.
+
+The reporting needed as much care as the fetching. A first cut reported 48 of 59 crawled links as
+"new", most of them chapters already held under Council's other naming convention — an audit nobody
+would read twice. Matching on chapter identity (part, number, LEP edition) rather than filename,
+and collapsing the LEP 2000 editions the repo declines by policy, brings it to **four** genuinely
+absent documents. `KNOWN_NOT_CARRIED` records the ones already decided against, with reasons,
+because "we looked and said no" is information and silence is not.
+
+The matcher had a bug worth remembering: an underscore is a word character, so `part_b_chapter_1`
+failed a `\b` lookahead, fell through to the Part A default, and matched Part B chapter 1 to the
+Part A chapter 1 file. `tests/test_council_verification.py` pins it, along with the manifest naming
+files that exist.
+
+Still to do: run it on a schedule. Quarterly is probably right, and it should open an issue rather
+than write a log line nobody reads.
+
+<details><summary>The original plan for this item</summary>
 
 0.1 fixed a stale fee scale; nothing stops the next one. Planning documents decay continuously —
 DCP amendments, a reissued chapter, the July fee reset — and this repo currently learns about that
@@ -196,6 +237,8 @@ should gate anything the watcher proposes.
 Note this is the *belt* to 0.1's *braces*: `TestScheduleCurrency` already fails when the fee scale
 falls two years behind regardless of whether the watcher ever runs. Prefer that pattern — a check
 that fails loudly in CI beats a job that has to be alive to be useful.
+
+</details>
 
 # Phase 1 — Make the business path work end to end — ✅ **DONE 2026-08-02**
 
