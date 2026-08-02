@@ -48,13 +48,14 @@ lodgements. The `get_zone_info` / `check_permissibility` tools carry the current
 - Standard: 40 business days
 - Clock pauses for additional info requests
 
-## DA Fees (2024-25 schedule, indicative)
+## DA Fees (2026-27 schedule, indicative)
 | Cost of Works | Approx. Fee |
 |--------------|-------------|
-| Up to $50k | $220-$450 |
-| $50k-$250k | $450-$1,500 |
-| $250k-$500k | $1,500-$2,300 |
-| $500k-$1M | $2,300-$3,400 |
+| Up to $5k | $153 |
+| $5k-$50k | $238-$370 |
+| $50k-$250k | $492-$1,216 |
+| $250k-$500k | $1,610-$2,193 |
+| $500k-$1M | $2,422-$3,240 |
 
 Use `calculate_da_fees` for an actual figure — it applies the same EP&A Regulation Schedule 4
 brackets exactly. Statutory fees are re-set each July, so verify against Council's current
