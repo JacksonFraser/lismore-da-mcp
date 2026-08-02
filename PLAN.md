@@ -178,7 +178,7 @@ pretending to more precision than it has.
 DCP amendments, a reissued chapter, the July fee reset — and this repo currently learns about that
 only when somebody happens to look. It went two years without anybody happening to look.
 
-`fetch_council_documents.py` and `SCRAPER.md` make the check cheap now: re-crawl the planning and
+`scripts/fetch_council_documents.py` and `SCRAPER.md` make the check cheap now: re-crawl the planning and
 business sections, compare the published set against `documents/`, and report anything new, renamed
 or changed in size. Run it on a schedule (quarterly is probably right; a `/loop` or a scheduled
 cloud agent both work) and have it open an issue or a PR rather than a log line nobody reads.

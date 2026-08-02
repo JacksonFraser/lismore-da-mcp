@@ -43,7 +43,8 @@ uv sync --extra scraping          # playwright + httpx, kept out of the deployed
 .venv/bin/playwright install chromium
 ```
 
-This is the same reason `fetch_lep.py`, `fetch_zones.py` and `fetch_exempt_development.py` exist —
+This is the same reason `scripts/fetch_lep.py`, `scripts/fetch_zones.py` and
+`scripts/fetch_exempt_development.py` exist —
 `legislation.nsw.gov.au`, `austlii.edu.au` and `planning.nsw.gov.au` block automated fetches too.
 Follow their shape for anything new.
 
@@ -150,7 +151,7 @@ published for exactly this purpose, but there is no reason to be expensive about
 
 ## Worked example
 
-`fetch_council_documents.py` at the repo root applies all of the above: it fetches a declared list
+`scripts/fetch_council_documents.py` applies all of the above: it fetches a declared list
 of (url, category, filename), skips anything already present, validates that each download is a
 real PDF whose first page contains text, and deletes anything that fails rather than leaving it on
 disk. Run it, read its report, inspect the new files, then update `DOCUMENT_INDEX.md` by hand.
@@ -158,5 +159,5 @@ disk. Run it, read its report, inspect the new files, then update `DOCUMENT_INDE
 ```bash
 uv sync --extra scraping
 .venv/bin/playwright install chromium
-.venv/bin/python fetch_council_documents.py          # add --dry-run to list without downloading
+.venv/bin/python scripts/fetch_council_documents.py   # add --dry-run to list without downloading
 ```
