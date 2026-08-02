@@ -49,12 +49,17 @@ Walked as a business would: *"I want to open a café in a vacant shop at 12 Keen
 | What do I submit? | **Refused.** `change of use` is rejected; only `change_of_use` works | ❌ **[verified]** |
 | Write the SEE | 8,394-character draft, correct structure | ⚠️ **[verified]** |
 | …does the SEE mention flood, on a CBD site? | **No — zero mentions** | ❌ **[verified]** |
-| What will it cost me? | DA lodgement fee only, ~~2024-25 scale~~ → now 2026-27 (item 0.1) | ⚠️ still lodgement fee only |
+| What will it cost me? | ~~DA lodgement fee only~~ → fee, contributions and the parts that cannot be estimated (item 2.1) | ✅ |
 
 The shape of that is worth stating plainly: **the retrieval half works well and the business half
 is where it stops.** Zone, permissibility, parking and referrals are solid. The three things a
 business actually needs to *act* — what to submit, what it costs, and a document that engages with
 its site — are the three that fail.
+
+> The table above is left as the record of what the walk-through found on 2026-08-01. All three of
+> those have since been closed — the first two by Phase 1, the cost answer by item 2.1 — and the
+> parking row now reads 17 spaces rather than 8, because item 0.3 found the rate itself was wrong.
+> `tests/test_business_path.py` walks the whole journey, cost included, as one test.
 
 ---
 
@@ -249,17 +254,72 @@ the new use.
 Phase 1 makes the path work. This is where the reported problem — businesses having trouble with
 Council — most likely actually lives.
 
-### 2.1 Answer "what will this cost me", not "what is the DA fee"
+### 2.1 Answer "what will this cost me", not "what is the DA fee" — ✅ **DONE 2026-08-02**
 
-The lodgement fee is a fraction of it. A business also faces, variously: advertising/notification
-fees, the long service levy above a threshold, Section 7.11 developer contributions (which for
-commercial can dwarf the DA fee), Section 64 water and sewer headworks — significant for a food
-premises — plus the Construction Certificate, inspections and an Occupation Certificate
-**[verify with planner]** on every figure and threshold.
+"Which for commercial can dwarf the DA fee" understated it. On an 80m² café fitout costing $50,000:
 
-A business that budgets the DA fee and then meets a s7.11 contribution notice is exactly a business
-having "issues with Council". Give them the whole number, with the parts named, or a clear
-statement of which parts cannot be estimated without Council.
+| | |
+|---|---|
+| DA lodgement fee | **$370** |
+| Section 7.11 contribution, urban catchment | **$16,081** |
+
+That is 43×, and it was invisible. `calculate_da_fees` now takes `development_type` and a floor
+area and returns both, plus Council's 0.1% technology charge and notification fees, summed into
+`budget_at_least` with `what_it_leaves_out` naming everything not in it.
+
+**A defect fell out of reading the fee schedule properly.** Schedule 4 Item 2.7 sets a flat fee for
+development *"not involving the erection of a building, the carrying out of a work, the subdivision
+of land, or the demolition of a building or work"* — a pure change of use, the commonest business
+DA there is. Priced off the cost brackets with a $0 cost of works it returned **$153**; the fee is
+**$395**. `involves_building_work=False` selects it.
+
+**The single most valuable thing here is section 2.7 of the contributions plan**, which nothing in
+the original plan item anticipated. Contributions are charged on the *net increase in demand*, with
+the contribution attributable to the existing lawful use discounted. So:
+
+| Change of use, 80m², urban | contribution |
+|---|---|
+| shop → café | **nil** — both are retail premises |
+| office → café | **$12,310** — 1.6 → 7 peak vehicle trips per 100m² |
+
+Both answers are actionable and neither is guessable. The allowance is not automatic: it must be
+evidenced with the DA, so the tool says to lodge proof of the previous use rather than argue it
+after the consent is conditioned. Note the plan uses "credit" (section 2.8) for something else
+entirely — negotiated works-in-kind — so the argument has to be made under the word "allowance" or
+it goes to the wrong provision.
+
+**What is deliberately not quantified.** Section 64 water and wastewater is real, is large for a
+food premises, and **cannot be computed from anything in this repo**: the DSP rates are in 2016
+dollars indexed annually, and it carries no table converting a non-residential use into equivalent
+tenements — Council assesses that. The rates and service areas are returned so the charge can be
+named and the applicant told to ask early, but no total is invented. Same for the long service
+levy, which is a Long Service Corporation charge and is not in Council's schedule at all; it is
+listed with its source rather than a made-up rate.
+
+The catchment is also never guessed. Rates differ by catchment and for retail the **rural rate is
+20% higher** than urban ($24,210 against $20,102 per 100m²), so a silent default to urban would
+understate a village proposal. Without a stated catchment all three are returned and the
+contribution is excluded from `budget_at_least` rather than being quietly picked.
+
+**The audit is stronger than the other two transcriptions', because it could be.** Table E2 is
+re-derivable from Table E1 — occupancy × per-head rates, plus PVTs × the traffic rate, plus the
+4.5% administration loading — so `scripts/audit_contributions.py` rebuilds all 30 published cells
+rather than only searching for them in the PDF. That catches a transposed digit, which a presence
+check cannot. It also *found* something: **tourist and visitor accommodation in the rural catchments
+is $212.68 below its own derivation**, exactly the Open Space and Recreation component that every
+other rural row includes. Whether that is intentional is not recoverable from the document, so the
+published figure is stored (it is what Council levies) and the gap is named in
+`KNOWN_TABLE_DISCREPANCIES` rather than absorbed by widening the tolerance.
+
+Two smaller things fixed in passing: the server instructions injected into **every** session still
+read *"Fees are calculated from the 2024-25 statutory scale"* a year after 0.1 moved it to 2026-27,
+with a test asserting the stale literal was present. The year is now interpolated from
+`DA_FEE_SCHEDULE_YEAR` and the test asserts agreement rather than a copy. The README's worked
+examples were also still quoting the pre-0.3 parking rate and a 2024-25 fee.
+
+Still open, and needing a planner rather than a document: whether a **contribution in lieu of
+parking** applies in Lismore (item 2.2), and the s7.11 treatment of a fitout that increases GFA
+within an existing tenancy.
 
 ### 2.2 Make parking a decision, not a number
 

@@ -72,7 +72,7 @@ claude
 | `get_residential_standards` | DCP Chapter 1 standards: site coverage, private open space, landscaping, car parking design |
 | `get_flood_requirements` | Flood planning level and floor level requirements, with exemptions |
 | `check_referrals` | External agency referrals (integrated development) a proposal may trigger |
-| `calculate_da_fees` | DA lodgement fee from estimated development cost |
+| `calculate_da_fees` | What a DA costs: lodgement fee, Council's notification and technology charges, and the Section 7.11 developer contribution — which on a commercial DA is usually far larger than the fee |
 | `get_da_checklist` | Required documents for a DA, by development type |
 | `get_contact_info` | Council contacts and duty planner availability |
 
@@ -99,16 +99,21 @@ claude
 User: What are the parking requirements for a restaurant?
 
 Claude: [Uses get_parking_rates tool]
-For a restaurant in Lismore:
-- Parking spaces: 1 per 10m² dining area + 1 per 2 employees
-- Source: Lismore DCP Chapter 7
+For a restaurant or cafe in Lismore:
+- 1 per 3 seats, plus 1 per 2 employees, or 15 per 100m² GFA — whichever is greater
+- Source: Lismore DCP Chapter 7 Schedule 1, p14
 
-User: How much will my DA cost for a $500,000 project?
+User: I'm opening an 80m² cafe in a vacant Lismore shop. What will the DA cost?
 
 Claude: [Uses calculate_da_fees tool]
-Estimated DA fee: $2,094.50
-Cost estimate required: Qualified person estimate
-Note: Additional fees may apply for advertising, referrals, etc.
+- DA lodgement fee: $370 (on a $50,000 fitout)
+- Information & technology service charge: $50 (0.1% of cost)
+- Section 7.11 contribution: $16,081 at the retail rate — but the tenancy was
+  last used as a shop, which is also retail premises, so on section 2.7 the
+  contribution is charged on the increase in demand and comes to nil. Lodge
+  evidence of the previous use with the DA; the allowance is not automatic.
+- Not included: Section 64 water and wastewater (ask Council early — a kitchen
+  adds equivalent tenements), notification fees, long service levy.
 
 User: What can I build in an R1 zone?
 

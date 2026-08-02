@@ -45,6 +45,7 @@ curl localhost:8080/health                # → "ok"
 | `planning-data-reviewer` agent | Checks transcribed data in `data/` against the source documents. The repo's core risk is that this data is hand-copied and nothing verifies it; the tests pin that it has not *changed*, not that it is *right*. |
 | `scripts/audit_parking_rates.py` | Checks every parking requirement in `data/parking.py` still appears verbatim in DCP Chapter 7. Schedule 1 is a three-column PDF table that cannot be diffed structurally, so the rates are stored verbatim and presence-checked. All 22 entries were wrong before 2026-08-02. |
 | `scripts/audit_zone_tables.py` | Diffs every zone land use table against `documents/lep/lep-2012-nsw-full.txt`. All 21 match as of 2026-08-02; `tests/test_zone_transcription.py` keeps it that way. Known defects in the *scraped source text* — three lost semicolons — are listed in `SOURCE_TEXT_DEFECTS` rather than silently tolerated. |
+| `scripts/audit_contributions.py` | Checks the Section 7.11 rates two ways: every figure still appears in the plan PDF, **and** all 30 cells of Table E2 rebuild from Table E1's components. The derivation catches a transposed digit that a presence check cannot, and it found one real discrepancy in the published table (`KNOWN_TABLE_DISCREPANCIES`). Prefer this shape wherever a source table has recoverable internal arithmetic. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 
 `.claude/settings.local.json` stays out of git (per-machine permissions); everything else in
@@ -199,6 +200,22 @@ standing "confirm this figure" caveat sat on every answer. A caveat that is alwa
 no information; `schedule_status()` now adds a loud warning **only** when the scale is actually
 behind, and `TestScheduleCurrency` fails once it is two years behind. `calculate_da_fees` is the source of truth for a number — the tables
 in Part 2 and `QUICK_REFERENCE.md` are indicative only.
+
+**The lodgement fee is not what a DA costs, and treating it as though it were was the single
+largest gap in this repo.** For an 80m² café fitout the fee is $370 and the Section 7.11
+contribution is $16,081. `data/contributions.py` carries the contribution rates and
+`contributions.py` applies them; `calculate_da_fees` composes everything quantifiable into
+`budget_at_least` and lists the rest under `what_it_leaves_out` and `not_estimated`. Three rules
+hold it together, and each exists because the alternative puts a wrong number in a business's
+budget: **the catchment is never assumed** (rural retail is charged 20% more than urban, so a
+default to urban understates a village proposal, and without a stated catchment the contribution is
+left out of the total rather than picked); **a change of use is charged on the increase in demand
+over the existing lawful use**, per section 2.7 of the plan, which takes shop → café to nil and
+office → café to $12,310 — call it the "allowance", never the "credit", which is a different
+provision; and **Section 64 water and wastewater is named but never quantified**, because the DSP
+is in 2016 dollars and has no non-residential ET conversion table, so only Council can produce that
+figure. Anything added here that cannot be sourced should follow the last of those and go in
+`UNQUANTIFIED_CHARGES` with its source, not be estimated.
 
 ---
 

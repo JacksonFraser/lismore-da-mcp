@@ -52,6 +52,102 @@ PREVIOUS_SCHEDULES = {
 }
 
 
+# ---------------------------------------------------------------------------
+# The rest of what Council charges on a DA
+#
+# Added 2026-08-02 for PLAN.md item 2.1, from the same document (pp30-32). The
+# brackets above answer "what is the DA lodgement fee"; a business asking "what
+# will this cost me" also meets every charge below, and the first of them is a
+# straight defect rather than an omission:
+#
+#   Schedule 4 item 2.7 sets a **flat fee for development that does not involve
+#   building work** — no erection of a building, no carrying out of a work, no
+#   subdivision, no demolition. That is a pure change of use, which is the
+#   commonest business DA there is. Priced off the cost brackets above with a
+#   $0 cost of works it returned $153; the fee is $395.
+#
+# Every figure here is from the "Year 26/27" column. Unlike p30 — where only the
+# first row carries both years and the column had to be established by position
+# and arithmetic (see the module docstring) — pp31-32 print both years on every
+# row, so which column a figure belongs to is unambiguous.
+# ---------------------------------------------------------------------------
+
+# Schedule 4 Part 2 Item 2.7. Fees PDF p31.
+DA_FEE_NO_BUILDING_WORK = 395.00
+
+# Fees PDF p30. Applies below $100,000; above that the cost brackets apply.
+DA_FEE_DWELLING_UNDER_100K = 631.00
+DA_FEE_DWELLING_THRESHOLD = 100_000
+
+# Fees PDF p32, "Information & Technology Service Charge": 0.1% of estimated
+# cost, on every DA and CDC. Small proportionally, invisible in every discussion
+# of DA fees, and charged on top.
+IT_SERVICE_CHARGE_RATE = 0.001
+
+# Fees PDF p32, "Advertising & Notification Fees for DA's/Modifications
+# (Additional to DA Fees) - Community Engagement Strategy". Which tier applies is
+# Council's call under its Community Participation Plan, so all are returned.
+NOTIFICATION_FEES = {
+    "expected": 365.00,
+    "moderate": 537.00,
+    "significant": 1_334.00,
+    "designated_development": 1_334.00,
+    "nominated_integrated_development": 537.00,
+}
+
+# Fees PDF p32, "Advertising of DAs - Prescribed Fees (Additional to DA Fees)",
+# given under Schedule 4 Part 3 of the EP&A Regulation 2021. These are the
+# statutory notice fees, separate from the engagement strategy fees above.
+PRESCRIBED_NOTICE_FEES = {
+    "designated_development": 3_078.00,
+    "nominated_integrated_threatened_species_or_class_1_aquaculture": 1_532.00,
+    "prohibited_development": 1_532.00,
+    "other_development_requiring_notice": 1_532.00,
+}
+
+# Fees PDF p31. The per-input amount is charged for each approval body the
+# application is referred to, so an integrated development touching two agencies
+# pays it twice — which is why check_referrals matters to the budget.
+INTEGRATED_DEVELOPMENT_FEE = {"processing": 194.00, "per_approval_body": 1_100.00}
+
+DESIGNATED_DEVELOPMENT_FEE = 1_276.00
+DESIGN_REVIEW_PANEL_FEE = 4_159.00
+
+# Fees PDF p30. Not a lodgement cost — the cost of getting it wrong, which is
+# the number worth showing a business up front.
+AMENDED_PLAN_FEE_RATE = 0.30
+
+# Charges that are real, that a business will meet, and that this repo holds no
+# authoritative figure for. Named without numbers on purpose: a made-up figure
+# in a budget is worse than a named unknown, and each of these has a source the
+# applicant can go to directly.
+UNQUANTIFIED_CHARGES = [
+    {
+        "charge": "Long service levy",
+        "who": "Long Service Corporation (NSW), not Council",
+        "when": "Building and construction work above a threshold, paid before the "
+                "Construction Certificate is issued",
+        "why_no_figure": "The rate and threshold are set by the Long Service Corporation "
+                         "and are not in Council's fees and charges. Confirm both at "
+                         "longservice.nsw.gov.au.",
+    },
+    {
+        "charge": "Construction Certificate, inspections and Occupation Certificate",
+        "who": "Council or a private certifier",
+        "when": "After consent, before work starts and before the premises can be occupied",
+        "why_no_figure": "A private certifier quotes its own fees; Council's are charged "
+                         "per inspection at urban or rural rates.",
+    },
+    {
+        "charge": "Section 68 approval (water, sewer, stormwater, on-site sewage)",
+        "who": "Council, under the Local Government Act 1993",
+        "when": "Commonly needed alongside a food premises fitout",
+        "why_no_figure": "Charged per application ($570.50 urban / $597.50 rural in "
+                         "2026-27) plus inspection fees that depend on the work.",
+    },
+]
+
+
 def current_financial_year(today: date | None = None) -> str:
     """The NSW financial year as the fee schedules label it, e.g. '2026-27'."""
     today = today or date.today()

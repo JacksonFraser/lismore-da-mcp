@@ -172,6 +172,19 @@ class TestTheWholeJourney:
         fees = call("calculate_da_fees", {"development_cost": 120_000})
         assert fees["fee_schedule_year"] == "2026-27"
 
+        # The cost answer has to be the whole cost, not the lodgement fee. This
+        # cafe takes over a tenancy last used as an office, so the Section 7.11
+        # contribution is charged on the step from 1.6 to 7 peak vehicle trips
+        # per 100m2 — and it dwarfs the fee. A business told only the fee here
+        # is a business that meets the contribution as a surprise.
+        cost = call("calculate_da_fees", {
+            "development_cost": 120_000, "development_type": "cafe",
+            "gross_floor_area_m2": 80, "catchment": "urban", "existing_use": "office"})
+        contribution = cost["parts"]["section_7_11_contributions"]["net_contribution"]["urban"]
+        assert contribution > 10 * cost["estimated_fee"]
+        assert cost["budget_at_least"] > contribution
+        assert "section_7_11_contributions" in cost["what_that_covers"]
+
         draft = call("generate_see_draft", {
             "property_address": CBD, "zone_code": "E2", "proposed_use": "cafe",
             "development_type": "change_of_use", "floor_area_sqm": 80})

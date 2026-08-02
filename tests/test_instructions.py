@@ -18,6 +18,7 @@ import pytest
 
 import lismore_da_mcp.server  # noqa: F401  (registers the tools)
 from lismore_da_mcp.app import server
+from lismore_da_mcp.data.fees import DA_FEE_SCHEDULE_YEAR
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.instructions import INSTRUCTIONS
 from lismore_da_mcp.registry import registered
@@ -57,7 +58,21 @@ class TestCaveatsSurvive:
         assert "duty planner" in INSTRUCTIONS.lower()
 
     def test_dates_the_fee_scale(self):
-        assert "2024-25" in INSTRUCTIONS and "July" in INSTRUCTIONS
+        """Asserts agreement with the scale actually in use, not a literal.
+
+        This test used to assert "2024-25" was present, and it still passed a
+        year after item 0.1 moved the scale to 2026-27 — so every connecting
+        agent was told the wrong year by the one string injected into every
+        session. Pinning the copy rather than the agreement is what made that
+        possible.
+        """
+        assert DA_FEE_SCHEDULE_YEAR in INSTRUCTIONS and "July" in INSTRUCTIONS
+
+    def test_points_at_the_contribution_not_just_the_fee(self):
+        """The lodgement fee is a fraction of what a business pays; an agent that
+        quotes only it has answered the wrong question (PLAN.md 2.1)."""
+        assert "7.11" in INSTRUCTIONS
+        assert "existing_use" in INSTRUCTIONS
 
     def test_flags_superseded_lep_2000_results(self):
         assert "LEP 2000" in INSTRUCTIONS
