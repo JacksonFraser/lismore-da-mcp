@@ -130,6 +130,20 @@ def list_zones(arguments: dict):
     )]
 
 
+# Words that describe *what you are doing* rather than *what will operate on
+# the land*. The LEP land use table answers only the second question, so these
+# fall through to the "any other development not specified" catch-all and come
+# back as likely_permitted_with_consent — a confident answer to a question that
+# was never asked. See PLAN.md 1.3.
+NOT_A_LAND_USE = {
+    "change of use", "change use", "use change", "changing use",
+    "fitout", "fit out", "shop fitout", "refurbishment", "refit",
+    "development", "new development", "alteration", "alterations",
+    "alterations and additions", "addition", "additions", "renovation",
+    "extension", "extensions", "demolition", "construction", "building work",
+}
+
+
 @tool(
     name='check_permissibility',
     description='Check if a specific land use is permitted in a specific zone. Returns whether the use is permitted without consent, permitted with consent, prohibited, or not found. Essential first step for any DA - confirms the proposal is actually permissible.',
@@ -142,6 +156,37 @@ def list_zones(arguments: dict):
 def check_permissibility(arguments: dict):
     land_use = arguments["land_use"].strip()
     zone_code = arguments["zone_code"].upper().strip()
+
+    if canonical_use(land_use) in {canonical_use(term) for term in NOT_A_LAND_USE}:
+        return [TextContent(type="text", text=json.dumps({
+            "error": f"{land_use!r} describes the work, not a land use.",
+            "why": (
+                "The LEP land use table answers one question: may this *use* operate on this "
+                "land. It says nothing about whether the work is a new building, a fit-out or "
+                "a change of use. Asked this way it falls through to the table's catch-all and "
+                "would report 'likely permitted with consent' — a confident answer to a "
+                "question you did not ask."
+            ),
+            "ask_instead": (
+                "Check the use you want to operate. For a café in a vacant shop, ask about "
+                "'restaurant or cafe' — not 'change of use'."
+            ),
+            "for_a_change_of_use_also_check": [
+                "Whether consent is needed at all. Some changes of use between similar "
+                "commercial uses are exempt or complying development under the Codes SEPP "
+                "[verify with planner].",
+                "Existing use rights, if the current lawful use is no longer permissible in "
+                "the zone — these can allow it to continue or change [verify with planner].",
+                "Contamination. Moving to a more sensitive use — a workshop becoming a café "
+                "or a child care centre — can require a Preliminary Site Investigation even "
+                "with no building work.",
+                "Parking. The requirement is assessed against the new use; get_parking_rates "
+                "gives the rate and any shortfall, and any credit for the previous use is "
+                "argued in the SEE.",
+                "get_da_checklist with 'change of use' lists the documents.",
+            ],
+            "zone_code": zone_code,
+        }, indent=2))]
 
     redirect_note = None
     if zone_code in ZONES and "redirect_to" in ZONES[zone_code]:

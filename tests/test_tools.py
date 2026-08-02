@@ -257,7 +257,10 @@ class TestKnownGaps:
     def test_checklist_refuses_nonsense(self, call):
         result = call("get_da_checklist", {"development_type": "nuclear reactor"})
         assert "error" in result
-        assert result["recognised_types"]
+        # The key changed when the tool moved from substring matching to the
+        # shared resolver (PLAN.md 1.1); the behaviour did not.
+        assert result["available_checklists"]
+        assert result["documents_required_for_every_da"]
         # Still tells the caller what every DA needs, rather than refusing outright.
         assert result["documents_required_for_every_da"]
 

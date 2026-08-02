@@ -4,11 +4,19 @@ import json
 
 from mcp.types import TextContent
 
+from lismore_da_mcp.data.checklists import (
+    CONDITIONAL_DOCUMENTS,
+    DA_CHECKLISTS,
+    UNIVERSAL_DOCUMENTS,
+)
 from lismore_da_mcp.data.contacts import CONTACT_INFO
 from lismore_da_mcp.data.flood import FLOOD_PLANNING
 from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS
 from lismore_da_mcp.data.standards import RESIDENTIAL_STANDARDS
 from lismore_da_mcp.registry import tool
+from lismore_da_mcp.vocabulary import CHECKLIST_SYNONYMS
+from lismore_da_mcp.vocabulary import resolve
+from lismore_da_mcp.vocabulary import unresolved_error
 
 
 @tool(
@@ -277,98 +285,59 @@ def check_referrals(arguments: dict):
 
 @tool(
     name='get_da_checklist',
-    description='Get a checklist of required documents for a Development Application based on development type.',
+    description='Get the documents a Development Application must include, for a given kind of development. An incomplete lodgement is not assessed — the clock does not start — so this is the cheapest place for a business to avoid losing weeks.',
     properties={
-        'development_type': {'type': 'string', 'description': "Type of development (e.g., 'dwelling', 'commercial', 'subdivision', 'change_of_use')"},
+        'development_type': {'type': 'string', 'description': "What you are doing — plain words are fine: 'change of use', 'cafe', 'fitout', 'shop', 'office', 'industrial', 'signage', 'subdivision', 'dwelling'."},
     },
     required=['development_type'],
 )
 def get_da_checklist(arguments: dict):
-    dev_type = arguments.get("development_type", "").lower()
-    # Keywords the branches below actually test for, surfaced so a rejected
-    # call can name them instead of leaving the caller to guess.
-    DA_CHECKLIST_TYPES = {
-        "dwelling", "residential", "commercial", "subdivision", "change_of_use",
+    requested = arguments.get("development_type", "")
+    match = resolve(requested, DA_CHECKLISTS, CHECKLIST_SYNONYMS)
+
+    if not match:
+        # Say what is not known rather than returning the universal list, which
+        # made 'nuclear reactor' and 'spaceship' look like recognised types with
+        # a considered answer behind them.
+        error = unresolved_error(requested, match, "checklist", DA_CHECKLISTS)
+        error["documents_required_for_every_da"] = UNIVERSAL_DOCUMENTS
+        error["note"] = (
+            "Only the types above have type-specific requirements. Every DA needs the "
+            "documents listed here regardless of type."
+        )
+        return [TextContent(type="text", text=json.dumps(error, indent=2))]
+
+    key = match.key
+    entry = DA_CHECKLISTS[key]
+    response = {
+        "development_type": key,
+        "what_this_covers": entry["label"],
+        "required_documents": UNIVERSAL_DOCUMENTS,
+        "additional_for_type": entry["documents"],
+        "conditional_documents": CONDITIONAL_DOCUMENTS,
+        "lodgement": (
+            "Lodged via the NSW Planning Portal: "
+            "https://www.planningportal.nsw.gov.au/onlineDA. The DA is not legally lodged "
+            "until it passes Council's completeness check and the fee is paid — an "
+            "incomplete lodgement does not start the assessment clock."
+        ),
     }
-
-    base_documents = [
-        "Development Application form (via NSW Planning Portal)",
-        "Owner's consent (if not the owner)",
-        "Statement of Environmental Effects (SEE)",
-        "Site plan (1:100 or 1:200 scale)",
-        "Architectural plans (1:100 or 1:200 scale)",
-        "Cost of Development Works estimate"
-    ]
-
-    additional = []
-
-    if "dwelling" in dev_type or "residential" in dev_type:
-        additional = [
-            "BASIX Certificate",
-            "Shadow diagrams (if 2+ storeys)",
-            "Privacy assessment",
-            "Landscape plan"
-        ]
-    elif "commercial" in dev_type:
-        additional = [
-            "Traffic impact assessment (if significant traffic generation)",
-            "Acoustic report (if noise-generating use)",
-            "Waste management plan",
-            "BCA compliance report",
-            "Fire safety schedule"
-        ]
-    elif "subdivision" in dev_type:
-        additional = [
-            "Survey plan",
-            "Subdivision layout plan",
-            "Services layout plan",
-            "Stormwater management plan",
-            "Road layout and pavement design"
-        ]
-    elif "change_of_use" in dev_type:
-        additional = [
-            "BCA compliance assessment",
-            "Fire safety upgrade report (if required)",
-            "Parking assessment"
-        ]
-
-    # Nothing matched, so there is no type-specific advice to give. Returning the
-    # generic list anyway made 'nuclear reactor' and 'spaceship' look like
-    # recognised development types with a considered answer behind them.
-    if not additional:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": f"No checklist available for development type '{dev_type}'.",
-                "recognised_types": sorted(DA_CHECKLIST_TYPES),
-                "note": (
-                    "Only the types above have type-specific document requirements. "
-                    "Every DA needs the standard documents listed under "
-                    "'documents_required_for_every_da' regardless of type."
-                ),
-                "documents_required_for_every_da": base_documents,
-            }, indent=2)
-        )]
-
-    conditional = [
-        {"condition": "If flood-affected land", "document": "Flood Risk Assessment"},
-        {"condition": "If heritage item or near heritage", "document": "Heritage Impact Statement"},
-        {"condition": "If vegetation removal required", "document": "Vegetation Management Plan"},
-        {"condition": "If contamination suspected", "document": "Contamination Assessment"},
-        {"condition": "If on-site sewage", "document": "On-site Sewage Management Report"},
-        {"condition": "If Clause 4.6 variation needed", "document": "Clause 4.6 Variation Request"}
-    ]
-
-    return [TextContent(
-        type="text",
-        text=json.dumps({
-            "development_type": dev_type,
-            "required_documents": base_documents,
-            "additional_for_type": additional,
-            "conditional_documents": conditional,
-            "lodgement": "All applications must be lodged via NSW Planning Portal: https://www.planningportal.nsw.gov.au/onlineDA"
-        }, indent=2)
-    )]
+    if entry.get("commonly_missed"):
+        response["commonly_missed"] = entry["commonly_missed"]
+    if entry.get("note"):
+        response["before_you_lodge"] = entry["note"]
+    if entry.get("also_see"):
+        other = DA_CHECKLISTS[entry["also_see"]]
+        response["also_see"] = (
+            f"{entry['also_see']} — {other['label']}. Call get_da_checklist again with that "
+            "type if it fits your proposal better."
+        )
+    if match.how != "exact":
+        response["interpreted_as"] = (
+            f"Read '{requested}' as '{key}' ({entry['label']}). If that is not the kind of "
+            "development you meant, call again with a type from the list."
+        )
+    return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
 
 @tool(

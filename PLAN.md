@@ -192,55 +192,55 @@ Note this is the *belt* to 0.1's *braces*: `TestScheduleCurrency` already fails 
 falls two years behind regardless of whether the watcher ever runs. Prefer that pattern — a check
 that fails loudly in CI beats a job that has to be alive to be useful.
 
-# Phase 1 — Make the business path work end to end
+# Phase 1 — Make the business path work end to end — ✅ **DONE 2026-08-02**
 
-The journey above breaks in three places. These are the three.
+The journey broke in three places. All three are fixed, and
+`tests/test_business_path.py` walks the whole thing — address to lodgeable
+answers — as one test.
 
-### 1.1 `get_da_checklist` refuses the words businesses use **[verified]**
+### 1.1 `get_da_checklist` refuses the words businesses use — ✅ **DONE**
 
-```
-change_of_use  → OK          change of use → REFUSED
-commercial     → OK          cafe, restaurant, shop, office, fitout → REFUSED
-```
+It was a chain of `if "commercial" in dev_type` substring tests, so
+`"change_of_use" in "change of use"` was False and the most common business DA type was
+refused. The checklists moved to `data/checklists.py` and the tool now uses the same
+`vocabulary.resolve()` every other tool got in 3.1/3.2, with `CHECKLIST_SYNONYMS` covering how
+businesses actually speak — *change of use, fitout, new tenancy, cafe, shop, office, hairdresser,
+warehouse, signage, demolish*. `nuclear reactor` is still refused; the point was never to accept
+everything.
 
-The underlying data is fine — `change_of_use` and `commercial` checklists both exist. The tool
-simply never got the vocabulary resolution that parking, definitions and the SEE sections received.
-It is the one tool that work missed, and it lands on the single most common business DA type.
+The contents were thin too, so they now carry what businesses are caught by: BCA reclassification
+and fire safety upgrade on a change of use, accessibility, waste, the parking assessment, and a
+`commonly_missed` list naming the approvals that are **not** the DA — trade waste, Food Act
+registration, footpath dining, and contamination on a move to a more sensitive use. Two new
+checklists were added for signage and demolition, and `commercial` and `change_of_use` now point at
+each other, since a new building and taking over a tenancy are different questions.
 
-Wire it to `vocabulary.resolve()` with business synonyms, so a caller typing what a business would
-say gets the checklist rather than a refusal.
+### 1.2 The SEE draft ignores the site it is written for — ✅ **DONE**
 
-Then check the checklist **contents** are right for a commercial change of use — a fit-out needs
-things a dwelling does not (fire safety schedule, accessibility upgrade, trade waste, mechanical
-ventilation for food) **[verify with planner]**.
+The draft mentioned flood **zero** times for a CBD café, because the flood and heritage blocks were
+conditional on caller-asserted booleans that defaulted to nothing. `_site_constraints()` now
+resolves them from the address via `lookup_constraints` when the caller has not asserted them, and
+a Site Constraints block appears in section 2 saying how each was determined.
 
-### 1.2 The SEE draft ignores the site it is written for **[verified]**
+**Flood is now unconditional.** It always gets a section, and where it has not been established the
+draft says so loudly rather than staying silent — because the state flood layer holds no Lismore
+data and can never rule flooding out, and a SEE silent on flood in this LGA is one Council comes
+back on. Constraints are tri-state (`True`/`False`/not established) because "we did not find it"
+and "it is not there" are different sentences to put in a document going to Council.
 
-For a café at 12 Keen Street — Lismore CBD, flood-affected, heritage conservation area — the draft
-mentions flood **zero** times and heritage **zero** times. The residential draft mentions flood
-once. The generator is effectively blind to where the site is.
+The draft also used to assert *"No SEPPs preclude the granting of consent"* — a claim nothing had
+checked, made on the applicant's behalf. It now names the SEPPs likely to be relevant and leaves
+the assessment to be done.
 
-Meanwhile `check_referrals` already knows: it returns flood as *"the defining constraint across
-much of this LGA"*, with the exact documents required. **These two tools do not talk to each
-other.**
+### 1.3 Treat "change of use" as a first-class case — ✅ **DONE**
 
-A SEE that does not address flood on a CBD site is one Council will come back on, which is exactly
-the delay this tool exists to prevent. Feed the constraints into the draft: take the address, run
-the constraint lookup, and have the generator write the flood, heritage and bushfire sections with
-the site's actual position — or, where it cannot, say plainly in the draft that the section needs
-completing and why.
-
-### 1.3 Treat "change of use" as a first-class case
-
-Today `check_permissibility(land_use="change of use")` answers `likely_permitted_with_consent`
-**[verified]**, which is a category error — a change of use is not a land use. The question a
-business is asking is *"can this use go in this tenancy"*, which needs the **new** use checked, and
-carries considerations a new building does not:
-
-- whether consent is needed at all — some changes of use between similar commercial uses are
-  exempt or complying under the Codes SEPP **[verify with planner]**
-- existing use rights where the current use is no longer permissible **[verify with planner]**
-- what the **previous** use means for contamination, when moving to a more sensitive use
+`check_permissibility(land_use="change of use")` returned `likely_permitted_with_consent` via the
+table's catch-all — a confident answer to a question nobody asked. Process words (*change of use,
+fitout, alterations and additions, renovation, demolition*) are now refused with an explanation of
+why the land use table cannot answer them, what to ask instead, and the four things a change of use
+carries that a new building does not: possible exempt/complying status under the Codes SEPP,
+existing use rights, contamination on a move to a more sensitive use, and parking assessed against
+the new use.
 
 ---
 
