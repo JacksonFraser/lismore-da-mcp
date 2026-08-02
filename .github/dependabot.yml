@@ -1,0 +1,35 @@
+# The actions in tests.yml are pinned to commit SHAs rather than floating major
+# tags, so a compromised or retagged action cannot change what runs here without
+# a commit. That safety costs nothing to set up and everything to maintain by
+# hand, which is what this file is for: Dependabot moves the SHA and rewrites the
+# trailing "# v7.0.1" comment to match, so the pin stays both current and legible.
+#
+# Its PRs go through the same gate as any other: main requires a green
+# "pytest (3.14)" before merge. The deploy job is guarded on
+# github.ref == 'refs/heads/main', so a Dependabot PR never touches Render and
+# never sees RENDER_API_KEY — Dependabot PRs run with a read-only token and no
+# access to repository secrets, which would otherwise make the deploy step fail
+# confusingly rather than skip.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # Two actions in one workflow — batching them keeps a routine bump to a
+    # single PR to review rather than two that each rerun the full suite.
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+
+  # Python dependencies are deliberately not managed here. requirements.txt is
+  # the Render deploy manifest and carries an intentional "mcp>=2.0.0,<3" cap —
+  # the upper bound is what stops the next major from reaching the live server
+  # before anyone has ported to it. An automated bump within that range is fine,
+  # but the cap is the thing worth thinking about, and a bot cannot tell the
+  # difference. Add a pip entry here if that trade stops being worth it.
