@@ -7,7 +7,15 @@
 > now limits this tool is not engineering.
 >
 > Everything marked **[verified]** below was checked by running the tools on 2026-08-01, not by
-> reading the code. Claims about planning law rather than code are marked **[verify with planner]**.
+> reading the code.
+>
+> **There is no planner to check with.** This project has no relationship with Lismore City
+> Council and no line to a planning professional, so a note saying "verify with planner" is not a
+> deferred task — it is a permanent one, and one that had started leaking into tool output as an
+> unfinished sentence shown to applicants. Those markers were removed on 2026-08-02. The rule that
+> replaces them: if a question cannot be settled from the documents in `documents/`, the tool says
+> so plainly, says why, and points the applicant at Council's free Duty Planner — who they, unlike
+> us, have every standing to ask. Declining out loud is a finished answer. A marker is not.
 
 ## Who this is for
 
@@ -65,8 +73,8 @@ its site — are the three that fail.
 
 # Phase 0 — Make the data trustworthy
 
-Nothing else on this plan matters if the numbers are wrong. Each item is concrete and checkable,
-and none needs a planner.
+Nothing else on this plan matters if the numbers are wrong. Every item here is answerable from a
+document in `documents/`, which is what makes it doable.
 
 0.1, 0.2 and 0.3 are done. The zone tables came back **clean**; the parking rates did not, and
 0.3 is the one to read — most of the 22 entries were wrong, in both directions, on the numbers a
@@ -360,9 +368,10 @@ with a test asserting the stale literal was present. The year is now interpolate
 `DA_FEE_SCHEDULE_YEAR` and the test asserts agreement rather than a copy. The README's worked
 examples were also still quoting the pre-0.3 parking rate and a 2024-25 fee.
 
-Still open, and needing a planner rather than a document: whether a **contribution in lieu of
-parking** applies in Lismore (item 2.2), and the s7.11 treatment of a fitout that increases GFA
-within an existing tenancy.
+Two questions this could not settle, because no document in the repo answers them: whether a
+**contribution in lieu of parking** applies in Lismore (item 2.2), and the s7.11 treatment of a
+fitout that increases GFA within an existing tenancy. Both are named in the tool's output as
+Duty Planner questions rather than guessed at.
 
 ### 2.2 Make parking a decision, not a number
 
@@ -370,7 +379,12 @@ within an existing tenancy.
 the shortfall is usually the whole argument: an existing tenancy has no on-site parking and cannot
 grow any. What a business needs next is what to *do* about it — the existing-use credit for parking
 already attributable to the previous use, whether a contribution in lieu applies, and how to argue
-a shortfall in the SEE **[verify with planner]**.
+a shortfall in the SEE.
+
+DCP Chapter 7 is in the repo, so start by reading it for those three rather than assuming they
+need an outside answer: §2.1 of item 0.3 found the *rates* were all wrong while nobody had looked,
+and the same may be true of the provisions around them. Where the chapter genuinely does not say,
+name it as a Duty Planner question in the output.
 
 ### 2.3 Signage
 
@@ -418,9 +432,11 @@ Small, non-urgent, and worth doing when next in the area rather than as a projec
 
 ## Deliberately not doing
 
-- **Encoding SEPP pathways** without a planner. Getting it wrong means confidently telling a
-  business a use is permitted when it is not — worse than the present gap, which errs toward
-  "check with Council". The caveat on every refusal stays.
+- **Encoding SEPP pathways** from the SEPPs themselves. Getting it wrong means confidently telling
+  a business a use is permitted when it is not — worse than the present gap, which errs toward
+  "check with Council". The caveat on every refusal stays. This is not waiting on anyone: it is a
+  judgement that the risk of a wrong "yes" outweighs the cost of a "we can't tell you", and it
+  would only change if the SEPP text were in `documents/` and auditable the way the LEP tables are.
 - **Predicting whether Council will approve something.** The tool should make an application
   complete and well-argued; it should not imply an outcome.
 - **More transport, dispatch or SDK work** unless something is broken. That is where the previous

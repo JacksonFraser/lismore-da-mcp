@@ -12,7 +12,16 @@ a tenancy this is one of the cheapest places to save weeks.
 
 Items marked "commonly required" are the ones a business is most often caught
 by. They are not universal, and the entries say so rather than presenting them
-as certainties. **[verify with planner]** on the fit-out specifics in particular.
+as certainties — particularly the fit-out specifics, which vary with the
+premises and are Council's call.
+
+Where an entry cannot be settled from the documents in `documents/`, it says so
+in the answer and points the applicant at Council's free Duty Planner. It does
+not carry a marker asking a future maintainer to check with a planner: this
+project has no line to Council, so such a marker is a permanent to-do that
+reads to the applicant as an unfinished sentence. State the limit plainly
+instead, and let the person who actually has standing to ask — the applicant —
+go and ask.
 """
 
 # Required for every DA regardless of type.
@@ -96,8 +105,7 @@ DA_CHECKLISTS = {
         ],
         "commonly_missed": [
             "Food premises: mechanical ventilation and exhaust details, grease arrestor and "
-            "trade waste — trade waste is a separate Council approval, not part of the DA "
-            "**[verify with planner]**",
+            "trade waste — trade waste is a separate Council approval, not part of the DA",
             "Food premises must also be registered with Council under the Food Act — separate "
             "from development consent. See documents/business/",
             "Footpath or outdoor dining is a separate approval again — see the NSW Outdoor "
@@ -108,9 +116,10 @@ DA_CHECKLISTS = {
         "also_see": "commercial",
         "note": "Some changes of use between similar commercial uses are exempt or complying "
                 "development under the Codes SEPP and may need no DA at all. Existing use "
-                "rights may also apply where the current use is no longer permissible. Both "
-                "are worth asking the Duty Planner before lodging anything "
-                "**[verify with planner]**.",
+                "rights may also apply where the current use is no longer permissible. "
+                "Neither can be answered from the LEP land use table, so this tool does not "
+                "try — both are free Duty Planner questions, and either could save you the "
+                "whole application.",
     },
     "industrial": {
         "label": "Industrial development",
