@@ -25,7 +25,7 @@ engineering work that is no longer the constraint.
 ## Commands
 
 ```bash
-uv sync                                   # install deps into .venv (Python >=3.10)
+uv sync                                   # install deps into .venv (Python >=3.13)
 uv sync --extra scraping                  # + httpx/playwright, only for scripts/fetch_*.py
 .venv/bin/python -m lismore_da_mcp.server # run the server over stdio (what .mcp.json launches)
 MCP_TRANSPORT=http PYTHONPATH=src PORT=8080 \

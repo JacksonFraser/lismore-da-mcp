@@ -11,9 +11,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.10 is the floor declared in pyproject; 3.13 is what the deployed
-        # server and local .venv run on.
-        python-version: ["3.10", "3.13"]
+        # One version, matching the deployed server and the local .venv, so CI
+        # tests what actually runs. Kept as a matrix rather than a bare
+        # python-version so the check context stays "pytest (3.13)" — the main
+        # branch ruleset requires that name, and dropping the matrix would
+        # rename it to "pytest" and leave every PR waiting on a check that
+        # never reports.
+        python-version: ["3.13"]
 
     steps:
       - uses: actions/checkout@v4
