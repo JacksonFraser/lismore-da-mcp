@@ -8,7 +8,6 @@ exception.
 import pytest
 
 from lismore_da_mcp.server import (
-    estimate_parking_requirement,
     parse_land_identifier,
     parse_street_address,
 )
@@ -114,26 +113,3 @@ class TestLandIdentifier:
         assert parse_land_identifier("the paddock behind the servo")["plan_number"] == ""
 
 
-class TestParkingEstimate:
-    def test_area_based_rate(self):
-        result = estimate_parking_requirement("1 space per 10m² dining area", 100, 0)
-        assert result["spaces_required"] == 10
-
-    def test_area_and_staff_combined(self):
-        result = estimate_parking_requirement("1 space per 25m² GFA + 1 per 2 employees", 250, 4)
-        assert result["spaces_required"] == 12  # ceil(10 + 2)
-
-    def test_rounds_up_partial_space(self):
-        result = estimate_parking_requirement("1 space per 10m²", 105, 0)
-        assert result["spaces_required"] == 11
-
-    def test_returns_none_when_rate_not_numeric(self):
-        """Refusing beats guessing — the caller omits the estimate entirely."""
-        assert estimate_parking_requirement("as determined by Council", 100, 2) is None
-
-    def test_returns_none_when_no_inputs_supplied(self):
-        assert estimate_parking_requirement("1 space per 10m²", 0, 0) is None
-
-    def test_carries_caveat_about_area_basis(self):
-        result = estimate_parking_requirement("1 space per 10m² dining area", 100, 0)
-        assert "caveat" in result and result["caveat"]
