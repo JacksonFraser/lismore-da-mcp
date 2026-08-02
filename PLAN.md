@@ -169,6 +169,30 @@ What was wrong:
 An 80m² café with 40 seats and 6 staff now returns **17 spaces**; the old data said 8. A business
 acting on 8 would have had its DA come back.
 
+> **Follow-up, 2026-08-02.** The café rate was still being applied on the wrong reading, which this
+> worked example hid. Schedule 1's wording does not say what "(whichever is greater)" governs, and
+> the estimator took `max(seats + employees, GFA)` — under which the staff component vanishes
+> entirely whenever the floor-area basis wins. It now takes `employees + max(seats, GFA)`: staff
+> added, and the greater taken between the two measures of *customer capacity*, which are the two
+> things it is meaningful to compare.
+>
+> The evidence is Tweed Shire Council's 2018 *Review of car parking requirements for small
+> business*, which tabulates eight councils and cites this exact schedule — "Lismore City, Ref: DCP
+> 2012 - Chapter 7 - Schedule 1" — splitting it into `Staff parking: 1/2 employees` and
+> `Customer parking: 1/3 seats or 15/100m2 GFA whichever is greater`. Schedule 1's own
+> drive-through entry is worded the same way, and unambiguously, because there the two customer
+> measures sit adjacent.
+>
+> **The two readings agree on 80m²/40 seats/6 staff — both give 17** — which is why nothing caught
+> it: that is the example used throughout this repo, in the README, and in
+> `tests/test_business_path.py`. They diverge for a sparsely seated café in a large tenancy, where
+> the old reading understated: 80m² with 20 seats and 6 staff was **12**, and is **15**.
+> `TestTheCafeReading` now pins the divergent cases specifically, since the headline one cannot.
+>
+> This is an interpretation, not a transcription, so `note` on the entry discloses the ambiguity to
+> the applicant rather than presenting the figure as settled. The verbatim `rate` string is
+> untouched — the audit still checks it against the PDF.
+
 The rate model changed to make this expressible. Each entry carries a structured `spec` supporting
 added components, "whichever is greater" alternatives, tiers by floor area, and minimums — and
 `spec` is **None** wherever the DCP assesses a use on merits, the rule needs an input the caller has

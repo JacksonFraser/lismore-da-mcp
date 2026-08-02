@@ -100,8 +100,11 @@ User: What are the parking requirements for a restaurant?
 
 Claude: [Uses get_parking_rates tool]
 For a restaurant or cafe in Lismore:
-- 1 per 3 seats, plus 1 per 2 employees, or 15 per 100m² GFA — whichever is greater
+- 1 per 2 employees, plus the greater of 1 per 3 seats or 15 per 100m² GFA
 - Source: Lismore DCP Chapter 7 Schedule 1, p14
+- An 80m² cafe with 40 seats and 6 staff needs 17 spaces; with 20 seats, 15.
+  (Schedule 1's wording is ambiguous about what "whichever is greater" governs —
+  the tool says so, and says which reading it applies.)
 
 User: I'm opening an 80m² cafe in a vacant Lismore shop. What will the DA cost?
 

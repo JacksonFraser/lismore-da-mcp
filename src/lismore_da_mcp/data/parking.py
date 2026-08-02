@@ -69,16 +69,69 @@ COUNTABLE = {
     "bedrooms_3": "three_bedroom_units",
 }
 
+# The café rule is the one genuinely ambiguous entry in Schedule 1, and it is
+# also the one a CBD business argues about most. Its wording —
+#
+#     "1 per 3 seats, plus 1 per 2 employees or 15 per 100m2 GFA
+#      (whichever is greater)"
+#
+# does not say what "(whichever is greater)" governs, and the three available
+# readings give materially different answers:
+#
+#     A   max(seats + employees, GFA)      the reading this file used until
+#                                          2026-08-02
+#     B   seats + max(employees, GFA)      considered and rejected — see below
+#     C   employees + max(seats, GFA)      what is implemented
+#
+# **C is implemented on the strength of Tweed Shire Council's published review**,
+# "Review of car parking requirements for small business" (2018 council business
+# paper, attachment 2), which tabulates eight councils' rates and cites this exact
+# document — "Lismore City, Ref: DCP 2012 - Chapter 7 - Schedule 1". It splits
+# every rate into a Staff column and a Customer column, and reads this one as:
+#
+#     Staff parking     1/2 employees
+#     Customer parking  1/3 seats or 15/100m2 GFA whichever is greater
+#
+# https://www.tweed.nsw.gov.au/files/assets/public/v/1/documents/council/council-meetings/archived/2018/21-attach-2-ecm-review-of-car-parking-requirements-for-small-business.pdf
+#
+# That reading is also the only one that makes the comparison meaningful. Seats
+# and floor area are two proxies for the *same* quantity — how many customers the
+# premises holds — so "whichever is greater" picking between them is a sensible
+# instruction. Reading A compares a staff-plus-customer total against a
+# customer-only measure, which compares unlike things.
+#
+# The schedule's own drive-through entry confirms the pattern, and there the
+# wording is unambiguous because the two customer measures sit adjacent:
+# "1 per employee, plus 12 per 100m2 GFA or 1 per 4 seats (whichever is greater),
+# plus queuing area". Staff additive, customer measures alternated. The café entry
+# means the same thing; its clauses are merely written in a jumbled order.
+#
+# What changed in practice: A and C agree whenever the seats basis exceeds the
+# floor-area basis, which is why this went unnoticed — the worked example
+# throughout this repo (80m2, 40 seats, 6 staff) returns 17 under both. They
+# diverge for a sparsely seated café in a large tenancy, where A understated:
+# 80m2 with 20 seats and 6 staff is 12 under A and **15** under C.
+#
+# `rate` below is the DCP's own wording and must not be edited to match the
+# interpretation — `scripts/audit_parking_rates.py` checks it against the PDF.
 _RESTAURANT = {
     "dcp_use": "Restaurant or cafe",
-    "spaces": "1 per 3 seats + 1 per 2 employees, or 15 per 100m² GFA (greater)",
+    "spaces": "1 per 2 employees, plus the greater of 1 per 3 seats or 15 per 100m² GFA",
     "rate": "1 per 3 seats, plus 1 per 2 employees or 15 per 100m2 GFA (whichever is greater)",
     "source": f"{SCHEDULE}, p14",
     "basis": "GFA",
-    "note": "A drive-through has its own, stricter entry in Schedule 1.",
+    "note": "Schedule 1's wording leaves it open what '(whichever is greater)' applies to. "
+            "This follows the reading that the staff component is added and the greater is "
+            "taken between the two measures of customer capacity — seats and floor area — "
+            "which is how Tweed Shire's 2018 cross-council review reads this schedule, and "
+            "how Schedule 1's own drive-through entry is worded. Confirm with Council if the "
+            "number is close to what you can provide. A drive-through has its own, stricter "
+            "entry in Schedule 1.",
     "spec": {
-        "sum": [{"one_per": 3, "of": "seats"}, {"one_per": 2, "of": "employees"}],
-        "or_": {"rate": 15, "per_area": 100},
+        "sum": [
+            {"one_per": 2, "of": "employees"},
+            {"greater_of": [{"one_per": 3, "of": "seats"}, {"rate": 15, "per_area": 100}]},
+        ],
     },
 }
 

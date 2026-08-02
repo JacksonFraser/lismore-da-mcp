@@ -96,16 +96,42 @@ class TestEstimator:
     def test_part_of_a_space_rounds_up(self):
         assert estimate_spaces(PARKING_RATES["warehouse"], 601)["spaces_required"] == 3
 
-    def test_whichever_is_greater_takes_the_greater(self):
-        """80m² café: 40 seats + 6 staff = 16.34 → 17; area basis gives 12."""
-        result = estimate_spaces(PARKING_RATES["cafe"], 80, {"seats": 40, "employees": 6})
-        assert result["spaces_required"] == 17
-        assert any("greater" in b for b in result["basis"])
+    # The café rule: staff spaces are added, and the greater is taken between the
+    # two measures of customer capacity. See the note above `_RESTAURANT` in
+    # data/parking.py for the evidence, and `TestTheCafeReading` below for what
+    # this replaced and why the change is invisible on the first case here.
+    @pytest.mark.parametrize("area,seats,staff,expected,carried_by", [
+        (80, 40, 6, 17, "seats"),       # seats basis 13.3 beats area basis 12
+        (80, 20, 6, 15, "area"),        # area basis 12 beats seats basis 6.7
+        (150, 30, 8, 27, "area"),
+        (60, 50, 4, 19, "seats"),
+    ])
+    def test_cafe_adds_staff_to_the_greater_customer_basis(
+            self, area, seats, staff, expected, carried_by):
+        result = estimate_spaces(
+            PARKING_RATES["cafe"], area, {"seats": seats, "employees": staff})
+        assert result["spaces_required"] == expected
+        basis = " ".join(result["basis"])
+        assert "employees at 1 per 2" in basis, "the staff component is always added"
+        assert ("seats at 1 per 3" in basis) == (carried_by == "seats")
+        assert ("per 100m²" in basis) == (carried_by == "area")
 
-    def test_whichever_is_greater_falls_back_to_area_alone(self):
-        """With no seat or staff count the seats basis cannot be evaluated, so
-        the area alternative carries it — 15 per 100m² of 80m² = 12."""
-        assert estimate_spaces(PARKING_RATES["cafe"], 80)["spaces_required"] == 12
+    def test_whichever_is_greater_falls_back_to_what_can_be_evaluated(self):
+        """With no seat or staff count only the area measure can be worked out,
+        so it carries the customer component alone — 15 per 100m² of 80m² = 12."""
+        result = estimate_spaces(PARKING_RATES["cafe"], 80)
+        assert result["spaces_required"] == 12
+        assert not any("greater" in b for b in result["basis"]), (
+            "nothing was compared, so the basis should not claim a comparison"
+        )
+
+    def test_a_whole_rule_alternation_still_alternates_wholesale(self):
+        """`greater_of` sits inside a sum; `or_alt` replaces the sum entirely.
+        The boarding house offers two complete formulas and takes the larger —
+        that must not have been changed by the café fix."""
+        result = estimate_spaces(PARKING_RATES["boarding_house"], None,
+                                 {"beds": 30, "rooms": 20})
+        assert result["spaces_required"] == 24   # 20 rooms + 20/5 beats 30/3 + 30/5
 
     def test_minimum_is_applied(self):
         """A 50m² office computes 1.67 → 2, which is also the DCP minimum."""
@@ -164,3 +190,69 @@ class TestToolSurface:
             "development_type": "cafe", "floor_area_sqm": 80,
             "seats": 40, "num_employees": 6, "spaces_provided": 4})
         assert result["calculation"]["shortfall"] == 13
+
+
+class TestTheCafeReading:
+    """Why the café rule computes the way it does.
+
+    Schedule 1's wording — "1 per 3 seats, plus 1 per 2 employees or 15 per
+    100m2 GFA (whichever is greater)" — does not say what "(whichever is
+    greater)" governs. Three readings were on the table:
+
+        A   max(seats + employees, GFA)   used until 2026-08-02
+        B   seats + max(employees, GFA)   considered and rejected
+        C   employees + max(seats, GFA)   implemented
+
+    C follows Tweed Shire Council's 2018 cross-council review, which cites this
+    exact schedule and splits the rate into a staff column (1/2 employees) and a
+    customer column (1/3 seats or 15/100m2 GFA whichever is greater), and follows
+    the schedule's own drive-through entry, where the two customer measures sit
+    adjacent and the wording is unambiguous.
+
+    These tests exist because **A and C agree on the example this repo uses
+    everywhere** — 80m², 40 seats, 6 staff returns 17 under both. Nothing in the
+    suite would have noticed the change, and nothing would notice it reverting.
+    """
+
+    def _spaces(self, area, seats, staff):
+        return estimate_spaces(
+            PARKING_RATES["cafe"], area, {"seats": seats, "employees": staff}
+        )["spaces_required"]
+
+    def test_the_staff_component_is_never_dropped(self):
+        """Reading A could discard the staff spaces entirely when the floor-area
+        basis won. Under C they are always added."""
+        # 80m², 20 seats, 6 staff: area basis 12 wins on the customer side, and
+        # A returned exactly 12 — the six staff vanished.
+        assert self._spaces(80, 20, 6) == 15
+        assert self._spaces(80, 20, 0) == 12
+        assert self._spaces(80, 20, 6) - self._spaces(80, 20, 0) == 3
+
+    @pytest.mark.parametrize("area,seats,staff,reading_a", [
+        (80, 20, 6, 12),
+        (150, 30, 8, 23),
+        (200, 10, 10, 30),
+    ])
+    def test_the_previous_reading_understated(self, area, seats, staff, reading_a):
+        """Every case where the two readings differ, they differ in the direction
+        that sends a DA back for insufficient parking."""
+        assert self._spaces(area, seats, staff) > reading_a
+
+    def test_the_rejected_reading_is_not_what_is_implemented(self):
+        """Reading B — seats plus the greater of staff or area — would give 26 on
+        the worked example. It was rejected: Tweed's review contradicts it, and it
+        compares staff numbers against floor area, which are not measures of the
+        same thing."""
+        assert self._spaces(80, 40, 6) == 17
+
+    def test_the_ambiguity_is_disclosed_to_the_applicant(self):
+        """The reading is defensible but it is still a reading, and the applicant
+        is the one who bears a wrong number."""
+        note = PARKING_RATES["cafe"]["note"]
+        assert "leaves it open" in note
+        assert "Confirm with Council" in note
+
+    def test_the_verbatim_rate_still_matches_the_dcp(self, schedule):
+        """The interpretation lives in `spec` and `note`. `rate` is the DCP's own
+        wording and must never be edited to match an interpretation of it."""
+        assert normalise(PARKING_RATES["cafe"]["rate"]) in schedule
