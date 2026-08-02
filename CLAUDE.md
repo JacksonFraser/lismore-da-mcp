@@ -25,8 +25,11 @@ engineering work that is no longer the constraint.
 ## Commands
 
 ```bash
-uv sync                                   # install deps into .venv (Python >=3.13)
+uv sync                                   # install deps into .venv (Python >=3.14)
 uv sync --extra scraping                  # + httpx/playwright, only for scripts/fetch_*.py
+# uv is not installed on every machine that runs this. The stdlib equivalent,
+# and how the current .venv was built (Homebrew python@3.14, 2026-08-02):
+python3.14 -m venv .venv && .venv/bin/python -m pip install -e ".[dev]"
 .venv/bin/python -m lismore_da_mcp.server # run the server over stdio (what .mcp.json launches)
 MCP_TRANSPORT=http PYTHONPATH=src PORT=8080 \
   .venv/bin/python -m lismore_da_mcp.server   # run the public HTTP transport locally
