@@ -173,10 +173,12 @@ def check_permissibility(arguments: dict):
             ),
             "for_a_change_of_use_also_check": [
                 "Whether consent is needed at all. Some changes of use between similar "
-                "commercial uses are exempt or complying development under the Codes SEPP "
-                "[verify with planner].",
+                "commercial uses are exempt or complying development under the Codes SEPP. "
+                "This tool reads the LEP land use table only and cannot tell you — put it to "
+                "Council's free Duty Planner before you pay a lodgement fee.",
                 "Existing use rights, if the current lawful use is no longer permissible in "
-                "the zone — these can allow it to continue or change [verify with planner].",
+                "the zone — these can allow it to continue or change. Also a Duty Planner "
+                "question; it turns on the history of the site, which nothing here knows.",
                 "Contamination. Moving to a more sensitive use — a workshop becoming a café "
                 "or a child care centre — can require a Preliminary Site Investigation even "
                 "with no building work.",
