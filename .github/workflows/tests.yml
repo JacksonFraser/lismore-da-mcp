@@ -11,13 +11,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # One version, matching the deployed server and the local .venv, so CI
-        # tests what actually runs. Kept as a matrix rather than a bare
-        # python-version so the check context stays "pytest (3.13)" — the main
-        # branch ruleset requires that name, and dropping the matrix would
-        # rename it to "pytest" and leave every PR waiting on a check that
-        # never reports.
-        python-version: ["3.13"]
+        # One version, matching the deployed server: Render is pinned to
+        # PYTHON_VERSION=3.14.3 in the dashboard (see render.yaml's header for
+        # why the pin lives there and not in this repo). The local .venv is on
+        # 3.13, which is why requires-python still allows it.
+        #
+        # Kept as a matrix rather than a bare python-version so the check
+        # context keeps the "pytest (3.14)" form. The main branch ruleset
+        # requires that exact name, so changing this line means updating the
+        # ruleset in the same change — otherwise every PR blocks forever on a
+        # check that never reports.
+        python-version: ["3.14"]
 
     steps:
       - uses: actions/checkout@v4
