@@ -57,3 +57,101 @@ jobs:
         # Fifteen such files were committed once. This also catches a superseded
         # LEP 2000 chapter filed as if it were current.
         run: python scripts/check_documents.py
+
+  deploy:
+    # Render's own auto-deploy has never worked on this service: no webhook was
+    # ever installed on the repo (`repos/.../hooks` returns []), so the service
+    # sat on a 2026-07-28 build while main moved 13 commits ahead, silently
+    # serving wrong parking rates and a stale fee scale. Fixing that natively
+    # needs the Render GitHub App installed by hand; deploying from here instead
+    # is both something the repo can own and strictly safer, because a red build
+    # cannot reach the public endpoint.
+    needs: pytest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Two pushes in quick succession would otherwise race two builds onto the
+    # same service; the later one wins and the earlier wastes a free-tier build.
+    concurrency:
+      group: render-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Trigger deploy
+        id: trigger
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          # Not a secret: the id is already in render.yaml and every dashboard
+          # URL. The API key is the credential.
+          SERVICE_ID: srv-d9jibcb7uimc739lnv60
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDER_API_KEY:-}" ]; then
+            echo "::error::RENDER_API_KEY secret is not set — nothing was deployed."
+            exit 1
+          fi
+          id=$(curl -sS -X POST \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
+            -d '{}' | jq -r '.id')
+          if [ -z "$id" ] || [ "$id" = "null" ]; then
+            echo "::error::Render did not return a deploy id."
+            exit 1
+          fi
+          echo "deploy_id=$id" >> "$GITHUB_OUTPUT"
+          echo "Triggered $id"
+
+      - name: Wait for it to go live
+        # Without this the job is green the moment the request is accepted, so a
+        # build that fails to compile or boot would report as a successful
+        # deploy. The states below are Render's terminal ones.
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: srv-d9jibcb7uimc739lnv60
+          DEPLOY_ID: ${{ steps.trigger.outputs.deploy_id }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 60); do
+            status=$(curl -sS -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$DEPLOY_ID" \
+              | jq -r '.status')
+            echo "$(date -u +%H:%M:%S) $status"
+            case "$status" in
+              live) exit 0 ;;
+              build_failed|update_failed|pre_deploy_failed|canceled)
+                echo "::error::Deploy $DEPLOY_ID finished as $status"
+                exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Deploy $DEPLOY_ID still not live after 15 minutes."
+          exit 1
+
+      - name: Check the deployed server answers
+        # /health only proves the ASGI app booted. This calls a real tool over
+        # the public transport, which is what actually has to work.
+        run: |
+          set -euo pipefail
+          test "$(curl -sS https://lismore-da-mcp.onrender.com/health)" = "ok"
+          pip install --quiet "mcp>=2.0.0,<3"
+          python - <<'PY'
+          import asyncio
+          from mcp.client.streamable_http import streamable_http_client
+          from mcp.client.session import ClientSession
+
+          async def main():
+              url = "https://lismore-da-mcp.onrender.com/mcp"
+              async with streamable_http_client(url) as (r, w):
+                  async with ClientSession(r, w) as s:
+                      await s.initialize()
+                      tools = await s.list_tools()
+                      assert tools.tools, "server listed no tools"
+                      res = await s.call_tool("get_zone_info", {"zone_code": "E2"})
+                      text = res.content[0].text
+                      assert "Commercial Centre" in text, text[:200]
+                      print(f"live: {len(tools.tools)} tools, get_zone_info ok")
+
+          asyncio.run(main())
+          PY
