@@ -5,23 +5,25 @@ import base64
 import json
 import shutil
 import tempfile
+import textwrap
 
 from mcp.types import TextContent
 
 from lismore_da_mcp.config import DOCS_DIR
 from lismore_da_mcp.config import PUBLIC_MODE
 from lismore_da_mcp.config import SEE_TEMPLATE_PATH
-from lismore_da_mcp.data.flood import FLOOD_PLANNING
 from lismore_da_mcp.data.parking import PARKING_RATES
 from lismore_da_mcp.data.see_templates import SEE_TEMPLATES
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.fees import calculate_da_fee
 from lismore_da_mcp.landuse import classify_land_use
+from lismore_da_mcp.parking import estimate_spaces
 from lismore_da_mcp.registry import tool
 from lismore_da_mcp.see.fields import PURPOSE_WRITTEN_SEE_HEADINGS, SEE_QUESTIONS
 from lismore_da_mcp.see.fields import SEE_TEMPLATE_SCOPE
 from lismore_da_mcp.see.fill import fill_see_pdf
 from lismore_da_mcp.see.generate import generate_see_form_data
+from lismore_da_mcp.vocabulary import PARKING_SYNONYMS
 from lismore_da_mcp.vocabulary import SEE_SECTION_SYNONYMS
 from lismore_da_mcp.vocabulary import resolve
 from lismore_da_mcp.vocabulary import unresolved_error
@@ -165,6 +167,90 @@ def _heritage_section(is_heritage):
     )
 
 
+def _parking_section(proposed_use, floor_area, existing_parking, num_employees):
+    """Parking from the DCP rate, or an honest refusal — never an assumed pass.
+
+    This section used to resolve the rate by hand (`proposed_use.replace(" ", "_")`,
+    with a special case for café) and then read the space count out of the rate's
+    prose with a substring test for "10m". Any rate that was not a plain area
+    rate — the café rule among them — fell through to a "[CALCULATE BASED ON DCP]"
+    placeholder, and the compliance line below it compared the spaces provided
+    against `0`, because a string is not an int. So an 80m² café with no on-site
+    parking was told "the existing parking provision is adequate for the proposed
+    use" against a real requirement of 14 spaces — in a document that goes to
+    Council over the applicant's name.
+
+    `estimate_spaces` is the same estimator get_parking_rates and the Council
+    form use, so all three now agree. Where it declines to produce a figure, so
+    does this: an unstated requirement is left to the applicant rather than
+    quietly treated as met.
+    """
+    match = resolve(proposed_use or "", PARKING_RATES, PARKING_SYNONYMS)
+    entry = PARKING_RATES.get(match.key) if match else None
+    existing_line = (
+        f"Existing Spaces:     {existing_parking}" if existing_parking is not None
+        else "Existing Spaces:     [NOT STATED]"
+    )
+
+    if not entry:
+        return (
+            "Parking Requirement: no DCP Chapter 7 rate could be matched to this use.\n"
+            f"    {existing_line}\n"
+            "    [APPLICANT TO COMPLETE] Identify the applicable rate in DCP Chapter 7\n"
+            "    Schedule 1, state the requirement and the spaces provided, and address any\n"
+            "    shortfall. Parking is one of the things a Council assessment argues about."
+        )
+
+    lines = [f"Parking Requirement: {entry['rate']}"]
+    estimate = estimate_spaces(entry, floor_area or None, {"employees": num_employees or 0})
+
+    if not estimate:
+        lines.append("Required Spaces:     [APPLICANT TO CALCULATE — see the rate above]")
+        lines.append(existing_line)
+        lines.append(
+            "[APPLICANT TO COMPLETE] The rate above cannot be turned into a space count from\n"
+            "    the details supplied, so no compliance is claimed here. Work it out against\n"
+            "    DCP Chapter 7 Schedule 1 and address any shortfall."
+        )
+        return "\n    ".join(lines)
+
+    required = estimate["spaces_required"]
+    lines.append(f"Required Spaces:     {required}")
+    lines.append(f"Basis:               {'; '.join(estimate['basis'])}")
+    lines.append(existing_line)
+
+    if existing_parking is None:
+        lines.append(
+            "[APPLICANT TO COMPLETE] The number of existing on-site spaces was not stated,\n"
+            "    so compliance is not assessed here. State it and address any shortfall."
+        )
+    elif existing_parking >= required:
+        lines.append(
+            f"Parking Compliance: the {existing_parking} space(s) provided meet the DCP "
+            f"requirement of {required}."
+        )
+    else:
+        lines.append(
+            f"Parking Shortfall: {required - existing_parking} space(s).\n"
+            "    [APPLICANT TO ADDRESS] A shortfall has to be justified in the SEE. Nearby\n"
+            "    on-street or public parking is an argument for a variation, not evidence of\n"
+            "    compliance; Council may also accept a contribution in lieu. Raise it with the\n"
+            "    Duty Planner before lodging."
+        )
+
+    if estimate.get("caveat"):
+        # Wrapped to the document's rule width. The café caveat is a paragraph
+        # explaining which reading of Schedule 1's "(whichever is greater)" the
+        # figure above follows, and as one unbroken line it is the thing an
+        # applicant scrolls past rather than reads.
+        lines.append("\n    ".join(
+            textwrap.wrap(f"Note: {estimate['caveat']}", width=76,
+                          subsequent_indent="  ")
+        ))
+
+    return "\n    ".join(lines)
+
+
 def _bushfire_section(is_bushfire):
     if is_bushfire:
         return (
@@ -202,95 +288,99 @@ def _bushfire_section(is_bushfire):
     required=['property_address', 'zone_code', 'proposed_use', 'development_type', 'floor_area_sqm'],
 )
 def generate_see_draft(arguments: dict):
-            property_address = arguments.get("property_address", "[ADDRESS NOT PROVIDED]")
-            lot_dp = arguments.get("lot_dp", "[LOT/DP NOT PROVIDED]")
-            zone_code = arguments.get("zone_code", "").upper()
-            site_area = arguments.get("site_area_sqm", "[NOT PROVIDED]")
-            existing_use = arguments.get("existing_use", "Vacant/Unknown")
-            proposed_use = arguments.get("proposed_use", "")
-            development_type = arguments.get("development_type", "")
-            floor_area = arguments.get("floor_area_sqm", 0)
-            building_description = arguments.get("building_description", "[NOT PROVIDED]")
-            hours = arguments.get("hours_of_operation", "[NOT PROVIDED]")
-            num_employees = arguments.get("num_employees")
-            num_customers = arguments.get("num_customers")
-            employees_line = num_employees if num_employees is not None else "[NOT PROVIDED]"
-            customers_line = num_customers if num_customers is not None else "[NOT PROVIDED]"
-            estimated_cost = arguments.get("estimated_cost", 0)
-            # Constraints. The caller may assert them; where they have not,
-            # look them up from the address rather than writing a draft that is
-            # silent about the site it is for. PLAN.md 1.2: a café SEE for a CBD
-            # address previously mentioned flood zero times, and a SEE that does
-            # not address flood in Lismore is one Council comes back on.
-            is_flood, is_heritage, is_bushfire, constraint_note = _site_constraints(
-                property_address,
-                arguments.get("is_flood_affected"),
-                arguments.get("is_heritage"),
-            )
-            existing_parking = arguments.get("existing_parking_spaces", 0)
-            applicant_name = arguments.get("applicant_name", "[APPLICANT NAME]")
+    # property_address, zone_code, proposed_use, development_type and
+    # floor_area_sqm are declared required, and validate_arguments rejects a call
+    # that omits one or sends it empty — so they are read directly. Defaulting
+    # them here would only mask that gate if it ever regressed.
+    property_address = arguments["property_address"]
+    zone_code = arguments["zone_code"].upper()
+    proposed_use = arguments["proposed_use"]
+    development_type = arguments["development_type"]
+    floor_area = arguments["floor_area_sqm"]
 
-            # Get zone information
-            zone_info = ZONES.get(zone_code, {})
-            zone_name = zone_info.get("name", "Unknown Zone")
-            zone_objectives = zone_info.get("objectives", [])
+    lot_dp = arguments.get("lot_dp", "[LOT/DP NOT PROVIDED]")
+    site_area = arguments.get("site_area_sqm", "[NOT PROVIDED]")
+    existing_use = arguments.get("existing_use", "Vacant/Unknown")
+    building_description = arguments.get("building_description", "[NOT PROVIDED]")
+    hours = arguments.get("hours_of_operation", "[NOT PROVIDED]")
+    num_employees = arguments.get("num_employees")
+    num_customers = arguments.get("num_customers")
+    employees_line = num_employees if num_employees is not None else "[NOT PROVIDED]"
+    customers_line = num_customers if num_customers is not None else "[NOT PROVIDED]"
+    estimated_cost = arguments.get("estimated_cost", 0)
+    # Constraints. The caller may assert them; where they have not,
+    # look them up from the address rather than writing a draft that is
+    # silent about the site it is for. PLAN.md 1.2: a café SEE for a CBD
+    # address previously mentioned flood zero times, and a SEE that does
+    # not address flood in Lismore is one Council comes back on.
+    is_flood, is_heritage, is_bushfire, constraint_note = _site_constraints(
+        property_address,
+        arguments.get("is_flood_affected"),
+        arguments.get("is_heritage"),
+    )
+    # Left as None when not supplied. Defaulting to 0 would state a fact about
+    # the site the applicant never gave, and the parking section declines to
+    # assess compliance against an unstated figure rather than assuming one.
+    existing_parking = arguments.get("existing_parking_spaces")
+    applicant_name = arguments.get("applicant_name", "[APPLICANT NAME]")
 
-            # Permissibility from the shared classifier, so this draft and
-            # check_permissibility can't disagree about the same land use
-            proposed_use_lower = proposed_use.lower().strip()
-            classification = classify_land_use(proposed_use, zone_info, zone_code)
-            if not classification:
-                permissibility, permissibility_detail = "Unknown", ""
-            elif classification["permissible"] is True:
-                permissibility = "Permitted with consent"
-                permissibility_detail = classification["statement"]
-            elif classification["permissible"] is False:
-                permissibility = "Prohibited"
-                permissibility_detail = classification["statement"]
-            else:
-                permissibility = "To be confirmed"
-                permissibility_detail = classification["statement"]
+    # Get zone information
+    zone_info = ZONES.get(zone_code, {})
+    zone_name = zone_info.get("name", "Unknown Zone")
+    zone_objectives = zone_info.get("objectives", [])
 
-            # Get parking requirements
-            parking_key = proposed_use_lower.replace(" ", "_").replace("or_", "")
-            if "cafe" in parking_key or "restaurant" in parking_key:
-                parking_key = "cafe"
-            parking_info = PARKING_RATES.get(parking_key, PARKING_RATES.get("restaurant", {}))
-            parking_rate = parking_info.get("rate", "Refer to DCP Chapter 7")
+    # The prose below varies on these rather than re-testing the same substrings
+    # at each use, which is how "cafe" came to be checked four separate ways and
+    # how an accented "café" slipped past all of them.
+    proposed_use_lower = proposed_use.lower().strip().replace("é", "e")
+    in_cbd = zone_code == "E2"
+    internal_only = development_type in ("change_of_use", "fitout")
+    is_food_premises = any(w in proposed_use_lower for w in ("cafe", "restaurant"))
+    generates_food_waste = is_food_premises or "food" in proposed_use_lower
 
-            # Calculate required parking
-            if floor_area and "10m" in str(parking_info.get("spaces", "")):
-                required_parking = max(1, int(floor_area / 10))
-            else:
-                required_parking = "[CALCULATE BASED ON DCP]"
+    # Permissibility from the shared classifier, so this draft and
+    # check_permissibility can't disagree about the same land use
+    classification = classify_land_use(proposed_use, zone_info, zone_code)
+    if not classification:
+        permissibility, permissibility_detail = "Unknown", ""
+    elif classification["permissible"] is True:
+        permissibility = "Permitted with consent"
+        permissibility_detail = classification["statement"]
+    elif classification["permissible"] is False:
+        permissibility = "Prohibited"
+        permissibility_detail = classification["statement"]
+    else:
+        permissibility = "To be confirmed"
+        permissibility_detail = classification["statement"]
 
-            traffic_scale = (
-                "minimal" if isinstance(num_customers, (int, float)) and num_customers <= 20
-                else "moderate" if isinstance(num_customers, (int, float))
-                else "[TO BE ASSESSED]"
-            )
+    parking_block = _parking_section(
+        proposed_use, floor_area, existing_parking, num_employees
+    )
 
-            # Get flood info
-            flood_info = FLOOD_PLANNING if is_flood else None
+    traffic_scale = (
+        "minimal" if isinstance(num_customers, (int, float)) and num_customers <= 20
+        else "moderate" if isinstance(num_customers, (int, float))
+        else "[TO BE ASSESSED]"
+    )
 
-            # Calculate DA fee
-            fee_info = calculate_da_fee(estimated_cost) if estimated_cost else {"estimated_fee": None}
-            # Either may legitimately be unknown at draft stage, so format defensively
-            # instead of applying a currency format to a placeholder string.
-            cost_line = f"${estimated_cost:,.2f}" if estimated_cost else "[TO BE PROVIDED]"
-            fee = fee_info.get("estimated_fee")
-            fee_line = f"${fee:,.2f}" if isinstance(fee, (int, float)) else "[CALCULATE ONCE COST OF WORKS IS KNOWN]"
+    # Calculate DA fee
+    fee_info = calculate_da_fee(estimated_cost) if estimated_cost else {"estimated_fee": None}
+    # Either may legitimately be unknown at draft stage, so format defensively
+    # instead of applying a currency format to a placeholder string.
+    cost_line = f"${estimated_cost:,.2f}" if estimated_cost else "[TO BE PROVIDED]"
+    fee = fee_info.get("estimated_fee")
+    fee_line = f"${fee:,.2f}" if isinstance(fee, (int, float)) else "[CALCULATE ONCE COST OF WORKS IS KNOWN]"
 
-            # Development type description
-            dev_type_desc = {
-                "new_building": "Construction of a new building",
-                "alteration": "Alterations and additions to existing building",
-                "change_of_use": "Change of use of existing premises",
-                "fitout": "Internal fitout of existing premises"
-            }.get(development_type, development_type)
+    # Development type description
+    dev_type_desc = {
+        "new_building": "Construction of a new building",
+        "alteration": "Alterations and additions to existing building",
+        "change_of_use": "Change of use of existing premises",
+        "fitout": "Internal fitout of existing premises"
+    }.get(development_type, development_type)
 
-            # Build the SEE document
-            see_document = f"""
+    # Build the SEE document
+    see_document = f"""
     ================================================================================
                         STATEMENT OF ENVIRONMENTAL EFFECTS
     ================================================================================
@@ -335,7 +425,7 @@ def generate_see_draft(arguments: dict):
     2.4 Surrounding Context
     -----------------------
     The site is located within the {zone_name} zone. The surrounding area is
-    characterised by {"commercial and retail uses typical of the Lismore CBD" if zone_code == "E2" else "uses consistent with the " + zone_name + " zone"}.
+    characterised by {"commercial and retail uses typical of the Lismore CBD" if in_cbd else "uses consistent with the " + zone_name + " zone"}.
 
     [APPLICANT TO ADD: Description of adjoining properties and streetscape]
 
@@ -383,8 +473,8 @@ def generate_see_draft(arguments: dict):
     Development consent is required for this proposal.
 
     4.1.3 Development Standards
-    Height:             {"Not applicable - no external works" if development_type in ["change_of_use", "fitout"] else "[CHECK HEIGHT MAP]"}
-    Floor Space Ratio:  {"Not applicable - no increase in GFA" if development_type in ["change_of_use", "fitout"] else "[CHECK FSR MAP]"}
+    Height:             {"Not applicable - no external works" if internal_only else "[CHECK HEIGHT MAP]"}
+    Floor Space Ratio:  {"Not applicable - no increase in GFA" if internal_only else "[CHECK FSR MAP]"}
 
     4.1.4 Clause 5.21 - Flood Planning
     {_flood_section(is_flood, development_type)}
@@ -404,10 +494,7 @@ def generate_see_draft(arguments: dict):
     of the commercial centre.
 
     4.2.2 Chapter 7 - Off-Street Car Parking
-    Parking Requirement: {parking_rate}
-    Required Spaces:     {required_parking}
-    Existing Spaces:     {existing_parking}
-    {"Parking Compliance: The existing parking provision is adequate for the proposed use." if existing_parking >= (required_parking if isinstance(required_parking, int) else 0) else "Parking Shortfall: [APPLICANT TO ADDRESS - consider CBD location, shared parking, contribution in lieu]"}
+    {parking_block}
 
     4.3 State Environmental Planning Policies
     -----------------------------------------
@@ -424,30 +511,30 @@ def generate_see_draft(arguments: dict):
 
     5.1 Visual Impact
     -----------------
-    {"The proposal involves internal works only with no change to the external appearance of the building. There is no adverse visual impact." if development_type in ["change_of_use", "fitout"] else "[ASSESS VISUAL IMPACT OF PROPOSED WORKS]"}
+    {"The proposal involves internal works only with no change to the external appearance of the building. There is no adverse visual impact." if internal_only else "[ASSESS VISUAL IMPACT OF PROPOSED WORKS]"}
 
     5.2 Traffic and Parking
     -----------------------
     The proposed {proposed_use.lower()} will generate {traffic_scale} traffic movements
     consistent with the commercial nature of the area.
 
-    The site is located within the Lismore CBD with access to {"on-street parking, " if zone_code == "E2" else ""}public
+    The site is located within the Lismore CBD with access to {"on-street parking, " if in_cbd else ""}public
     transport, and pedestrian connections.
 
     5.3 Noise and Amenity
     ---------------------
     The proposed hours of operation ({hours}) are consistent with
-    the commercial character of the area. {"No amplified music or entertainment is proposed." if "cafe" in proposed_use.lower() or "restaurant" in proposed_use.lower() else ""}
+    the commercial character of the area. {"No amplified music or entertainment is proposed." if is_food_premises else ""}
 
-    Noise impacts will be limited to {"normal cafe/restaurant operations including customer conversation and kitchen equipment" if "cafe" in proposed_use.lower() or "restaurant" in proposed_use.lower() else "normal business operations"}.
+    Noise impacts will be limited to {"normal cafe/restaurant operations including customer conversation and kitchen equipment" if is_food_premises else "normal business operations"}.
 
     5.4 Waste Management
     --------------------
-    {"Food waste and general waste will be stored in appropriate bins within the premises and collected by a licensed waste contractor." if "cafe" in proposed_use.lower() or "restaurant" in proposed_use.lower() or "food" in proposed_use.lower() else "Waste will be managed in accordance with Council requirements."}
+    {"Food waste and general waste will be stored in appropriate bins within the premises and collected by a licensed waste contractor." if generates_food_waste else "Waste will be managed in accordance with Council requirements."}
 
     5.5 Stormwater and Drainage
     ---------------------------
-    {"No changes to existing stormwater or drainage arrangements." if development_type in ["change_of_use", "fitout"] else "[APPLICANT TO ADDRESS STORMWATER MANAGEMENT]"}
+    {"No changes to existing stormwater or drainage arrangements." if internal_only else "[APPLICANT TO ADDRESS STORMWATER MANAGEMENT]"}
 
     ================================================================================
     6. SECTION 4.15 MATTERS FOR CONSIDERATION
@@ -471,11 +558,11 @@ def generate_see_draft(arguments: dict):
 
     (b) Likely Impacts
     The proposal will have positive economic impacts through job creation and
-    service provision. Environmental impacts are minimal given the {"internal nature of the works" if development_type in ["change_of_use", "fitout"] else "scale and nature of the proposal"}.
+    service provision. Environmental impacts are minimal given the {"internal nature of the works" if internal_only else "scale and nature of the proposal"}.
 
     (c) Suitability of the Site
     The site is suitable for the proposed development, being located within a
-    {"commercial centre with supporting infrastructure" if zone_code == "E2" else "zone that permits the proposed use"}.
+    {"commercial centre with supporting infrastructure" if in_cbd else "zone that permits the proposed use"}.
 
     (d) Submissions
     To be addressed following public exhibition (if required).
@@ -483,7 +570,7 @@ def generate_see_draft(arguments: dict):
     (e) Public Interest
     The proposal is in the public interest as it:
     • Provides employment opportunities
-    • Contributes to the {"vitality of the CBD" if zone_code == "E2" else "local economy"}
+    • Contributes to the {"vitality of the CBD" if in_cbd else "local economy"}
     • Is consistent with the objectives of the zone
     • Has minimal environmental impact
 
@@ -521,10 +608,10 @@ def generate_see_draft(arguments: dict):
     Generated by: Lismore DA MCP Server
     """
 
-            return [TextContent(
-                type="text",
-                text=see_document
-            )]
+    return [TextContent(
+        type="text",
+        text=see_document
+    )]
 
 
 def _see_form(arguments: dict, name: str):
@@ -690,46 +777,72 @@ def _see_form(arguments: dict, name: str):
     return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
 
+# --- the official form's arguments ------------------------------------------
+#
+# preview_see_form and fill_see_pdf take exactly the same input: one shows what
+# will be written, the other writes it. `_see_form()` already keeps their
+# *behaviour* in step, for the reason given in its docstring — a preview that
+# did not match what got written would be worse than no preview. This keeps
+# their *schemas* in step too. They were 37 identical lines duplicated across
+# both decorators, differing only in fill's extra output_filename, with nothing
+# to stop an edit landing in one and not the other.
+
+_SEE_FORM_NOTE = (
+    ' A complete call needs only the eight required arguments — the address and'
+    ' lot/DP components are parsed out of property_address and lot_dp, and the'
+    ' optional arguments refine the answers rather than being needed to get one.'
+)
+
+_SEE_FORM_REQUIRED = ['applicant_name', 'property_address', 'lot_dp', 'zone_code', 'proposed_use', 'development_type', 'floor_area_sqm', 'minor_development_type']
+
+_SEE_FORM_PROPERTIES = {
+'applicant_name': {'type': 'string', 'description': 'Full name of the applicant'},
+'minor_development_type': {'type': 'string', 'description': 'REQUIRED. Which of the four development types this Council template covers: dwelling_single_storey, residential_addition_single_storey, ancillary_residential_structure, strata_subdivision. Plain wording is accepted and resolved - "shed", "carport", "pool", "extension", "single storey dwelling". Anything outside that scope (commercial work, change of use, multi-storey) cannot use this form - build a purpose-written SEE with generate_see_draft instead.'},
+'property_address': {'type': 'string', 'description': "Full street address, e.g. '45 Keen Street, Lismore NSW 2480' or 'Shop 3, 88 Keen Street, Lismore NSW 2480'. This is normally all that is needed: unit, street_number, street and suburb are parsed out of it. Supply those separately only to correct a parse."},
+'unit': {'type': 'string', 'description': "Optional override. Derived from property_address when omitted. Tenancy identifier if any, e.g. 'Shop 3', 'Unit 2'"},
+'street_number': {'type': 'string', 'description': "Optional override. Derived from property_address when omitted. Street number only, e.g. '88' or '5-7'"},
+'street': {'type': 'string', 'description': "Optional override. Derived from property_address when omitted. Street name only, e.g. 'Keen Street'"},
+'suburb': {'type': 'string', 'description': 'Optional override. Derived from property_address when omitted — but a single-segment address like "Keen Street" has nothing identifying a suburb, so supply it there. Suburb only, without NSW or postcode'},
+'building_name': {'type': 'string', 'description': 'Building name, if known'},
+'lot_dp': {'type': 'string', 'description': "Land identifier as text, e.g. 'Lot 12 DP 758651', 'Lot 5 Section 3 DP 1234' or 'SP 12345'. This is normally all that is needed: lot, plan_type, plan_number and section are parsed out of it. Supply those separately only to correct a parse. The form is not generated without a plan number."},
+'lot': {'type': 'string', 'description': 'Optional override. Derived from lot_dp when omitted. Lot number on its own'},
+'plan_type': {'type': 'string', 'description': 'Optional override. Derived from lot_dp when omitted. DP (Deposited), SP (Strata) or CP (Community) plan; case is normalised'},
+'plan_number': {'type': 'string', 'description': "Optional override. Derived from lot_dp when omitted. Plan number on its own, e.g. '758651'"},
+'section': {'type': 'string', 'description': 'Optional override. Derived from lot_dp when omitted. Section number, if the land has one'},
+'zone_code': {'type': 'string', 'description': "Zone code under Lismore LEP 2012, e.g. 'R1', 'E2'. Employment zones replaced the B-series codes in 2023."},
+'proposed_use': {'type': 'string', 'description': "Proposed land use, e.g. 'dwelling house', 'shed'"},
+'development_type': {'type': 'string', 'description': "Type: 'new_building', 'alteration', 'change_of_use', 'fitout'"},
+'floor_area_sqm': {'type': 'number', 'description': 'Floor area in square metres'},
+'building_description': {'type': 'string', 'description': "Description of the proposed works, in the applicant's own words. Used verbatim as the description of development."},
+'site_description': {'type': 'string', 'description': 'Physical description of the site: shape, slope, vegetation, waterways'},
+'surrounding_context': {'type': 'string', 'description': 'Land uses and development on surrounding land'},
+'existing_use': {'type': 'string', 'description': 'Present and previous use of the site'},
+'hours_of_operation': {'type': 'string', 'description': 'Proposed operating hours, where the use has any'},
+'num_employees': {'type': 'integer', 'description': 'Number of employees'},
+'num_customers': {'type': 'integer', 'description': 'Maximum customers at any time'},
+'estimated_cost': {'type': 'number', 'description': 'Estimated cost of works in dollars'},
+'is_flood_affected': {'type': 'boolean', 'description': 'Is the site flood prone? Omit if unknown - the tick is then left blank rather than guessed.'},
+'is_bushfire_prone': {'type': 'boolean', 'description': 'Is the site bushfire prone? Omit if unknown.'},
+'is_heritage': {'type': 'boolean', 'description': 'Is the site a heritage item under LEP 2012 Schedule 5? Omit if unknown.'},
+'in_heritage_conservation_area': {'type': 'boolean', 'description': 'Is the site within a heritage conservation area? Omit if unknown.'},
+'internal_works_only': {'type': 'boolean', 'description': 'True if the works are wholly internal. Lets the excavation and vegetation questions be answered from that fact.'},
+'parking_spaces_provided': {'type': 'integer', 'description': 'Off-street parking spaces provided on site. Compared against the DCP Chapter 7 rate so any shortfall is stated.'},
+'stormwater_to_council_system': {'type': 'boolean', 'description': 'True if stormwater goes to the Council drainage system; false if disposed of another way (describe it in comments.stormwater_details).'},
+'answers': {'type': 'object', 'description': "The applicant's answers to the form's Yes/No questions, as {question_key: true|false}. Any question left out stays blank on the form and is returned in unanswered_questions - these are declarations signed as true, so they are never filled in on the applicant's behalf. Keys: zone_objectives, dcp_accordance, visually_prominent, inconsistent_streetscape, out_of_character, inconsistent_land_use, setback_variation, privacy_issues, overshadowing, acoustic_issues, views_impact, legal_access, increase_traffic, additional_access, parking_addressed, utilities_available, air_pollution, water_pollution, noise_impacts, excavation, erosion, contamination, sustainable, heritage_impact, aboriginal, remove_vegetation, threatened_species, effluent, trade_waste, hazardous_waste, rainwater_tanks, overland_risks, economic_social, crime_prevention, permissible."},
+'comments': {'type': 'object', 'description': "Free text for the form's comment boxes, as {field: text}. Keys: hazards_comments, constraints, surrounding_land_use, planning_comments, context_comment, privacy_comments, access_comments, environmental_comments, flora_comments, waste_comments, social_comments, other_matters, stormwater_details, traffic_amount."},
+}
+
+# Only fill writes a file, so only fill takes a filename.
+_FILL_ONLY_PROPERTIES = {
+    'output_filename': {'type': 'string', 'description': "Output filename only — any path component is stripped. When running locally over stdio, saved to documents/output/; when served publicly over HTTP, returned inline as base64 and never written to disk. Default: 'SEE_filled.pdf'"},
+}
+
+
 @tool(
     name='preview_see_form',
-    description='Preview exactly what will be written into the official Lismore SEE PDF, including every tick. Shows the questions still unanswered and any issue that blocks the form being generated. Review this before calling fill_see_pdf.' + ' A complete call needs only the eight required arguments — the address and lot/DP components are parsed out of property_address and lot_dp, and the optional arguments refine the answers rather than being needed to get one.',
-    properties={
-        'applicant_name': {'type': 'string', 'description': 'Full name of the applicant'},
-        'minor_development_type': {'type': 'string', 'description': 'REQUIRED. Which of the four development types this Council template covers: dwelling_single_storey, residential_addition_single_storey, ancillary_residential_structure, strata_subdivision. Plain wording is accepted and resolved - "shed", "carport", "pool", "extension", "single storey dwelling". Anything outside that scope (commercial work, change of use, multi-storey) cannot use this form - build a purpose-written SEE with generate_see_draft instead.'},
-        'property_address': {'type': 'string', 'description': "Full street address, e.g. '45 Keen Street, Lismore NSW 2480' or 'Shop 3, 88 Keen Street, Lismore NSW 2480'. This is normally all that is needed: unit, street_number, street and suburb are parsed out of it. Supply those separately only to correct a parse."},
-        'unit': {'type': 'string', 'description': "Optional override. Derived from property_address when omitted. Tenancy identifier if any, e.g. 'Shop 3', 'Unit 2'"},
-        'street_number': {'type': 'string', 'description': "Optional override. Derived from property_address when omitted. Street number only, e.g. '88' or '5-7'"},
-        'street': {'type': 'string', 'description': "Optional override. Derived from property_address when omitted. Street name only, e.g. 'Keen Street'"},
-        'suburb': {'type': 'string', 'description': 'Optional override. Derived from property_address when omitted — but a single-segment address like "Keen Street" has nothing identifying a suburb, so supply it there. Suburb only, without NSW or postcode'},
-        'building_name': {'type': 'string', 'description': 'Building name, if known'},
-        'lot_dp': {'type': 'string', 'description': "Land identifier as text, e.g. 'Lot 12 DP 758651', 'Lot 5 Section 3 DP 1234' or 'SP 12345'. This is normally all that is needed: lot, plan_type, plan_number and section are parsed out of it. Supply those separately only to correct a parse. The form is not generated without a plan number."},
-        'lot': {'type': 'string', 'description': 'Optional override. Derived from lot_dp when omitted. Lot number on its own'},
-        'plan_type': {'type': 'string', 'description': 'Optional override. Derived from lot_dp when omitted. DP (Deposited), SP (Strata) or CP (Community) plan; case is normalised'},
-        'plan_number': {'type': 'string', 'description': "Optional override. Derived from lot_dp when omitted. Plan number on its own, e.g. '758651'"},
-        'section': {'type': 'string', 'description': 'Optional override. Derived from lot_dp when omitted. Section number, if the land has one'},
-        'zone_code': {'type': 'string', 'description': "Zone code under Lismore LEP 2012, e.g. 'R1', 'E2'. Employment zones replaced the B-series codes in 2023."},
-        'proposed_use': {'type': 'string', 'description': "Proposed land use, e.g. 'dwelling house', 'shed'"},
-        'development_type': {'type': 'string', 'description': "Type: 'new_building', 'alteration', 'change_of_use', 'fitout'"},
-        'floor_area_sqm': {'type': 'number', 'description': 'Floor area in square metres'},
-        'building_description': {'type': 'string', 'description': "Description of the proposed works, in the applicant's own words. Used verbatim as the description of development."},
-        'site_description': {'type': 'string', 'description': 'Physical description of the site: shape, slope, vegetation, waterways'},
-        'surrounding_context': {'type': 'string', 'description': 'Land uses and development on surrounding land'},
-        'existing_use': {'type': 'string', 'description': 'Present and previous use of the site'},
-        'hours_of_operation': {'type': 'string', 'description': 'Proposed operating hours, where the use has any'},
-        'num_employees': {'type': 'integer', 'description': 'Number of employees'},
-        'num_customers': {'type': 'integer', 'description': 'Maximum customers at any time'},
-        'estimated_cost': {'type': 'number', 'description': 'Estimated cost of works in dollars'},
-        'is_flood_affected': {'type': 'boolean', 'description': 'Is the site flood prone? Omit if unknown - the tick is then left blank rather than guessed.'},
-        'is_bushfire_prone': {'type': 'boolean', 'description': 'Is the site bushfire prone? Omit if unknown.'},
-        'is_heritage': {'type': 'boolean', 'description': 'Is the site a heritage item under LEP 2012 Schedule 5? Omit if unknown.'},
-        'in_heritage_conservation_area': {'type': 'boolean', 'description': 'Is the site within a heritage conservation area? Omit if unknown.'},
-        'internal_works_only': {'type': 'boolean', 'description': 'True if the works are wholly internal. Lets the excavation and vegetation questions be answered from that fact.'},
-        'parking_spaces_provided': {'type': 'integer', 'description': 'Off-street parking spaces provided on site. Compared against the DCP Chapter 7 rate so any shortfall is stated.'},
-        'stormwater_to_council_system': {'type': 'boolean', 'description': 'True if stormwater goes to the Council drainage system; false if disposed of another way (describe it in comments.stormwater_details).'},
-        'answers': {'type': 'object', 'description': "The applicant's answers to the form's Yes/No questions, as {question_key: true|false}. Any question left out stays blank on the form and is returned in unanswered_questions - these are declarations signed as true, so they are never filled in on the applicant's behalf. Keys: zone_objectives, dcp_accordance, visually_prominent, inconsistent_streetscape, out_of_character, inconsistent_land_use, setback_variation, privacy_issues, overshadowing, acoustic_issues, views_impact, legal_access, increase_traffic, additional_access, parking_addressed, utilities_available, air_pollution, water_pollution, noise_impacts, excavation, erosion, contamination, sustainable, heritage_impact, aboriginal, remove_vegetation, threatened_species, effluent, trade_waste, hazardous_waste, rainwater_tanks, overland_risks, economic_social, crime_prevention, permissible."},
-        'comments': {'type': 'object', 'description': "Free text for the form's comment boxes, as {field: text}. Keys: hazards_comments, constraints, surrounding_land_use, planning_comments, context_comment, privacy_comments, access_comments, environmental_comments, flora_comments, waste_comments, social_comments, other_matters, stormwater_details, traffic_amount."},
-    },
-    required=['applicant_name', 'property_address', 'lot_dp', 'zone_code', 'proposed_use', 'development_type', 'floor_area_sqm', 'minor_development_type'],
+    description='Preview exactly what will be written into the official Lismore SEE PDF, including every tick. Shows the questions still unanswered and any issue that blocks the form being generated. Review this before calling fill_see_pdf.' + _SEE_FORM_NOTE,
+    properties=dict(_SEE_FORM_PROPERTIES),
+    required=_SEE_FORM_REQUIRED,
 )
 def preview_see_form(arguments: dict):
     return _see_form(arguments, "preview_see_form")
@@ -737,45 +850,9 @@ def preview_see_form(arguments: dict):
 
 @tool(
     name='fill_see_pdf',
-    description="Fill the official Lismore SEE PDF form and save it. Refuses proposals outside the template's 'Minor Development Only' scope, and refuses to write a blank land identifier. Questions the applicant has not answered are left blank and reported rather than guessed. Run preview_see_form first. A complete call needs only the eight required arguments — the address and lot/DP components are parsed out of property_address and lot_dp, and the optional arguments refine the answers rather than being needed to get one.",
-    properties={
-        'applicant_name': {'type': 'string', 'description': 'Full name of the applicant'},
-        'minor_development_type': {'type': 'string', 'description': 'REQUIRED. Which of the four development types this Council template covers: dwelling_single_storey, residential_addition_single_storey, ancillary_residential_structure, strata_subdivision. Plain wording is accepted and resolved - "shed", "carport", "pool", "extension", "single storey dwelling". Anything outside that scope (commercial work, change of use, multi-storey) cannot use this form - build a purpose-written SEE with generate_see_draft instead.'},
-        'property_address': {'type': 'string', 'description': "Full street address, e.g. '45 Keen Street, Lismore NSW 2480' or 'Shop 3, 88 Keen Street, Lismore NSW 2480'. This is normally all that is needed: unit, street_number, street and suburb are parsed out of it. Supply those separately only to correct a parse."},
-        'unit': {'type': 'string', 'description': "Optional override. Derived from property_address when omitted. Tenancy identifier if any, e.g. 'Shop 3', 'Unit 2'"},
-        'street_number': {'type': 'string', 'description': "Optional override. Derived from property_address when omitted. Street number only, e.g. '88' or '5-7'"},
-        'street': {'type': 'string', 'description': "Optional override. Derived from property_address when omitted. Street name only, e.g. 'Keen Street'"},
-        'suburb': {'type': 'string', 'description': 'Optional override. Derived from property_address when omitted — but a single-segment address like "Keen Street" has nothing identifying a suburb, so supply it there. Suburb only, without NSW or postcode'},
-        'building_name': {'type': 'string', 'description': 'Building name, if known'},
-        'lot_dp': {'type': 'string', 'description': "Land identifier as text, e.g. 'Lot 12 DP 758651', 'Lot 5 Section 3 DP 1234' or 'SP 12345'. This is normally all that is needed: lot, plan_type, plan_number and section are parsed out of it. Supply those separately only to correct a parse. The form is not generated without a plan number."},
-        'lot': {'type': 'string', 'description': 'Optional override. Derived from lot_dp when omitted. Lot number on its own'},
-        'plan_type': {'type': 'string', 'description': 'Optional override. Derived from lot_dp when omitted. DP (Deposited), SP (Strata) or CP (Community) plan; case is normalised'},
-        'plan_number': {'type': 'string', 'description': "Optional override. Derived from lot_dp when omitted. Plan number on its own, e.g. '758651'"},
-        'section': {'type': 'string', 'description': 'Optional override. Derived from lot_dp when omitted. Section number, if the land has one'},
-        'zone_code': {'type': 'string', 'description': "Zone code under Lismore LEP 2012, e.g. 'R1', 'E2'. Employment zones replaced the B-series codes in 2023."},
-        'proposed_use': {'type': 'string', 'description': "Proposed land use, e.g. 'dwelling house', 'shed'"},
-        'development_type': {'type': 'string', 'description': "Type: 'new_building', 'alteration', 'change_of_use', 'fitout'"},
-        'floor_area_sqm': {'type': 'number', 'description': 'Floor area in square metres'},
-        'building_description': {'type': 'string', 'description': "Description of the proposed works, in the applicant's own words. Used verbatim as the description of development."},
-        'site_description': {'type': 'string', 'description': 'Physical description of the site: shape, slope, vegetation, waterways'},
-        'surrounding_context': {'type': 'string', 'description': 'Land uses and development on surrounding land'},
-        'existing_use': {'type': 'string', 'description': 'Present and previous use of the site'},
-        'hours_of_operation': {'type': 'string', 'description': 'Proposed operating hours, where the use has any'},
-        'num_employees': {'type': 'integer', 'description': 'Number of employees'},
-        'num_customers': {'type': 'integer', 'description': 'Maximum customers at any time'},
-        'estimated_cost': {'type': 'number', 'description': 'Estimated cost of works in dollars'},
-        'is_flood_affected': {'type': 'boolean', 'description': 'Is the site flood prone? Omit if unknown - the tick is then left blank rather than guessed.'},
-        'is_bushfire_prone': {'type': 'boolean', 'description': 'Is the site bushfire prone? Omit if unknown.'},
-        'is_heritage': {'type': 'boolean', 'description': 'Is the site a heritage item under LEP 2012 Schedule 5? Omit if unknown.'},
-        'in_heritage_conservation_area': {'type': 'boolean', 'description': 'Is the site within a heritage conservation area? Omit if unknown.'},
-        'internal_works_only': {'type': 'boolean', 'description': 'True if the works are wholly internal. Lets the excavation and vegetation questions be answered from that fact.'},
-        'parking_spaces_provided': {'type': 'integer', 'description': 'Off-street parking spaces provided on site. Compared against the DCP Chapter 7 rate so any shortfall is stated.'},
-        'stormwater_to_council_system': {'type': 'boolean', 'description': 'True if stormwater goes to the Council drainage system; false if disposed of another way (describe it in comments.stormwater_details).'},
-        'answers': {'type': 'object', 'description': "The applicant's answers to the form's Yes/No questions, as {question_key: true|false}. Any question left out stays blank on the form and is returned in unanswered_questions - these are declarations signed as true, so they are never filled in on the applicant's behalf. Keys: zone_objectives, dcp_accordance, visually_prominent, inconsistent_streetscape, out_of_character, inconsistent_land_use, setback_variation, privacy_issues, overshadowing, acoustic_issues, views_impact, legal_access, increase_traffic, additional_access, parking_addressed, utilities_available, air_pollution, water_pollution, noise_impacts, excavation, erosion, contamination, sustainable, heritage_impact, aboriginal, remove_vegetation, threatened_species, effluent, trade_waste, hazardous_waste, rainwater_tanks, overland_risks, economic_social, crime_prevention, permissible."},
-        'comments': {'type': 'object', 'description': "Free text for the form's comment boxes, as {field: text}. Keys: hazards_comments, constraints, surrounding_land_use, planning_comments, context_comment, privacy_comments, access_comments, environmental_comments, flora_comments, waste_comments, social_comments, other_matters, stormwater_details, traffic_amount."},
-        'output_filename': {'type': 'string', 'description': "Output filename only — any path component is stripped. When running locally over stdio, saved to documents/output/; when served publicly over HTTP, returned inline as base64 and never written to disk. Default: 'SEE_filled.pdf'"},
-    },
-    required=['applicant_name', 'property_address', 'lot_dp', 'zone_code', 'proposed_use', 'development_type', 'floor_area_sqm', 'minor_development_type'],
+    description="Fill the official Lismore SEE PDF form and save it. Refuses proposals outside the template's 'Minor Development Only' scope, and refuses to write a blank land identifier. Questions the applicant has not answered are left blank and reported rather than guessed. Run preview_see_form first." + _SEE_FORM_NOTE,
+    properties={**_SEE_FORM_PROPERTIES, **_FILL_ONLY_PROPERTIES},
+    required=_SEE_FORM_REQUIRED,
 )
 def fill_see_pdf_tool(arguments: dict):
     return _see_form(arguments, "fill_see_pdf")

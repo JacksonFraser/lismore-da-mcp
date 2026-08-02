@@ -138,8 +138,19 @@ lismore-da-agent/
 ├── .mcp.json              # MCP server config for Claude Code
 ├── src/
 │   └── lismore_da_mcp/
-│       ├── __init__.py
-│       └── server.py      # MCP server implementation
+│       ├── server.py      # Wiring: SDK adapters, dispatch, re-exports
+│       ├── app.py         # The MCP Server object
+│       ├── transport.py   # stdio and Streamable HTTP
+│       ├── registry.py    # The @tool decorator and argument validation
+│       ├── observability.py
+│       ├── config.py      # Paths, PUBLIC_MODE, document categories
+│       ├── data/          # Hand-transcribed source content, no logic
+│       ├── tools/         # Handlers, one module per domain
+│       ├── see/           # Council SEE form: layout, fill, generate
+│       └── *.py           # Domain logic: fees, contributions, parking,
+│                          #   landuse, search, index, vocabulary, addresses
+├── scripts/               # Audits, document checks, one-off scrapers
+├── tests/
 └── documents/
     ├── DOCUMENT_INDEX.md  # Index of all documents
     ├── dcp/               # DCP chapters (19 PDFs)
