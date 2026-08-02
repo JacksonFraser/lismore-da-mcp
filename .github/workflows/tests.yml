@@ -13,8 +13,8 @@ jobs:
       matrix:
         # One version, matching the deployed server: Render is pinned to
         # PYTHON_VERSION=3.14.3 in the dashboard (see render.yaml's header for
-        # why the pin lives there and not in this repo). The local .venv is on
-        # 3.13, which is why requires-python still allows it.
+        # why the pin lives there and not in this repo). The local .venv and
+        # requires-python are on 3.14 too, so all three agree on the minor.
         #
         # Kept as a matrix rather than a bare python-version so the check
         # context keeps the "pytest (3.14)" form. The main branch ruleset

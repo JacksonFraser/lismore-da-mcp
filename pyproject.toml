@@ -7,9 +7,9 @@ name = "lismore-da-mcp"
 version = "0.1.0"
 description = "MCP server for Lismore Development Application assistance"
 readme = "README.md"
-# Matches Render and the local .venv, which is the only combination CI tests.
+# 3.14 everywhere: Render is pinned to it, CI tests it, the local .venv runs it.
 # Declaring a lower floor than CI exercises is a claim of support nothing checks.
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     # See requirements.txt: the code targets the mcp 2.x server API.
     "mcp>=2.0.0,<3",
