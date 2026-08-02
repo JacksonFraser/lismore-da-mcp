@@ -7,6 +7,15 @@ estimator read the rate out of a prose string with a regex, so it could only eve
 see one area-based component: the café rule — *1 per 3 seats, plus 1 per 2
 employees or 15 per 100m2 GFA, whichever is greater* — was unreadable to it.
 
+There are two kinds of "whichever is greater" here, and conflating them is what
+made the café rule wrong even after it became structured. `or_` and `or_alt`
+alternate against the **whole** requirement: the boarding house rule offers two
+complete formulas and takes the larger. A `greater_of` component alternates
+**within** the sum: the café takes staff spaces plus the larger of two measures
+of customer capacity. Both are in Schedule 1 and they are not interchangeable —
+see the note above `_RESTAURANT` in `data/parking.py` for what settled which
+applies where.
+
 This evaluates the structured `spec` on each entry instead, and returns None
 when it cannot honestly produce a figure. Declining is the right answer more
 often than it looks: parking is what a Council assessment argues about, and a
@@ -20,6 +29,15 @@ from lismore_da_mcp.data.parking import COUNTABLE
 
 def _component(part: dict, floor_area_sqm: float | None, counts: dict) -> float | None:
     """One term of a requirement. None means it cannot be evaluated."""
+    if "greater_of" in part:
+        # A component that is itself an alternation — two measures of the same
+        # thing, of which the rate takes the larger. Distinct from the spec-level
+        # `or_`, which alternates against the *whole* sum. The café rule needs
+        # this one: staff spaces are added, and the greater is taken between the
+        # two measures of customer capacity. See the note in data/parking.py.
+        values = [_component(p, floor_area_sqm, counts) for p in part["greater_of"]]
+        usable = [v for v in values if v is not None]
+        return max(usable) if usable else None
     if "per_area" in part:
         if not floor_area_sqm:
             return None
@@ -33,6 +51,33 @@ def _component(part: dict, floor_area_sqm: float | None, counts: dict) -> float 
     return None
 
 
+def _describe(part: dict, floor_area_sqm: float | None, counts: dict) -> str:
+    """How a component was arrived at, for the `basis` shown to the applicant."""
+    if "greater_of" in part:
+        best, description = None, ""
+        for alternative in part["greater_of"]:
+            value = _component(alternative, floor_area_sqm, counts)
+            if value is not None and (best is None or value > best):
+                best, description = value, _describe(alternative, floor_area_sqm, counts)
+        others = len([p for p in part["greater_of"]
+                      if _component(p, floor_area_sqm, counts) is not None]) - 1
+        return description + (" (the greater of the two bases)" if others > 0 else "")
+    if "per_area" in part:
+        return f"{floor_area_sqm:g}m² at {part['rate']:g} per {part['per_area']:g}m²"
+    if "one_per" in part:
+        return f"{counts[part['of']]:g} {part['of']} at 1 per {part['one_per']:g}"
+    return f"{counts[part['per']]:g} {part['per']} at {part['rate']:g} each"
+
+
+def _needs(part: dict) -> list[str]:
+    """The inputs a component could not be evaluated without."""
+    if "greater_of" in part:
+        return [name for alternative in part["greater_of"] for name in _needs(alternative)]
+    if "per_area" in part:
+        return ["floor area"]
+    return [part.get("of") or part.get("per")]
+
+
 def _evaluate(parts: list, floor_area_sqm: float | None, counts: dict):
     """Sum a component list. Returns (total, [descriptions], [unmet inputs])."""
     total = 0.0
@@ -40,18 +85,10 @@ def _evaluate(parts: list, floor_area_sqm: float | None, counts: dict):
     for part in parts:
         value = _component(part, floor_area_sqm, counts)
         if value is None:
-            if "per_area" in part:
-                missing.append("floor area")
-            else:
-                missing.append(part.get("of") or part.get("per"))
+            missing.extend(_needs(part))
             continue
         total += value
-        if "per_area" in part:
-            described.append(f"{floor_area_sqm:g}m² at {part['rate']:g} per {part['per_area']:g}m²")
-        elif "one_per" in part:
-            described.append(f"{counts[part['of']]:g} {part['of']} at 1 per {part['one_per']:g}")
-        else:
-            described.append(f"{counts[part['per']]:g} {part['per']} at {part['rate']:g} each")
+        described.append(_describe(part, floor_area_sqm, counts))
     return total, described, missing
 
 
