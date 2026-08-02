@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 .DS_Store
 
 # Claude Code config is shared, except the per-machine permission file.
