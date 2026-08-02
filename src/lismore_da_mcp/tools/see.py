@@ -60,6 +60,123 @@ def get_see_template(arguments: dict):
     return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
 
+def _site_constraints(address, asserted_flood, asserted_heritage):
+    """What is known about the site's constraints, and how it was learned.
+
+    A caller's explicit True/False wins. Otherwise the address is looked up, so
+    a draft is not silent about the site it is written for. Returns tri-state
+    values — True, False, or None for "not established" — because "we did not
+    find it" and "it is not there" are different things to write in a document
+    that goes to Council.
+    """
+    flood, heritage, bushfire = asserted_flood, asserted_heritage, None
+    note = "Constraints as supplied by the applicant."
+
+    if flood is not None and heritage is not None:
+        return flood, heritage, bushfire, note
+
+    if not address or address.startswith("["):
+        return flood, heritage, bushfire, "No address supplied, so constraints were not checked."
+
+    try:
+        from lismore_da_mcp.addresses import lookup_constraints
+
+        result = lookup_constraints(address)
+    except Exception:                                          # noqa: BLE001
+        return flood, heritage, bushfire, "The constraint lookup was unavailable."
+
+    if "error" in result:
+        return flood, heritage, bushfire, (
+            "Constraints could not be looked up for this address "
+            f"({result['error']}). They must be confirmed with Council."
+        )
+
+    found = result.get("constraints", {})
+    if heritage is None:
+        answer = found.get("heritage", {}).get("answer")
+        heritage = True if answer == "affected" else (False if answer == "not_within_a_mapped_area" else None)
+    answer = found.get("bushfire", {}).get("answer")
+    bushfire = True if answer == "affected" else (False if answer == "not_within_a_mapped_area" else None)
+    if flood is None:
+        # Deliberately not set from the layer. The state flood dataset holds no
+        # Lismore data at all, so it can confirm flooding but never rule it out;
+        # treating "not found" as "not flood affected" would be the single most
+        # harmful thing this draft could assert.
+        flood = None
+
+    return flood, heritage, bushfire, (
+        f"Heritage and bushfire read from the NSW planning layers for "
+        f"{result.get('matched_address')}. Flood was not, and cannot be, ruled out this way."
+    )
+
+
+def _flood_section(is_flood, development_type):
+    """Flood always gets a section. Silence is the failure mode here.
+
+    Much of the Lismore LGA is flood affected, the CBD was inundated in 2022,
+    and the state flood layer holds no Lismore data — so a draft that simply
+    omits flood is one Council comes back on.
+    """
+    if is_flood:
+        internal = development_type in ("change_of_use", "fitout")
+        return (
+            "The site is within the flood planning area. LEP 2012 clause 5.21 and DCP\n"
+            "    Chapter 8 apply.\n"
+            "    • [APPLICANT] State the Flood Planning Level for the site and the floor level\n"
+            "      of the premises relative to it. Council provides the flood level on request.\n"
+            "    • [APPLICANT] Address structural soundness, and evacuation — a site-specific\n"
+            "      evacuation plan is required in the CBD exemption precinct.\n"
+            "    • [APPLICANT] Address flood storage and conveyance, and the handling of\n"
+            "      stock, plant and hazardous materials in a flood."
+            + ("\n    • The proposal involves no external works and does not alter flood flows."
+               if internal else "")
+        )
+    if is_flood is False:
+        return (
+            "The applicant has advised the site is not within the flood planning area.\n"
+            "    [APPLICANT] Confirm this against Council's flood mapping and retain the\n"
+            "    confirmation — much of the LGA is affected and the flood provisions are\n"
+            "    under review."
+        )
+    return (
+        "[APPLICANT TO COMPLETE — DO NOT LEAVE BLANK] Flood has not been established for\n"
+        "    this site. Much of the Lismore LGA is flood affected, the CBD was inundated in\n"
+        "    2022, and the NSW state flood layer holds no Lismore data, so it cannot rule\n"
+        "    flooding out. Obtain the Flood Planning Level from Council, state the floor\n"
+        "    level relative to it, and address clause 5.21 and DCP Chapter 8. A SEE that is\n"
+        "    silent on flood is a common reason for a request for information."
+    )
+
+
+def _heritage_section(is_heritage):
+    if is_heritage:
+        return (
+            "The site is a heritage item or within a heritage conservation area.\n"
+            "    A Heritage Impact Statement is required (DCP Chapter 12). The impact on\n"
+            "    heritage significance must be assessed, not assumed.\n"
+            "    • [APPLICANT] Address any external change — shopfront, awning, signage,\n"
+            "      colours, materials — which is where heritage objections usually arise."
+        )
+    if is_heritage is False:
+        return "The site is not a heritage item and is not within a heritage conservation area."
+    return (
+        "[APPLICANT TO COMPLETE] Heritage status has not been established. Check the LEP\n"
+        "    2012 Schedule 5 listing and the heritage map, or use lookup_site_constraints."
+    )
+
+
+def _bushfire_section(is_bushfire):
+    if is_bushfire:
+        return (
+            "The site is on bushfire prone land. Planning for Bushfire Protection applies,\n"
+            "    a bushfire assessment is required, and the development may be integrated\n"
+            "    development requiring referral to the RFS."
+        )
+    if is_bushfire is False:
+        return "The site is not mapped as bushfire prone land."
+    return "[APPLICANT TO COMPLETE] Bushfire prone status has not been established."
+
+
 @tool(
     name='generate_see_draft',
     description='Generate a draft Statement of Environmental Effects (SEE) document based on proposal details. Automatically pulls in zone information, parking requirements, flood planning, and other relevant data to create a structured SEE ready for review and refinement.',
@@ -100,8 +217,16 @@ def generate_see_draft(arguments: dict):
             employees_line = num_employees if num_employees is not None else "[NOT PROVIDED]"
             customers_line = num_customers if num_customers is not None else "[NOT PROVIDED]"
             estimated_cost = arguments.get("estimated_cost", 0)
-            is_flood = arguments.get("is_flood_affected", False)
-            is_heritage = arguments.get("is_heritage", False)
+            # Constraints. The caller may assert them; where they have not,
+            # look them up from the address rather than writing a draft that is
+            # silent about the site it is for. PLAN.md 1.2: a café SEE for a CBD
+            # address previously mentioned flood zero times, and a SEE that does
+            # not address flood in Lismore is one Council comes back on.
+            is_flood, is_heritage, is_bushfire, constraint_note = _site_constraints(
+                property_address,
+                arguments.get("is_flood_affected"),
+                arguments.get("is_heritage"),
+            )
             existing_parking = arguments.get("existing_parking_spaces", 0)
             applicant_name = arguments.get("applicant_name", "[APPLICANT NAME]")
 
@@ -199,7 +324,15 @@ def generate_see_draft(arguments: dict):
     ------------------------
     The site currently contains {existing_use.lower() if existing_use != "Vacant/Unknown" else "a vacant premises"}.
 
-    2.3 Surrounding Context
+    2.3 Site Constraints
+    --------------------
+    Flood:      {"Within the flood planning area" if is_flood else ("Applicant advises not flood affected - verify with Council" if is_flood is False else "NOT ESTABLISHED - see 4.1.4. Cannot be ruled out from mapping alone in this LGA")}
+    Heritage:   {"Heritage item or conservation area" if is_heritage else ("Not a heritage item or conservation area" if is_heritage is False else "Not established")}
+    Bushfire:   {"Bushfire prone land" if is_bushfire else ("Not mapped as bushfire prone" if is_bushfire is False else "Not established")}
+
+    {constraint_note}
+
+    2.4 Surrounding Context
     -----------------------
     The site is located within the {zone_name} zone. The surrounding area is
     characterised by {"commercial and retail uses typical of the Lismore CBD" if zone_code == "E2" else "uses consistent with the " + zone_name + " zone"}.
@@ -253,17 +386,14 @@ def generate_see_draft(arguments: dict):
     Height:             {"Not applicable - no external works" if development_type in ["change_of_use", "fitout"] else "[CHECK HEIGHT MAP]"}
     Floor Space Ratio:  {"Not applicable - no increase in GFA" if development_type in ["change_of_use", "fitout"] else "[CHECK FSR MAP]"}
 
-    {"4.1.4 Clause 5.21 - Flood Planning" if is_flood else ""}
-    {"The site is within the flood planning area. The proposal:" if is_flood else ""}
-    {"• Does not increase the intensity of use significantly" if is_flood else ""}
-    {"• Maintains existing floor levels" if is_flood else ""}
-    {"• Does not impede flood flows" if is_flood else ""}
-    {"[APPLICANT: Confirm floor level relative to Flood Planning Level]" if is_flood else ""}
+    4.1.4 Clause 5.21 - Flood Planning
+    {_flood_section(is_flood, development_type)}
 
-    {"4.1.5 Heritage" if is_heritage else ""}
-    {"The property is identified as a heritage item / within a heritage conservation area." if is_heritage else ""}
-    {"The proposal involves internal works only with no impact on heritage significance." if is_heritage else ""}
-    {"[APPLICANT: Prepare Heritage Impact Statement if external works proposed]" if is_heritage else ""}
+    4.1.5 Heritage
+    {_heritage_section(is_heritage)}
+
+    4.1.6 Bushfire
+    {_bushfire_section(is_bushfire)}
 
     4.2 Lismore Development Control Plan
     -------------------------------------
@@ -281,8 +411,12 @@ def generate_see_draft(arguments: dict):
 
     4.3 State Environmental Planning Policies
     -----------------------------------------
-    The proposal has been assessed against relevant SEPPs. No SEPPs preclude the
-    granting of consent.
+    [APPLICANT TO COMPLETE] The SEPPs relevant to this proposal must be identified and
+    addressed. Which apply depends on the use and the site - commonly the Housing SEPP,
+    the Exempt and Complying Development Codes, Transport and Infrastructure, Resilience
+    and Hazards (contamination, clause 4.6 of Chapter 4 applies to a change to a more
+    sensitive use), and Industry and Employment for advertising. Do not state that no
+    SEPP precludes consent unless that has actually been checked.
 
     ================================================================================
     5. ENVIRONMENTAL IMPACT ASSESSMENT

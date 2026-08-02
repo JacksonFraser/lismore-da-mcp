@@ -262,3 +262,84 @@ MINOR_DEVELOPMENT_SYNONYMS = {
     "pergola": "ancillary_residential_structure",
     "strata": "strata_subdivision",
 }
+
+
+# Development types for get_da_checklist. This tool never received the loose
+# resolution the others got in 3.1/3.2, so "change of use" — with spaces, the
+# way anybody writes it — was refused while "change_of_use" worked, on the most
+# common business DA type of all. See PLAN.md 1.1.
+#
+# Business use words point at `commercial` rather than `change_of_use` because
+# the two are not the same question: a new building is commercial, taking over
+# an existing tenancy is a change of use. Both entries cross-reference the
+# other, so a caller who picks the wrong one is told.
+CHECKLIST_SYNONYMS = {
+    # taking over existing premises
+    "change of use": "change_of_use",
+    "change use": "change_of_use",
+    "use change": "change_of_use",
+    "fitout": "change_of_use",
+    "fit out": "change_of_use",
+    "shop fitout": "change_of_use",
+    "new tenancy": "change_of_use",
+    "tenancy": "change_of_use",
+    "occupy": "change_of_use",
+    "existing building": "change_of_use",
+    "conversion": "change_of_use",
+    "convert": "change_of_use",
+
+    # business uses — a new commercial building or premises
+    "business": "commercial",
+    "cafe": "commercial",
+    "coffee shop": "commercial",
+    "restaurant": "commercial",
+    "food premises": "commercial",
+    "takeaway": "commercial",
+    "take away": "commercial",
+    "bar": "commercial",
+    "pub": "commercial",
+    "shop": "commercial",
+    "retail": "commercial",
+    "store": "commercial",
+    "office": "commercial",
+    "gym": "commercial",
+    "fitness": "commercial",
+    "salon": "commercial",
+    "hairdresser": "commercial",
+    "barber": "commercial",
+    "medical centre": "commercial",
+    "clinic": "commercial",
+    "childcare": "commercial",
+    "child care": "commercial",
+    "brewery": "commercial",
+    "bakery": "commercial",
+
+    # industrial
+    "industry": "industrial",
+    "industrial": "industrial",
+    "factory": "industrial",
+    "workshop": "industrial",
+    "warehouse": "industrial",
+    "storage": "industrial",
+    "manufacturing": "industrial",
+
+    # residential
+    "house": "dwelling",
+    "home": "dwelling",
+    "dwelling house": "dwelling",
+    "residential": "dwelling",
+    "granny flat": "dwelling",
+    "secondary dwelling": "dwelling",
+    "dual occupancy": "dwelling",
+    "duplex": "dwelling",
+
+    # other
+    "subdivide": "subdivision",
+    "sign": "signage",
+    "signs": "signage",
+    "advertising": "signage",
+    "advertisement": "signage",
+    "demolish": "demolition",
+    "demolition": "demolition",
+    "knock down": "demolition",
+}
