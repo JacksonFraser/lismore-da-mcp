@@ -12,6 +12,13 @@
 # match it as of then. Anything changed here must be changed there too, or it
 # will silently have no effect. To remove the split, recreate the service from
 # this Blueprint.
+#
+# The service also carries PYTHON_VERSION=3.14.3, set in the dashboard on
+# 2026-08-02 and deliberately not listed under envVars below — a value here
+# would read as authoritative while doing nothing. Before it was pinned the
+# service took Render's rolling default, so the deployed interpreter could
+# change under a redeploy with no commit to show for it. CI tests 3.14 to
+# match; moving one without the other puts them back out of step.
 services:
   - type: web
     name: lismore-da-mcp
