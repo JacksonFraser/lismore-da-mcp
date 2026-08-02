@@ -122,6 +122,79 @@ class TestDraftAddressesItsOwnSite:
         assert "APPLICANT TO COMPLETE" in text[text.find("4.3"):text.find("4.3") + 600]
 
 
+class TestDraftParkingMatchesTheDCP:
+    """The draft used to resolve the parking rate by hand and read the space
+    count out of the rate's prose with a substring test for "10m". Every rate
+    that was not a plain area rate — the café rule among them — fell through to
+    a placeholder, and the compliance line then compared the spaces provided
+    against 0, because a string is not an int. So an 80m² café with no parking
+    at all was told its parking was "adequate for the proposed use", against a
+    real requirement of 14 spaces, in a document that goes to Council over the
+    applicant's name. Every test here is that failure from a different angle."""
+
+    def parking(self, call, **kwargs):
+        args = {"property_address": CBD, "zone_code": "E2",
+                "proposed_use": "restaurant or cafe", "development_type": "fitout",
+                "floor_area_sqm": 80, "num_employees": 3}
+        args.update(kwargs)
+        text = call("generate_see_draft", args)
+        return text[text.find("4.2.2"):text.find("4.3")]
+
+    def test_the_space_count_is_the_one_the_parking_tool_gives(self, call):
+        """The draft, get_parking_rates and the Council form all run the same
+        estimator. Three answers to one question is the thing to prevent."""
+        section = self.parking(call, existing_parking_spaces=0)
+        expected = call("get_parking_rates", {
+            "development_type": "restaurant or cafe",
+            "floor_area_sqm": 80, "num_employees": 3,
+        })["calculation"]["spaces_required"]
+        assert expected == 14
+        assert f"Required Spaces:     {expected}" in section
+
+    def test_a_shortfall_is_never_reported_as_adequate(self, call):
+        section = self.parking(call, existing_parking_spaces=0)
+        assert "Parking Shortfall: 14 space(s)." in section
+        assert "adequate" not in section.lower()
+        assert "APPLICANT TO ADDRESS" in section
+
+    def test_enough_spaces_is_reported_as_compliant(self, call):
+        section = self.parking(call, existing_parking_spaces=20)
+        assert "Parking Compliance" in section
+        assert "Shortfall" not in section
+
+    def test_unstated_spaces_are_not_assumed_to_be_zero_or_enough(self, call):
+        """Omitting the argument used to default to 0, which both invented a
+        fact about the site and — via the same isinstance slip — reported it as
+        compliant anyway."""
+        section = self.parking(call)
+        assert "[NOT STATED]" in section
+        assert "Parking Compliance" not in section
+        assert "Shortfall" not in section
+        assert "APPLICANT TO COMPLETE" in section
+
+    def test_the_lep_term_for_a_cafe_resolves(self, call):
+        """'restaurant or cafe' is the Standard Instrument's own term and the
+        example in the tool's own schema. It matched no parking rate, so the
+        flagship case silently lost its space count."""
+        assert "Required Spaces:     14" in self.parking(call, existing_parking_spaces=0)
+
+    def test_a_use_with_no_rate_declines_rather_than_guessing(self, call):
+        """Declining is the right answer more often than it looks — a confident
+        wrong space count is what sends a DA back."""
+        section = self.parking(call, proposed_use="crematorium",
+                               existing_parking_spaces=0)
+        assert "no DCP Chapter 7 rate could be matched" in section
+        assert "APPLICANT TO COMPLETE" in section
+        assert "Parking Compliance" not in section
+
+    def test_the_basis_for_the_number_is_shown(self, call):
+        """A space count with no working is one the applicant cannot check or
+        argue with at the counter."""
+        section = self.parking(call, existing_parking_spaces=0)
+        assert "Basis:" in section
+        assert "15 per 100" in section
+
+
 class TestChangeOfUseIsNotALandUse:
     """1.3 — it was answered as though it were, via the table's catch-all."""
 

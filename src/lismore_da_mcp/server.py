@@ -20,7 +20,6 @@ from lismore_da_mcp.app import server
 from lismore_da_mcp.observability import (
     OUTCOME_INVALID_ARGUMENTS,
     OUTCOME_OK,
-    configure_logging,
     timed_tool_call,
 )
 from lismore_da_mcp.registry import mcp_tools, registered, validate_arguments

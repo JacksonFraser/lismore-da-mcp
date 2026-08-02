@@ -65,8 +65,22 @@ print(asyncio.run(call_tool('get_parking_rates', {'development_type': 'restauran
 
 ## Architecture
 
-Effectively the whole server is one file: `src/lismore_da_mcp/server.py` (~3,800 lines). It is
-organised as labelled banner sections; find things by section rather than by module.
+`src/lismore_da_mcp/server.py` is ~190 lines of wiring: it registers the SDK adapters, dispatches
+tool calls, and re-exports much of the package so older `from lismore_da_mcp.server import X`
+imports keep working. It is not where the code lives. Find things by module:
+
+| Layer | Where | What |
+|---|---|---|
+| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `contacts`. No logic. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Tools | `tools/` | One module per domain (`zoning`, `parking`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
+| SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
+| Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
+
+A handler should stay thin: if it computes rather than formats, the computation belongs one layer
+down, where it can be tested and reused. `generate_see_draft` is the cautionary example — it
+hand-rolled a parking calculation instead of calling `parking.estimate_spaces`, and told an 80m²
+café with no on-site parking that its parking was adequate against a real requirement of 14 spaces.
 
 **Two transports, one server object.** `main()` branches on `MCP_TRANSPORT`: unset/`stdio` →
 `stdio_server()` for local `.mcp.json` use; `http` → a Starlette app (`build_http_app()`) mounting
@@ -101,7 +115,7 @@ the type keyword only, and a test fails if a schema declares a type it does not 
 `(context, params)` and returning typed results. `server.py` keeps `call_tool(name, arguments)`
 and `list_tools()` as plain functions and wraps them in `_on_call_tool` / `_on_list_tools`
 adapters registered via `add_request_handler`. Tests and `conftest` call the plain functions, so
-the next SDK break lands in two adapters rather than across 490 tests. Note `Tool.inputSchema` is
+the next SDK break lands in two adapters rather than across 800+ tests. Note `Tool.inputSchema` is
 `Tool.input_schema` in 2.x (the wire format is unchanged — it is a pydantic alias), and
 `server.request_handlers` is now `server.get_request_handler(method)`.
 

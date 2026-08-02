@@ -176,6 +176,31 @@ PARKING_SYNONYMS = {
     "retail shop": "shop",
     "hardware store": "bulky_goods",
     "furniture store": "bulky_goods",
+
+    # Standard Instrument land use terms.
+    #
+    # The keys in PARKING_RATES are colloquial ("cafe", "gym", "warehouse") but
+    # the tool schemas tell callers to use the LEP's own wording — get_definition
+    # and check_permissibility read the land use table in exactly these terms,
+    # and generate_see_draft passes one `proposed_use` to both. So a term that
+    # resolves for permissibility has to resolve for parking, or the SEE quietly
+    # loses its parking section: "restaurant or cafe" is the example in
+    # generate_see_draft's own schema and it matched nothing here.
+    #
+    # Only terms whose parking entry names the same use in its `dcp_use` are
+    # mapped. Parent categories (retail premises, food and drink premises,
+    # commercial premises) are deliberately absent — they span uses with
+    # different rates, so resolving them to one would be a guess, and the
+    # resolver's suggestions are the better answer.
+    "restaurant or cafe": "cafe",
+    "take away food and drink premises": "take_away",
+    "warehouse or distribution centre": "warehouse",
+    "hotel or motel accommodation": "hotel",
+    "recreation facility indoor": "gym",
+    "recreation facility (indoor)": "gym",
+    "centre based child care facility": "childcare_centre",
+    "light industries": "industry",
+    "general industries": "industry",
 }
 
 DEFINITION_SYNONYMS = {
