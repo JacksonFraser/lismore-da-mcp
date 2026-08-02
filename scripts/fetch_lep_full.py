@@ -5,7 +5,7 @@ import asyncio
 from pathlib import Path
 from playwright.async_api import async_playwright
 
-DOCS_DIR = Path(__file__).parent / "documents" / "lep"
+DOCS_DIR = Path(__file__).resolve().parent.parent / "documents" / "lep"
 
 async def fetch_with_cf_bypass(url: str, output_file: str):
     """Fetch URL handling Cloudflare challenge."""

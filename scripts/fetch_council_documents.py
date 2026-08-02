@@ -13,7 +13,7 @@ planning question.
 
     uv sync --extra scraping
     .venv/bin/playwright install chromium
-    .venv/bin/python fetch_council_documents.py [--dry-run]
+    .venv/bin/python scripts/fetch_council_documents.py [--dry-run]
 
 Downloading is only half the job. Open each new file, confirm it is what its
 name claims and carries no private information, then record it in
@@ -25,7 +25,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-DOCS = Path(__file__).parent / "documents"
+DOCS = Path(__file__).resolve().parent.parent / "documents"
 BASE = "https://www.lismore.nsw.gov.au/files/assets/public"
 
 USER_AGENT = (

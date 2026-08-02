@@ -26,7 +26,7 @@ engineering work that is no longer the constraint.
 
 ```bash
 uv sync                                   # install deps into .venv (Python >=3.10)
-uv sync --extra scraping                  # + httpx/playwright, only for the fetch_*.py scripts
+uv sync --extra scraping                  # + httpx/playwright, only for scripts/fetch_*.py
 .venv/bin/python -m lismore_da_mcp.server # run the server over stdio (what .mcp.json launches)
 MCP_TRANSPORT=http PYTHONPATH=src PORT=8080 \
   .venv/bin/python -m lismore_da_mcp.server   # run the public HTTP transport locally
@@ -181,7 +181,7 @@ SEE that was mistaken for a blank template — never restore files from there in
 Treat any new document added under `documents/` as published: check it is genuinely blank/public
 before committing, and record it in `documents/DOCUMENT_INDEX.md`.
 
-The `fetch_*.py` scripts at repo root are one-off Playwright scrapers (legislation.nsw.gov.au,
+The `scripts/fetch_*.py` scripts are one-off Playwright scrapers (legislation.nsw.gov.au,
 austlii, planning.nsw.gov.au all return 403 to plain HTTP fetches). They are never imported by the
 server and their deps stay in the `scraping` extra so Render doesn't ship browser binaries. **These
 scripts save whatever the server returned, including 403/404 bodies and Cloudflare challenge

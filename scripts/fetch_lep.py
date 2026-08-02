@@ -5,7 +5,7 @@ import asyncio
 from pathlib import Path
 from playwright.async_api import async_playwright
 
-DOCS_DIR = Path(__file__).parent / "documents" / "lep"
+DOCS_DIR = Path(__file__).resolve().parent.parent / "documents" / "lep"
 
 async def fetch_page(url: str, output_file: str, wait_time: int = 3):
     """Fetch a page and save its content."""

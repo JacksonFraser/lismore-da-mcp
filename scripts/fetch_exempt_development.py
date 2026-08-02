@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch NSW DPE 'rules for exempt development' fact sheets using Playwright.
 
-Mirrors the pattern in fetch_lep.py. These are the small, stable state-wide
+Mirrors the pattern in fetch_lep.py (same directory). These are the small, stable state-wide
 SEPP fact sheets that cover the most common "do I need a DA?" questions
 (decks, fences, sheds, carports), so they're cached locally rather than
 re-fetched from government sites on every query.
@@ -11,7 +11,7 @@ import asyncio
 from pathlib import Path
 from playwright.async_api import async_playwright
 
-DOCS_DIR = Path(__file__).parent / "documents" / "exempt-development"
+DOCS_DIR = Path(__file__).resolve().parent.parent / "documents" / "exempt-development"
 
 FACT_SHEETS = [
     (
