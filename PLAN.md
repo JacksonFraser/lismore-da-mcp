@@ -60,8 +60,12 @@ its site — are the three that fail.
 
 # Phase 0 — Make the data trustworthy
 
-Nothing else on this plan matters if the numbers are wrong. Both items are concrete and checkable,
-and neither needs a planner.
+Nothing else on this plan matters if the numbers are wrong. Each item is concrete and checkable,
+and none needs a planner.
+
+0.1 and 0.2 are done. 0.2 is the one to read: the zone tables came back **clean**, and the same
+audit applied to parking found that **`data/parking.py` does not match the DCP** — which is now
+0.3, and is the largest known correctness problem in the repo.
 
 ### 0.1 Refresh the fee schedule — ✅ **DONE 2026-08-01**
 
@@ -104,27 +108,89 @@ the advertising fees, long service levy, Section 7.11 contributions, and Section
 wastewater charges a business should expect — the documents for which are now in the repo. Item 2.1
 remains: turning that from a list into numbers.
 
-### 0.2 Mechanically audit the transcriptions against the LEP text
+### 0.2 Mechanically audit the transcriptions against the LEP text — ✅ **DONE 2026-08-02**
 
-Every planning answer here rests on hand-transcribed data — 21 zone land use tables, parking rates,
-setbacks, definitions. **Nothing checks the transcription against the source.** The 21-zone list in
-`tests/test_tools.py` is a *second hand-copy* with a comment saying it was read off the LEP; the
-tests pin that the data has not **changed**, not that it is **right**.
+`scripts/audit_zone_tables.py` parses every zone land use table out of
+`documents/lep/lep-2012-nsw-full.txt` and diffs it against `data/zones.py`, entry by entry across
+permitted-without-consent, permitted-with-consent and prohibited.
 
-A transcription slip would therefore be invisible, and permanently blessed by the test that makes
-the data look verified. This project's own history says that is not hypothetical: the previous
-evaluation got the zone count wrong by six, and two other headline findings were also wrong.
+**The zone tables are correct. All 21 match the LEP exactly, including every business zone.** That
+is worth stating plainly, because the risk was real and unmeasured: the tests pinned that the data
+had not *changed*, never that it was *right*, and the 21-zone list in `tests/test_tools.py` is
+itself a second hand copy.
 
-`documents/lep/lep-2012-nsw-full.txt` is in the repo and is the authoritative source. Parse the
-zone land use tables out of it and diff against `data/zones.py` — permitted-without-consent,
-permitted-with-consent and prohibited, per zone. Report differences rather than auto-correcting;
-some will be deliberate paraphrase and need a human decision.
+Three differences turned out to be defects in the **scraped source text**, not the transcription —
+`lep-2012-nsw-full.txt` lost the semicolon between two land uses in three places, so
+"Oyster aquaculture Research stations" reads as one invented use. They are listed explicitly in
+`SOURCE_TEXT_DEFECTS` rather than absorbed by a heuristic, and the literal "Nil" that Zone C1
+prints for an empty list is likewise named. An audit that always reports the same ten differences
+teaches its reader to ignore it — the same failure that let the fee scale sit two years stale
+behind a standing caveat.
 
-Prioritise the **business zones** (E1–E4, MU1, RU5) if it cannot all be done at once — those carry
-the answers this tool now exists to give. Same treatment for DCP Chapter 7 parking rates, which are
-the numbers most likely to be argued about with Council.
+`tests/test_zone_transcription.py` re-runs the comparison, so it holds against future edits to
+either side, and includes tests that the audit *can* fail — a checker that cannot detect a fault
+manufactures confidence rather than providing it.
+
+### 0.3 Correct the parking rates — **found by 0.2, not yet fixed**
+
+The other half of 0.2 was DCP Chapter 7. **Those rates do not match the DCP.** The council document
+is fine; `data/parking.py` is wrong. The values look written from general knowledge rather than
+transcribed from Lismore's schedule.
+
+Quoted verbatim from Chapter 7 Schedule 1, pp. 11–15:
+
+| Use | DCP (correct) | `data/parking.py` (wrong) | Effect |
+|---|---|---|---|
+| Restaurant or cafe | "1 per 3 seats, plus 1 per 2 employees **or** 15 per 100m² GFA (whichever is greater)" | "1 per 10m² dining area" | 15/100m² = 1 per 6.67m². Understates ~33%, and omits the seats basis |
+| Office premises | "1 per 30m² GFA for ground or 1st floor level and 1 per 40m² at subsequent upper levels. Minimum 2 spaces" | "1 per 40m² GFA" | Understates for ground/1st floor, where most small offices are; drops the minimum |
+| Warehouse or distribution centre | "1 per 300m²" | "1 per 100m² GFA" | **Overstates 3×** — could kill a viable proposal |
+| Industry (heavy, general, light) | "1 per 100m² GFA or part thereof. Minimum 2 spaces per unit or separate leased area" | "1 per 75m² GFA" | Overstates ~33% |
+| Shop (individual) | "4.4 per 100m² GFA" | "1 per 25m² GFA" | 4.4/100 = 1 per 22.7m². Understates ~9% |
+| Bulky goods premises | "≤400m² GFA – 3 per 100m²; >400m² – 2 per 100m²" | "1 per 50m² GFA" | Tiered in the DCP, flat here; wrong below 400m² |
+| Gymnasium/fitness centre | "1 per 25m² GFA, plus 1 per 2 employees" | "1 per 25m² GFA" | Understates |
+| Medical centre | "4 per practitioner, plus 1 per employee" | "4 per practitioner" | Understates |
+
+`take_away` and `retail` have no entry under those names in the DCP schedule and are **unverified**
+rather than presumed wrong.
+
+The errors run both ways, and both directions cost a business. Understating means being told fewer
+spaces are needed than Council will require — the DA comes back, weeks lost on a leased tenancy.
+Overstating means abandoning a proposal that was actually viable. Parking is the flashpoint this
+plan already identified as the recurring CBD argument.
+
+**This is a schema change, not a value edit**, which is why it is its own item. Each entry is a
+single rate string, so there is nowhere to put "whichever is greater", a rate that tiers by floor
+area, or a per-unit minimum. `estimate_parking_requirement()` also parses that string with a regex,
+so it can only ever read one basis. Doing this properly means:
+
+- a rate model that carries alternative bases with a `max()` between them, size tiers, minimums,
+  and a per-employee component
+- an audit script for Chapter 7 in the shape of `audit_zone_tables.py`, so this cannot drift back
+- checking the remaining ~20 entries in `PARKING_RATES`, not only the eight above
+- keeping the existing honesty about area basis — the current caveat that the DCP rate may apply
+  to a narrower area than GFA is right and should survive
 
 ---
+
+### 0.4 Watch the council site instead of sampling it
+
+0.1 fixed a stale fee scale; nothing stops the next one. Planning documents decay continuously —
+DCP amendments, a reissued chapter, the July fee reset — and this repo currently learns about that
+only when somebody happens to look. It went two years without anybody happening to look.
+
+`fetch_council_documents.py` and `SCRAPER.md` make the check cheap now: re-crawl the planning and
+business sections, compare the published set against `documents/`, and report anything new, renamed
+or changed in size. Run it on a schedule (quarterly is probably right; a `/loop` or a scheduled
+cloud agent both work) and have it open an issue or a PR rather than a log line nobody reads.
+
+Two cautions worth building in from the start. It must **not** auto-commit — every fetched file
+still needs the checks in `SCRAPER.md` §8 and a human deciding whether it belongs. And the LEP 2000
+trap means a "new" chapter may be a superseded one reissued at a new URL, so `/check-documents`
+should gate anything the watcher proposes.
+
+Note this is the *belt* to 0.1's *braces*: `TestScheduleCurrency` already fails when the fee scale
+falls two years behind regardless of whether the watcher ever runs. Prefer that pattern — a check
+that fails loudly in CI beats a job that has to be alive to be useful.
 
 # Phase 1 — Make the business path work end to end
 
@@ -235,6 +301,17 @@ Thursdays) and pre-lodgement meetings, and a business that walks in with the rig
 already framed gets far more out of them.
 
 ---
+
+## Housekeeping
+
+Small, non-urgent, and worth doing when next in the area rather than as a project.
+
+- **Derive the tool count instead of hardcoding it in three places.** It currently appears in
+  `README.md`, `tests/test_registry.py` and a docstring in `tests/test_instructions.py`, so adding
+  a tool means editing three unrelated files and CI fails on the two you forget. It caught out three
+  separate changes on 2026-08-01 alone. The registry already knows how many tools there are —
+  assert the README table matches `registered()` rather than restating the number, and drop it from
+  the docstring.
 
 ## Deliberately not doing
 
