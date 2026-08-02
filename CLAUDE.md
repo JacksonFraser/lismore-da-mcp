@@ -40,6 +40,7 @@ curl localhost:8080/health                # → "ok"
 | `/check-documents` | Validates `documents/`: real PDFs, no error pages, right LEP edition, indexed, in a searched category. Also runs in CI. |
 | `/smoke` | Drives the server with a real MCP client over **both** transports. The unit tests call handlers directly and CI only imports the HTTP app — neither opens a session, and two shipped bugs were visible only to a real client. |
 | `planning-data-reviewer` agent | Checks transcribed data in `data/` against the source documents. The repo's core risk is that this data is hand-copied and nothing verifies it; the tests pin that it has not *changed*, not that it is *right*. |
+| `scripts/audit_zone_tables.py` | Diffs every zone land use table against `documents/lep/lep-2012-nsw-full.txt`. All 21 match as of 2026-08-02; `tests/test_zone_transcription.py` keeps it that way. Known defects in the *scraped source text* — three lost semicolons — are listed in `SOURCE_TEXT_DEFECTS` rather than silently tolerated. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 
 `.claude/settings.local.json` stays out of git (per-machine permissions); everything else in
