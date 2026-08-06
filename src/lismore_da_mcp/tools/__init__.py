@@ -10,5 +10,6 @@ from lismore_da_mcp.tools import (  # noqa: F401
     parking,
     planning,
     see,
+    signage,
     zoning,
 )

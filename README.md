@@ -53,7 +53,7 @@ claude
 
 ## Available MCP Tools
 
-23 tools in total.
+25 tools in total.
 
 **Lookups**
 
@@ -68,6 +68,8 @@ claude
 | `list_definitions` | List all land-use terms with a definition available |
 | `get_parking_rates` | Off-street parking requirements for a development type, with shortfall calculation and the DCP mechanisms for addressing a shortfall. Pass `location` — the Lismore CBD is charged a different rate from the rest of the LGA |
 | `list_parking_types` | List development types with parking rate data available |
+| `get_signage_requirements` | Whether a sign needs an application at all, whether it is prohibited on the site, and the DCP Chapter 9 standard. Most shopfront signage is Exempt Development |
+| `list_signage_types` | List sign types grouped by the approval each needs (exempt / CDC / DA) |
 | `get_setback_requirements` | Front/side/rear setback requirements for residential development |
 | `get_residential_standards` | DCP Chapter 1 standards: site coverage, private open space, landscaping, car parking design |
 | `get_flood_requirements` | Flood planning level and floor level requirements, with exemptions |

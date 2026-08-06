@@ -45,6 +45,7 @@ curl localhost:8080/health                # → "ok"
 | `planning-data-reviewer` agent | Checks transcribed data in `data/` against the source documents. The repo's core risk is that this data is hand-copied and nothing verifies it; the tests pin that it has not *changed*, not that it is *right*. |
 | `scripts/audit_parking_rates.py` | Checks every parking requirement in `data/parking.py` still appears verbatim in DCP Chapter 7. Schedule 1 is a three-column PDF table that cannot be diffed structurally, so the rates are stored verbatim and presence-checked. All 22 entries were wrong before 2026-08-02. |
 | `scripts/audit_zone_tables.py` | Diffs every zone land use table against `documents/lep/lep-2012-nsw-full.txt`. All 21 match as of 2026-08-02; `tests/test_zone_transcription.py` keeps it that way. Known defects in the *scraped source text* — three lost semicolons — are listed in `SOURCE_TEXT_DEFECTS` rather than silently tolerated. |
+| `scripts/audit_signage.py` | Checks every DCP Chapter 9 definition, standard and general provision in `data/signage.py` still appears verbatim in the chapter, and reports any sign type §9.3 defines that the data does not carry. That last check found `business identification sign` and `building identification sign` missing — the two the §9.2 heritage exception turns on. |
 | `scripts/audit_contributions.py` | Checks the Section 7.11 rates two ways: every figure still appears in the plan PDF, **and** all 30 cells of Table E2 rebuild from Table E1's components. The derivation catches a transposed digit that a presence check cannot, and it found one real discrepancy in the published table (`KNOWN_TABLE_DISCREPANCIES`). Prefer this shape wherever a source table has recoverable internal arithmetic. |
 | `scripts/verify_against_council.py` | The three audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
@@ -71,9 +72,9 @@ imports keep working. It is not where the code lives. Find things by module:
 
 | Layer | Where | What |
 |---|---|---|
-| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `contacts`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
-| Tools | `tools/` | One module per domain (`zoning`, `parking`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
+| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `contacts`. No logic. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
 

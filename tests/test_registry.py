@@ -6,15 +6,46 @@ makes schema and handler one declaration; these tests guard the properties that
 used to be maintained by hand.
 """
 
+import re
+from pathlib import Path
+
 import pytest
 
 from lismore_da_mcp import registry
 from lismore_da_mcp.server import TOOLS
 
+README = Path(__file__).resolve().parent.parent / "README.md"
+
+
+def readme_tools() -> set[str]:
+    """Tool names from the README's tool tables.
+
+    Rows look like `| \\`get_zone_info\\` | ... |`, and only the tool tables put a
+    backticked identifier in the first cell.
+    """
+    rows = re.findall(r"^\|\s*`([a-z_]+)`\s*\|", README.read_text(), re.MULTILINE)
+    return set(rows)
+
 
 class TestRegistration:
-    def test_all_tools_registered(self):
-        assert len(registry.registered()) == 23
+    def test_registry_and_readme_agree(self):
+        """The count used to be written out as a literal here, in the README and
+        in a test docstring, so adding a tool meant editing three unrelated files
+        and CI failed on the two you forgot — it caught out three separate
+        changes on 2026-08-01 alone (PLAN.md Housekeeping). The registry already
+        knows how many tools there are; the README is the thing worth checking
+        against it, because it is the part a human maintains."""
+        registered = set(registry.registered())
+        assert registered == readme_tools(), (
+            "README tool table and the registry disagree. Missing from the README: "
+            f"{sorted(registered - readme_tools())}; listed but not registered: "
+            f"{sorted(readme_tools() - registered)}"
+        )
+
+    def test_readme_states_the_right_total(self):
+        stated = re.search(r"^(\d+) tools in total\.", README.read_text(), re.MULTILINE)
+        assert stated, "README no longer states a tool total"
+        assert int(stated.group(1)) == len(registry.registered())
 
     def test_registry_and_tools_list_agree(self):
         assert {t.name for t in TOOLS} == set(registry.registered())

@@ -40,6 +40,13 @@ TYPICAL ORDER OF WORK
    than no zone.
 3. What is required? get_da_checklist, check_referrals, and the DCP standards
    tools (parking, setbacks, flood, residential standards).
+   Parking: the CBD uses a fixed 3.3 spaces/100m2, not the Schedule 1 rate,
+   and it is usually several times lower. Pass `location` to get_parking_rates
+   and never infer it from the zone. A shortfall has named remedies in the DCP.
+   Signage: most shopfront signage is Exempt Development — no DA, no CDC — so
+   check get_signage_requirements before telling a business to apply. A-frames
+   and sandwich boards are the reverse: generally not permissible on the
+   footpath, and businesses usually own one before they ask.
 4. What will it cost? calculate_da_fees — give it development_type and a floor
    area, not just a cost. The lodgement fee is a small part of the bill; the
    Section 7.11 contribution is usually the large part and is what blindsides

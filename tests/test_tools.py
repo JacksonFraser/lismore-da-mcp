@@ -38,6 +38,8 @@ VALID_ARGS = {
     "list_documents": {},
     "get_da_checklist": {"development_type": "dwelling"},
     "list_parking_types": {},
+    "get_signage_requirements": {"sign_type": "wall_sign"},
+    "list_signage_types": {},
     "list_zones": {},
     "get_definition": {"term": "dwelling house"},
     "check_permissibility": {"zone_code": "R2", "land_use": "dwelling houses"},

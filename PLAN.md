@@ -457,10 +457,58 @@ The audit was extended to presence-check all twelve §7.7.x provisions against t
 Schedule 1 — and it immediately caught two of the new transcriptions where the wording had been
 compressed.
 
-### 2.3 Signage
+### 2.3 Signage — ✅ **DONE 2026-08-06**
 
-Almost every business needs it; it is DCP Chapter 9; there is no tool. Signage on a heritage item
-or in a conservation area is a common refusal point in a CBD.
+`get_signage_requirements` and `list_signage_types`, from DCP Chapter 9. Reading the chapter
+reordered the tool before it was written.
+
+**The answer is usually "you don't need an application".** §9.11 says it outright — "These
+Environmental Planning Instruments provide for certain types of signage as Exempt or Complying
+Development and the provisions of this DCP chapter are not applicable." The ordinary shopfront set
+— wall, window, fascia, under-awning, top hamper — is Exempt Development, needing neither a DA nor
+a CDC, provided it meets the SEPP's criteria. Projecting wall signs and pylon/directory boards are
+Complying Development, so they take a CDC. So the tool leads with the **approval pathway**, then
+the site prohibition, then the size standard. A size table first would answer a question most
+businesses do not have and bury the one they do — the exemption is stated as conditional
+throughout, because "no application needed" without "if it meets every criterion" is the harmful
+simplification here.
+
+**The A-frame is the trap, and it is worse than a size breach.** Portable footpath signs —
+sandwich boards, A-frames — are *not permissible* unless they meet LEP 2012 Schedule 2. And §9.8
+compounds it: the footpath is Council or RMS land, the landowner's agreement must be in the DA, and
+"Council will not agree to the erection of signage in the road reserve for commercial development
+other than signage attached to protrusions such as awnings". So it fails at owner's consent rather
+than on the merits — earlier and more final — and the tool raises it unprompted. Nobody asks about
+a "portable footpath sign", so the synonym table carries the words a business actually uses; the
+café's other board, the chalkboard menu, is a *different* entry that must be affixed to private
+property.
+
+**Heritage, the refusal point this item named.** §9.2 prohibits advertising in a heritage area,
+residential zone, conservation area, open space and waterways — but the exception is the half a
+business needs: building and business identification signs are excepted. So a shop in a heritage
+area or a home business in a residential zone can still put its name up; what it cannot have is
+general advertising for someone who does not trade there. A prohibited result therefore says what
+the business *can* still do rather than stopping at "no", and on a heritage site the §9.4
+guidelines are reordered to lead with Character — the only guideline phrased as a prohibition
+("no sign shall obstruct or block the view of any feature of historic architecture"). Heritage is
+never inferred from the zone, and an unestablished heritage status is reported as unestablished
+rather than as clear.
+
+**A stale cross-reference, flagged not relied on.** The chapter cites SEPP 64 throughout; SEPP 64
+was repealed and folded into SEPP (Industry and Employment) 2021 Chapter 3. No document in this
+repo carries the current instrument, so that is returned as a pointer with an explicit "not
+verified here" — a business searching "SEPP 64" today finds a repealed policy and may conclude the
+control is gone. It has not.
+
+`scripts/audit_signage.py` presence-checks all 24 sign types plus the general provisions, the
+prohibited-zone list and the design guidelines, and reports any sign type §9.3 defines that the
+data does not carry — which is how `business identification sign` and `building identification
+sign`, the two the heritage exception turns on, were caught missing on the first pass.
+
+**Housekeeping done in passing**, because it blocked this: the tool count was hardcoded in three
+places and adding two tools failed two unrelated tests. `tests/test_registry.py` now asserts the
+README's tool table equals `registered()` and that the stated total matches, instead of restating
+a number.
 
 ### 2.4 Name the approvals that are not the DA
 
@@ -494,12 +542,12 @@ already framed gets far more out of them.
 
 Small, non-urgent, and worth doing when next in the area rather than as a project.
 
-- **Derive the tool count instead of hardcoding it in three places.** It currently appears in
-  `README.md`, `tests/test_registry.py` and a docstring in `tests/test_instructions.py`, so adding
-  a tool means editing three unrelated files and CI fails on the two you forget. It caught out three
-  separate changes on 2026-08-01 alone. The registry already knows how many tools there are —
-  assert the README table matches `registered()` rather than restating the number, and drop it from
-  the docstring.
+- ~~**Derive the tool count instead of hardcoding it in three places.**~~ ✅ **DONE 2026-08-06**,
+  in the course of item 2.3, which added two tools and was promptly failed by two unrelated tests —
+  the fourth time this has caught a change. `tests/test_registry.py` now parses the README's tool
+  tables and asserts they equal `registered()`, plus that the stated total agrees; the literal is
+  gone from the `test_instructions.py` docstring. The README is the right thing to check against,
+  because it is the part a human maintains.
 
 ## Deliberately not doing
 
