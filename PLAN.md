@@ -610,16 +610,95 @@ The server had 21 tools when 4,000 was set and now has 28. Compress before raisi
 
 ---
 
-# Phase 3 — Prevent the rejection before it happens
+# Phase 3 — Prevent the rejection before it happens — ✅ **DONE 2026-08-06**
 
-Once the above is in place, the highest-value thing left is **completeness**: check a proposal
-against the checklist, the constraints and the referrals, and tell the applicant what is missing
-*before* lodgement. That is the difference between a DA that runs 40 days and one that runs four
-months.
+`check_da_readiness` and `prepare_prelodgement_brief`. Both were written as this item described
+them, and both were reshaped by reading the source rather than the plan.
 
-A pre-lodgement brief is the natural companion — Council offers a free duty planner (Tuesdays and
-Thursdays) and pre-lodgement meetings, and a business that walks in with the right questions
-already framed gets far more out of them.
+### What reading the Regulation changed
+
+The item said "completeness". The provision it turns out to be about is **s39 — rejection** — and
+that had been in the repo since item 2.5 without anyone reading its subsections. Two things fall
+out of them:
+
+- **Every ground for rejection is administrative.** Illegible, unclear about the consent sought,
+  missing a required document, an integrated-development approval not identified, a biodiversity
+  report or species impact statement absent. Not one is about the merits. *That is why this phase
+  is possible at all* — it is the only failure in the DA process a checklist can genuinely
+  prevent, as against a refusal, which it cannot.
+- **The window is 14 days, before assessment starts.** So the fortnight before lodgement is where
+  this is cheap, and after lodgement the risk has already passed.
+
+**The single most valuable finding is s25(b), which nothing in the plan item anticipated.** The
+application must *list* the approvals the development needs under EP&A Act s4.46 — and s39(1)(d)
+makes failing to list them a ground to reject. Applicants read that field as asking whether they
+*have* the approvals, which is not what it asks, and leave it blank. The repo could already
+produce the list: `get_other_approvals` has done so since item 2.4. Nothing had connected the two.
+`check_da_readiness` now names the approvals to write into the field.
+
+Three more the Regulation supplies and no Council document does: **s27(1)(a)** expires a BASIX
+certificate at three months *for lodgement purposes*, so one obtained early and held while plans
+were finalised is a document the applicant believes they have and does not; **s35B(2)** requires a
+clause 4.6 request to accompany the application and states both limbs of the test, so a request
+arguing only that the proposal is reasonable has answered half of it; and **s24(3)** confirms the
+application is lodged on the day the fee is paid, which is what makes an incomplete lodgement cost
+weeks rather than days.
+
+### The design decision that took two attempts
+
+The first cut emitted the s25 approvals list and the s39(1)(a) description-of-development
+requirement as `rejection_risk` findings. They apply to every application, so **every proposal
+ever checked came back "not ready"** — which is item 0.1's lesson exactly: a warning present on
+every answer carries no information. They are `confirm_before_lodging` now, and `rejection_risk`
+is reserved for something actually known to be wrong. The best verdict the tool can reach is
+"nothing this tool can check is outstanding", which is deliberately a much smaller claim than
+"ready": Council runs the completeness check, and two of its grounds — whether the description is
+clear, whether the plans are legible at the scale printed — cannot be tested from here at all.
+
+The document matcher needed the same care in the other direction. Reporting a document as missing
+that the applicant has costs them a moment; reporting one as ready that they do not have costs them
+the lodgement. So matching requires the head noun **and** the first word to agree — an earlier
+version accepted "waste management plan" as "stormwater management plan", which share two words of
+three and none of their content — words that matched nothing come back under `not_recognised`
+rather than being dropped, and a match is reported as *"you listed this"*, never as verified.
+Nothing here can open a file.
+
+### The brief is the repository's refusals, collected
+
+This is the half worth keeping. Every question in `DUTY_PLANNER_QUESTIONS` is a wall an earlier
+item hit and correctly declined to guess past — the CBD boundary that is a bitmap (2.2), the
+contributions catchment where rural retail is 20% dearer (2.1), the Section 64 charge whose plan
+has no non-residential conversion table (2.1), the contribution-in-lieu rate that cites a repealed
+Act (2.2), whether the change of use needs a DA at all (1.3). Those refusals were right and they
+stay. What was missing is that each looked like a caveat on one answer, scattered across five
+tools' outputs, and nobody assembled them into the one thing they are collectively good for:
+**the agenda for the free fifteen minutes that can settle them.**
+
+Fifteen minutes is a real constraint and it shapes the document. Questions are ordered by what
+each costs to leave unresolved, not by topic — the first can remove the entire application, the
+last changes a design decision. Five go in the session and the rest under "if there is time", so
+the applicant chooses having been told the cost. And section 2 says what **not** to ask, built
+from what was actually resolved rather than a fixed list: a session spent re-deriving the zone is
+a session wasted, and a section claiming the zone is settled when no address was supplied would
+waste it more surely than saying nothing.
+
+If you add a tool that declines to answer something, add the question here too. Otherwise the
+refusal is a dead end rather than a redirection.
+
+### Done in passing
+
+Four things moved rather than being copied, because the second copy is always the one that drifts:
+`NOT_A_LAND_USE` from `tools/zoning.py` to `landuse.py` (a readiness check given "fitout" has the
+same problem `check_permissibility` had), the referral characteristic map from inside the
+`check_referrals` handler to `data/referrals.py`, `_site_constraints` from `tools/see.py` to
+`readiness.py` (one implementation of the rule that the flood layer can confirm but never clear),
+and the CBD location parser from `tools/parking.py` to `parking.py`.
+
+`scripts/audit_readiness.py` checks all 13 quotes against the fetched regulation, reusing
+`audit_timing.py`'s comparison, and reads the s39(1) paragraph letters off the source rather than
+a hardcoded list — a list of five grounds out of six reads as complete and is not. The
+instructions budget was held at 4,200 this time: the new step needed ~440 characters and they were
+found by compressing, which is what the guard is for.
 
 ---
 

@@ -185,6 +185,29 @@ def shortfall(required: int, provided) -> dict | None:
     }
 
 
+# Map 1 of the chapter defines the CBD and is a bitmap — nothing here can read
+# it. So the caller says, or neither rate is presented as the answer.
+_CBD_VALUES = {"cbd", "in_cbd", "lismore_cbd", "city_centre", "yes", "true"}
+_OUTSIDE_VALUES = {"outside_cbd", "outside", "not_cbd", "no", "false"}
+
+
+def cbd_location(raw: str | None) -> bool | None:
+    """True = in the CBD, False = outside it, None = not stated.
+
+    None is a real answer here and never a default to "outside": the whole
+    reason `location` is an argument is that the two rates differ several-fold
+    and neither is presented as the answer until the site is placed.
+    """
+    if not raw:
+        return None
+    value = str(raw).strip().lower().replace(" ", "_").replace("-", "_")
+    if value in _CBD_VALUES:
+        return True
+    if value in _OUTSIDE_VALUES:
+        return False
+    return None
+
+
 def uses_schedule_1_in_cbd(dev_type: str) -> bool:
     """True where §7.7.3.1 exception (i) keeps a use on Schedule 1 inside the CBD.
 

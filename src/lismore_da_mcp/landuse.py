@@ -10,6 +10,25 @@ from lismore_da_mcp.data.definitions import (
     LAND_USE_HIERARCHY,
 )
 
+# Words that describe *what you are doing* rather than *what will operate on
+# the land*. The LEP land use table answers only the second question, so these
+# fall through to the "any other development not specified" catch-all and come
+# back as likely_permitted_with_consent — a confident answer to a question that
+# was never asked. See PLAN.md 1.3.
+#
+# Lives here rather than in the handler that first needed it because
+# check_permissibility is no longer the only caller: a readiness check given
+# "fitout" as the proposed use has the same problem, and a second copy of this
+# set would drift from the first.
+NOT_A_LAND_USE = {
+    "change of use", "change use", "use change", "changing use",
+    "fitout", "fit out", "shop fitout", "refurbishment", "refit",
+    "development", "new development", "alteration", "alterations",
+    "alterations and additions", "addition", "additions", "renovation",
+    "extension", "extensions", "demolition", "construction", "building work",
+}
+
+
 def canonical_use(term: str) -> str:
     """Normalise a land use term for comparison, including naive singularisation.
 

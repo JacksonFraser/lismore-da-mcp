@@ -8,6 +8,7 @@ from lismore_da_mcp.data.parking import CBD_FIXED_RATE
 from lismore_da_mcp.data.parking import DISABILITY_PARKING
 from lismore_da_mcp.data.parking import PARKING_RATES
 from lismore_da_mcp.registry import tool
+from lismore_da_mcp.parking import cbd_location as _location
 from lismore_da_mcp.parking import cbd_spaces
 from lismore_da_mcp.parking import estimate_spaces
 from lismore_da_mcp.parking import shortfall_options
@@ -15,24 +16,6 @@ from lismore_da_mcp.parking import uses_schedule_1_in_cbd
 from lismore_da_mcp.vocabulary import PARKING_SYNONYMS
 from lismore_da_mcp.vocabulary import resolve
 from lismore_da_mcp.vocabulary import unresolved_error
-
-# Map 1 of the chapter defines the CBD and is a bitmap — nothing here can read
-# it. So the caller says, or neither rate is presented as the answer.
-_CBD_VALUES = {"cbd", "in_cbd", "lismore_cbd", "city_centre", "yes", "true"}
-_OUTSIDE_VALUES = {"outside_cbd", "outside", "not_cbd", "no", "false"}
-
-
-def _location(raw: str | None) -> bool | None:
-    """True = in the CBD, False = outside it, None = not stated."""
-    if not raw:
-        return None
-    value = str(raw).strip().lower().replace(" ", "_").replace("-", "_")
-    if value in _CBD_VALUES:
-        return True
-    if value in _OUTSIDE_VALUES:
-        return False
-    return None
-
 
 @tool(
     name='get_parking_rates',

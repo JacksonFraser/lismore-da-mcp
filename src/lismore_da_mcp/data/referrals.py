@@ -1,5 +1,36 @@
 """External agency referral triggers (integrated development and concurrence)."""
 
+# The words a caller might use for a site characteristic, mapped to the referral
+# authority it points at. Matched as substrings, so "bushfire_prone_land" and
+# "bushfire" both reach the Rural Fire Service.
+#
+# This lived inside the check_referrals handler until the readiness check needed
+# the same mapping. Two copies would have drifted, and the direction they drift
+# in is a characteristic that stops being recognised — which reads to an
+# applicant as "no referral required" rather than as an error.
+CHARACTERISTIC_TRIGGERS = {
+    "bushfire": "rural_fire_service",
+    "bushfire_prone": "rural_fire_service",
+    "fire": "rural_fire_service",
+    "heritage": "heritage_council",
+    "state_heritage": "heritage_council",
+    "industrial": "epa",
+    "waste": "epa",
+    "extractive": "epa",
+    "traffic": "transport_nsw",
+    "classified_road": "transport_nsw",
+    "waterway": "natural_resources_access_regulator",
+    "near_waterway": "natural_resources_access_regulator",
+    "riparian": "natural_resources_access_regulator",
+    "vegetation": "biodiversity_conservation",
+    "vegetation_clearing": "biodiversity_conservation",
+    "threatened_species": "biodiversity_conservation",
+    "flood": "council_flood_assessment",
+    "flooding": "council_flood_assessment",
+    "flood_prone": "council_flood_assessment",
+    "inundation": "council_flood_assessment",
+}
+
 REFERRAL_REQUIREMENTS = {
     "rural_fire_service": {
         "trigger": "Development on bushfire prone land (check Bush Fire Prone Land Map)",

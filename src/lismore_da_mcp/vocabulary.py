@@ -463,3 +463,50 @@ SIGNAGE_SYNONYMS = {
     "highway sign": "tourist_sign",
     "brown sign": "tourist_sign",
 }
+
+
+# Shorthand for the documents a DA has to carry, mapped to the phrasing the
+# checklists use. Unlike the tables above these do not select a data entry —
+# they expand what an applicant typed before it is matched against a
+# requirement, so a wrong entry here reports a document as ready when it is not.
+# Kept to unambiguous acronyms and to the names people actually say at a
+# counter, for that reason.
+DOCUMENT_SYNONYMS = {
+    "see": "statement of environmental effects",
+    "s.e.e.": "statement of environmental effects",
+    "statement of environmental effect": "statement of environmental effects",
+    "environmental effects statement": "statement of environmental effects",
+    "da form": "development application form",
+    "application form": "development application form",
+    "landlord consent": "owner's consent",
+    "landlord's consent": "owner's consent",
+    "owners consent": "owner's consent",
+    "owner consent": "owner's consent",
+    "plans": "architectural plans",
+    "drawings": "architectural plans",
+    "floor plan": "architectural plans",
+    "floor plans": "architectural plans",
+    "elevations": "architectural plans",
+    "cost estimate": "cost of development works estimate",
+    "costings": "cost of development works estimate",
+    "qs report": "cost of development works estimate",
+    "quantity surveyor report": "cost of development works estimate",
+    "basix": "basix certificate",
+    "his": "heritage impact statement",
+    "heritage report": "heritage impact statement",
+    "flood report": "flood risk assessment",
+    "flood study": "flood risk assessment",
+    "bca report": "bca compliance report",
+    "bca assessment": "bca compliance report",
+    "access report": "access upgrade assessment",
+    "waste plan": "waste management plan",
+    "wmp": "waste management plan",
+    "acoustic assessment": "acoustic report",
+    "noise report": "acoustic report",
+    "traffic report": "traffic impact assessment",
+    "tia": "traffic impact assessment",
+    "psi": "preliminary site investigation",
+    "contamination report": "preliminary site investigation",
+    "vmp": "vegetation management plan",
+    "survey": "survey plan",
+}

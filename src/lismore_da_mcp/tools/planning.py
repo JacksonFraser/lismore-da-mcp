@@ -11,6 +11,7 @@ from lismore_da_mcp.data.checklists import (
 )
 from lismore_da_mcp.data.contacts import CONTACT_INFO
 from lismore_da_mcp.data.flood import FLOOD_PLANNING
+from lismore_da_mcp.data.referrals import CHARACTERISTIC_TRIGGERS
 from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS
 from lismore_da_mcp.data.standards import RESIDENTIAL_STANDARDS
 from lismore_da_mcp.registry import tool
@@ -225,30 +226,7 @@ def get_residential_standards(arguments: dict):
 )
 def check_referrals(arguments: dict):
     characteristics = arguments.get("development_characteristics", [])
-
-    # Map characteristics to referral authorities
-    char_to_referral = {
-        "bushfire": "rural_fire_service",
-        "bushfire_prone": "rural_fire_service",
-        "fire": "rural_fire_service",
-        "heritage": "heritage_council",
-        "state_heritage": "heritage_council",
-        "industrial": "epa",
-        "waste": "epa",
-        "extractive": "epa",
-        "traffic": "transport_nsw",
-        "classified_road": "transport_nsw",
-        "waterway": "natural_resources_access_regulator",
-        "near_waterway": "natural_resources_access_regulator",
-        "riparian": "natural_resources_access_regulator",
-        "vegetation": "biodiversity_conservation",
-        "vegetation_clearing": "biodiversity_conservation",
-        "threatened_species": "biodiversity_conservation",
-        "flood": "council_flood_assessment",
-        "flooding": "council_flood_assessment",
-        "flood_prone": "council_flood_assessment",
-        "inundation": "council_flood_assessment",
-    }
+    char_to_referral = CHARACTERISTIC_TRIGGERS
 
     triggered_referrals = {}
     unrecognised = []

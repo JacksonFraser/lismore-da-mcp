@@ -52,6 +52,14 @@ CHECKS = [
         "minor_development_type": "shed"},
      lambda t: json.loads(t)["success"] is True,
      "plain wording reaches the handler rather than being rejected by a schema enum"),
+    # The only tools that return plain text rather than JSON, and the ones most
+    # likely to be reached over the public HTTP transport by someone about to
+    # lodge. generate_see_draft returns text too, but this one is short enough
+    # to assert on end to end.
+    ("prepare_prelodgement_brief",
+     {"proposed_use": "cafe", "development_type": "change of use", "zone_code": "E2"},
+     lambda t: "PRE-LODGEMENT BRIEF" in t and "Tuesdays and Thursdays" in t,
+     "a text-returning tool survives the round trip intact"),
 ]
 
 
