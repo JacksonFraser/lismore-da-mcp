@@ -53,7 +53,7 @@ claude
 
 ## Available MCP Tools
 
-28 tools in total.
+30 tools in total.
 
 **Lookups**
 
@@ -80,6 +80,13 @@ claude
 | `get_other_approvals` | The approvals that are **not** the DA — trade waste, food premises registration, footpath dining, liquor licensing, the CC and the OC — with who issues each and when it is needed |
 | `list_other_approvals` | List every non-DA approval, with the issuing authority |
 | `get_contact_info` | Council contacts and duty planner availability |
+
+**Before you lodge**
+
+| Tool | Description |
+|------|-------------|
+| `check_da_readiness` | Check one proposal against the checklist, the site constraints, the referrals and the Regulation's own content requirements, and report what would stop it, what could get it rejected in the first 14 days, and what is still missing |
+| `prepare_prelodgement_brief` | A printable brief for Council's free Duty Planner drop-in: the questions this server cannot answer, ranked by what each costs to leave unresolved, and the ones already answered so the fifteen minutes are not spent on them |
 
 **Documents**
 

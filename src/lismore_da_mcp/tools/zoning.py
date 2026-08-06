@@ -8,6 +8,7 @@ from lismore_da_mcp.addresses import lookup_constraints
 from lismore_da_mcp.addresses import lookup_zone
 from lismore_da_mcp.data.definitions import LAND_USE_DEFINITIONS
 from lismore_da_mcp.data.zones import ZONES
+from lismore_da_mcp.landuse import NOT_A_LAND_USE
 from lismore_da_mcp.landuse import canonical_use
 from lismore_da_mcp.landuse import classify_land_use
 from lismore_da_mcp.registry import tool
@@ -128,20 +129,6 @@ def list_zones(arguments: dict):
             "note": "Zone codes changed in April 2022 under Standard Instrument amendments. Legacy B/IN codes redirect to new E/MU zones."
         }, indent=2)
     )]
-
-
-# Words that describe *what you are doing* rather than *what will operate on
-# the land*. The LEP land use table answers only the second question, so these
-# fall through to the "any other development not specified" catch-all and come
-# back as likely_permitted_with_consent — a confident answer to a question that
-# was never asked. See PLAN.md 1.3.
-NOT_A_LAND_USE = {
-    "change of use", "change use", "use change", "changing use",
-    "fitout", "fit out", "shop fitout", "refurbishment", "refit",
-    "development", "new development", "alteration", "alterations",
-    "alterations and additions", "addition", "additions", "renovation",
-    "extension", "extensions", "demolition", "construction", "building work",
-}
 
 
 @tool(

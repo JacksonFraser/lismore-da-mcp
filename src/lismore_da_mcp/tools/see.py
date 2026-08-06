@@ -19,6 +19,7 @@ from lismore_da_mcp.fees import calculate_da_fee
 from lismore_da_mcp.landuse import classify_land_use
 from lismore_da_mcp.parking import cbd_spaces
 from lismore_da_mcp.parking import estimate_spaces
+from lismore_da_mcp.readiness import site_constraints as _site_constraints
 from lismore_da_mcp.registry import tool
 from lismore_da_mcp.see.fields import PURPOSE_WRITTEN_SEE_HEADINGS, SEE_QUESTIONS
 from lismore_da_mcp.see.fields import SEE_TEMPLATE_SCOPE
@@ -61,56 +62,6 @@ def get_see_template(arguments: dict):
             result = unresolved_error(section, match, "SEE section", SEE_TEMPLATES)
 
     return [TextContent(type="text", text=json.dumps(result, indent=2))]
-
-
-def _site_constraints(address, asserted_flood, asserted_heritage):
-    """What is known about the site's constraints, and how it was learned.
-
-    A caller's explicit True/False wins. Otherwise the address is looked up, so
-    a draft is not silent about the site it is written for. Returns tri-state
-    values — True, False, or None for "not established" — because "we did not
-    find it" and "it is not there" are different things to write in a document
-    that goes to Council.
-    """
-    flood, heritage, bushfire = asserted_flood, asserted_heritage, None
-    note = "Constraints as supplied by the applicant."
-
-    if flood is not None and heritage is not None:
-        return flood, heritage, bushfire, note
-
-    if not address or address.startswith("["):
-        return flood, heritage, bushfire, "No address supplied, so constraints were not checked."
-
-    try:
-        from lismore_da_mcp.addresses import lookup_constraints
-
-        result = lookup_constraints(address)
-    except Exception:                                          # noqa: BLE001
-        return flood, heritage, bushfire, "The constraint lookup was unavailable."
-
-    if "error" in result:
-        return flood, heritage, bushfire, (
-            "Constraints could not be looked up for this address "
-            f"({result['error']}). They must be confirmed with Council."
-        )
-
-    found = result.get("constraints", {})
-    if heritage is None:
-        answer = found.get("heritage", {}).get("answer")
-        heritage = True if answer == "affected" else (False if answer == "not_within_a_mapped_area" else None)
-    answer = found.get("bushfire", {}).get("answer")
-    bushfire = True if answer == "affected" else (False if answer == "not_within_a_mapped_area" else None)
-    if flood is None:
-        # Deliberately not set from the layer. The state flood dataset holds no
-        # Lismore data at all, so it can confirm flooding but never rule it out;
-        # treating "not found" as "not flood affected" would be the single most
-        # harmful thing this draft could assert.
-        flood = None
-
-    return flood, heritage, bushfire, (
-        f"Heritage and bushfire read from the NSW planning layers for "
-        f"{result.get('matched_address')}. Flood was not, and cannot be, ruled out this way."
-    )
 
 
 def _flood_section(is_flood, development_type):

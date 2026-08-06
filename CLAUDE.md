@@ -47,6 +47,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_zone_tables.py` | Diffs every zone land use table against `documents/lep/lep-2012-nsw-full.txt`. All 21 match as of 2026-08-02; `tests/test_zone_transcription.py` keeps it that way. Known defects in the *scraped source text* — three lost semicolons — are listed in `SOURCE_TEXT_DEFECTS` rather than silently tolerated. |
 | `scripts/audit_timing.py` | Checks the assessment-period quotes in `data/timing.py` against `documents/legislation/epa-regulation-2021-assessment-periods.txt`, and that each stored figure matches its own quote. Unlike the others this guards against **the law changing**, not a transcription slipping — that text is a fetched snapshot of legislation.nsw.gov.au, so a mismatch means an amendment. |
 | `scripts/audit_approvals.py` | Checks every dollar figure quoted in `data/approvals.py` still appears in Council's fees schedule, and that `SEQUENCE`/`BY_ACTIVITY` resolve. These are prose, not verbatim quotes, so the figures are what can be checked — and Council reissues the schedule every July, a refresh this repo has already missed twice. |
+| `scripts/audit_readiness.py` | Checks the lodgement and rejection provisions in `data/readiness.py` against the fetched EP&A Regulation text, reusing `audit_timing.py`'s comparison. It also checks every paragraph of s39(1) is carried, reading the letters off the source rather than a hardcoded list — a list of five rejection grounds out of six reads as complete and is not. Like `audit_timing.py` it guards against **the law changing**. |
 | `scripts/audit_signage.py` | Checks every DCP Chapter 9 definition, standard and general provision in `data/signage.py` still appears verbatim in the chapter, and reports any sign type §9.3 defines that the data does not carry. That last check found `business identification sign` and `building identification sign` missing — the two the §9.2 heritage exception turns on. |
 | `scripts/audit_contributions.py` | Checks the Section 7.11 rates two ways: every figure still appears in the plan PDF, **and** all 30 cells of Table E2 rebuild from Table E1's components. The derivation catches a transposed digit that a presence check cannot, and it found one real discrepancy in the published table (`KNOWN_TABLE_DISCREPANCIES`). Prefer this shape wherever a source table has recoverable internal arithmetic. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
@@ -74,9 +75,9 @@ imports keep working. It is not where the code lives. Find things by module:
 
 | Layer | Where | What |
 |---|---|---|
-| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `contacts`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
-| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
+| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`. No logic. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
 
@@ -234,6 +235,35 @@ provision; and **Section 64 water and wastewater is named but never quantified**
 is in 2016 dollars and has no non-residential ET conversion table, so only Council can produce that
 figure. Anything added here that cannot be sourced should follow the last of those and go in
 `UNQUANTIFIED_CHARGES` with its source, not be estimated.
+
+**`readiness.py` composes; it does not know anything new.** `check_da_readiness` and
+`prepare_prelodgement_brief` run the checklist, the constraints, the referrals, the parking rate
+and the Regulation's own content requirements against *one* proposal — the thing no single tool
+did. Three rules hold them together and each inverts a rule that applies elsewhere. It
+**over-lists**, like `approvals.py`, because a wrongly-included requirement costs a sentence of
+reading and a missing one costs the application. It **never reports a document as verified** —
+nothing here can open a file, so `document_gap` echoes the applicant's own words back, matches
+them conservatively (head noun *and* first word must agree, or "waste management plan" is accepted
+as "stormwater management plan"), and reports words that matched nothing rather than dropping
+them. And it **never says "ready"**: the best verdict is that nothing it can check is outstanding,
+which is a much smaller claim.
+
+The severity split matters and is easy to get wrong. Sections 25 and 39(1)(a) apply to *every*
+application, so emitting them as deficiencies made the verdict read "not ready" for every proposal
+ever checked — the same failure as the standing fee caveat in item 0.1, where a warning present on
+every answer carried no information. They are `confirm_before_lodging`; `rejection_risk` is
+reserved for something actually known to be wrong.
+
+**`data/readiness.py`'s second half is the repository's refusals, collected.** Every entry in
+`DUTY_PLANNER_QUESTIONS` is a wall an earlier item hit and correctly declined to guess past — the
+CBD boundary that is a bitmap, the contributions catchment, the Section 64 charge with no
+non-residential conversion table, the contribution-in-lieu rate that cites a repealed Act. Those
+refusals stay. What was missing is that they were scattered across five tools' outputs, so nothing
+assembled them into the one thing they are collectively good for: the agenda for the free
+fifteen-minute Duty Planner session. Each carries what it costs to leave unresolved, because
+fifteen minutes does not fit ten questions and the applicant has to choose. **If you add a tool
+that declines to answer something, add the question here too** — otherwise the refusal is a dead
+end rather than a redirection.
 
 ---
 

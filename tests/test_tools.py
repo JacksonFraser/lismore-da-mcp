@@ -43,6 +43,8 @@ VALID_ARGS = {
     "get_other_approvals": {"proposed_use": "cafe"},
     "list_other_approvals": {},
     "get_assessment_timeline": {},
+    "check_da_readiness": {"proposed_use": "cafe", "development_type": "change of use"},
+    "prepare_prelodgement_brief": {"proposed_use": "cafe", "development_type": "change of use"},
     "list_zones": {},
     "get_definition": {"term": "dwelling house"},
     "check_permissibility": {"zone_code": "R2", "land_use": "dwelling houses"},
