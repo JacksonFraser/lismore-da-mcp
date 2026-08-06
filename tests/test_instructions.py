@@ -34,8 +34,20 @@ class TestDelivery:
     def test_stays_short_enough_to_carry_every_session(self):
         """Injected into every session, so it has to earn its place. This is a
         budget, not a target — if it needs to grow, move detail into tool
-        descriptions instead."""
-        assert len(INSTRUCTIONS) < 4000, f"{len(INSTRUCTIONS)} chars is getting long"
+        descriptions instead.
+
+        Raised from 4000 to 4200 on 2026-08-06, and only after compressing.
+        PLAN.md items 2.2-2.5 added parking, signage, non-DA approvals and
+        assessment timing to a server that had 21 tools when 4000 was set and
+        now has 28. Two of those items were absorbed entirely by rewriting the
+        surrounding text — the fee, flood, permissibility and zone-code
+        paragraphs are all shorter than they were, and nothing was dropped. The
+        fourth would not fit without cutting something load-bearing, so the
+        budget moved instead of the content. Compress before raising this
+        again; the point of the guard is that growth is a decision, not a
+        default.
+        """
+        assert len(INSTRUCTIONS) < 4200, f"{len(INSTRUCTIONS)} chars is getting long"
 
 
 class TestCaveatsSurvive:

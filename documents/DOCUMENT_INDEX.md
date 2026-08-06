@@ -142,6 +142,24 @@ Added 2026-08-01 for business applicants (see `PLAN.md`). Retrieved from lismore
 | `nsw-outdoor-dining-policy-2019.pdf` | NSW Outdoor Dining Policy 2019 — footpath/outdoor dining approvals |
 | `home-occupation-work-from-home.pdf` | Work-from-home / home occupation fact sheet |
 
+## Legislation
+
+Added 2026-08-06 for `PLAN.md` item 2.5. Nothing in this repository said anything about how long
+a DA takes or what stops the clock — the periods are set by regulation, not by Council — so the
+regulation was fetched rather than transcribed from memory. `scripts/fetch_epa_regulation.py`
+retrieves it (legislation.nsw.gov.au returns 403 to plain HTTP and sits behind a Cloudflare
+challenge, so it uses Playwright and the `scraping` extra) and **refuses to write anything that
+does not contain the provisions being sought** — which is what caught a wrong SL number returning
+a live 404 page on the first attempt.
+
+| File | Description |
+|------|-------------|
+| `epa-regulation-2021-assessment-periods.txt` | Environmental Planning and Assessment Regulation 2021, full text (606KB), retrieved 2026-08-06 from legislation.nsw.gov.au (SL 2021 No 759). Source for `data/timing.py`: the assessment periods (ss 91-95), the stop-the-clock provisions (s94) and its 25-day limit, requests for additional information (s36) and rejection of applications (s39). Checked by `scripts/audit_timing.py` |
+
+**This is a fetched snapshot of legislation, not a Council document.** It goes stale when the
+regulation is amended, and the audit is what surfaces that: a quote that stops matching means the
+law changed, not that the transcription slipped. Re-run the fetch script to refresh it.
+
 ## Using These Documents
 
 When answering questions about Lismore DAs, Claude should:
