@@ -17,6 +17,7 @@ from lismore_da_mcp.data.see_templates import SEE_TEMPLATES
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.fees import calculate_da_fee
 from lismore_da_mcp.landuse import classify_land_use
+from lismore_da_mcp.parking import cbd_spaces
 from lismore_da_mcp.parking import estimate_spaces
 from lismore_da_mcp.registry import tool
 from lismore_da_mcp.see.fields import PURPOSE_WRITTEN_SEE_HEADINGS, SEE_QUESTIONS
@@ -167,7 +168,8 @@ def _heritage_section(is_heritage):
     )
 
 
-def _parking_section(proposed_use, floor_area, existing_parking, num_employees):
+def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
+                     zone_code=None):
     """Parking from the DCP rate, or an honest refusal — never an assumed pass.
 
     This section used to resolve the rate by hand (`proposed_use.replace(" ", "_")`,
@@ -184,6 +186,15 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees):
     form use, so all three now agree. Where it declines to produce a figure, so
     does this: an unstated requirement is left to the applicant rather than
     quietly treated as met.
+
+    Schedule 1 is only the rate *outside* the CBD (§7.7.2). Inside it §7.7.3.1
+    substitutes a flat 3.3/100m², which for the same 80m² café is 3 spaces
+    against Schedule 1's 14 — before the §7.7.3.4 credit. Nothing here can
+    place the site: Map 1 is a bitmap, and the E2 zone is close to the boundary
+    but is not the boundary. So on an E2 site this states both figures and
+    refuses to assert a shortfall, rather than writing a number into a document
+    that goes to Council over the applicant's name and may be four times too
+    high.
     """
     match = resolve(proposed_use or "", PARKING_RATES, PARKING_SYNONYMS)
     entry = PARKING_RATES.get(match.key) if match else None
@@ -215,27 +226,68 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees):
         return "\n    ".join(lines)
 
     required = estimate["spaces_required"]
-    lines.append(f"Required Spaces:     {required}")
+
+    # An E2 site may or may not be inside the CBD as Map 1 draws it, and the two
+    # rates can differ by more than a factor of four. Asserting either one would
+    # be inventing the answer to a question this repo cannot settle — but
+    # declining to assess at all would give up the guarantee that matters most
+    # here, that a shortfall is never written up as adequate. So both rates are
+    # assessed, and the draft only defers where they actually disagree about the
+    # outcome.
+    cbd = cbd_spaces(floor_area or None) if zone_code == "E2" else None
+    alternatives = sorted({required, cbd["spaces_required"]}) if cbd else [required]
+    ambiguous = len(alternatives) > 1
+
+    if ambiguous:
+        lines.append(f"Required Spaces:     {required} (DCP Chapter 7 Schedule 1) or "
+                     f"{cbd['spaces_required']} (the fixed CBD rate, clause 7.7.3.1)")
+    else:
+        lines.append(f"Required Spaces:     {required}")
     lines.append(f"Basis:               {'; '.join(estimate['basis'])}")
     lines.append(existing_line)
+
+    worst, best = max(alternatives), min(alternatives)
 
     if existing_parking is None:
         lines.append(
             "[APPLICANT TO COMPLETE] The number of existing on-site spaces was not stated,\n"
             "    so compliance is not assessed here. State it and address any shortfall."
         )
-    elif existing_parking >= required:
+    elif existing_parking >= worst:
+        # Compliant on either reading, so which rate applies does not change the
+        # conclusion and the draft can state it plainly.
         lines.append(
             f"Parking Compliance: the {existing_parking} space(s) provided meet the DCP "
             f"requirement of {required}."
+            + (f" They also meet the fixed CBD rate of {cbd['spaces_required']}, so the "
+               "conclusion holds whichever rate applies." if ambiguous else "")
         )
     else:
+        gap = (f"between {best - existing_parking} and {worst - existing_parking} space(s), "
+               f"depending on which rate applies"
+               if ambiguous and existing_parking < best
+               else f"{worst - existing_parking} space(s) under Schedule 1, but none under "
+                    f"the fixed CBD rate" if ambiguous
+               else f"{required - existing_parking} space(s)")
         lines.append(
-            f"Parking Shortfall: {required - existing_parking} space(s).\n"
+            f"Parking Shortfall: {gap}.\n"
             "    [APPLICANT TO ADDRESS] A shortfall has to be justified in the SEE. Nearby\n"
             "    on-street or public parking is an argument for a variation, not evidence of\n"
             "    compliance; Council may also accept a contribution in lieu. Raise it with the\n"
             "    Duty Planner before lodging."
+        )
+
+    if ambiguous:
+        lines.append(
+            "[APPLICANT TO RESOLVE] This site is zoned E2, so it may fall within the\n"
+            "    Lismore CBD as defined on Map 1 of DCP Chapter 7. Which rate applies is not\n"
+            "    a detail: Schedule 1 applies outside the CBD (clause 7.7.2) and gives\n"
+            f"    {required} space(s), while inside it the fixed rate of 3.3 spaces/100m² GFA\n"
+            f"    (clause 7.7.3.1) gives {cbd['spaces_required']}. If the site is in the CBD, a\n"
+            "    deemed parking credit for the existing building (clause 7.7.3.4) reduces the\n"
+            "    requirement further, and a shortfall may be met by a contribution in lieu\n"
+            "    rather than by construction (clause 7.7.3.3). Confirm the site's position on\n"
+            "    Map 1 with the Duty Planner, then state the applicable requirement here."
         )
 
     if estimate.get("caveat"):
@@ -354,7 +406,7 @@ def generate_see_draft(arguments: dict):
         permissibility_detail = classification["statement"]
 
     parking_block = _parking_section(
-        proposed_use, floor_area, existing_parking, num_employees
+        proposed_use, floor_area, existing_parking, num_employees, zone_code
     )
 
     traffic_scale = (

@@ -24,7 +24,16 @@ confident wrong space count is what sends a DA back.
 
 import math
 
+from lismore_da_mcp.data.parking import CBD_CASH_IN_LIEU_RATE
+from lismore_da_mcp.data.parking import CBD_EXPANSION_ALLOWANCE
+from lismore_da_mcp.data.parking import CBD_FIXED_RATE
+from lismore_da_mcp.data.parking import CBD_OUTDOOR_DINING
+from lismore_da_mcp.data.parking import CBD_PARKING_CREDIT
+from lismore_da_mcp.data.parking import CBD_REDUCTIONS
+from lismore_da_mcp.data.parking import COMBINED_USES
 from lismore_da_mcp.data.parking import COUNTABLE
+from lismore_da_mcp.data.parking import MERIT_CRITERIA
+from lismore_da_mcp.data.parking import ON_STREET_LOSS
 
 
 def _component(part: dict, floor_area_sqm: float | None, counts: dict) -> float | None:
@@ -173,4 +182,171 @@ def shortfall(required: int, provided) -> dict | None:
         "shortfall": max(0, gap),
         "surplus": max(0, -gap),
         "meets_requirement": gap <= 0,
+    }
+
+
+def uses_schedule_1_in_cbd(dev_type: str) -> bool:
+    """True where §7.7.3.1 exception (i) keeps a use on Schedule 1 inside the CBD.
+
+    Residential and tourist/visitor accommodation are carved out of the fixed
+    rate. Applying 3.3/100m2 to a motel would understate it badly.
+    """
+    return dev_type in CBD_FIXED_RATE["excluded_uses"]
+
+
+def cbd_spaces(floor_area_sqm: float | None, existing_gfa_sqm: float | None = None,
+               existing_spaces_on_site: int = 0) -> dict | None:
+    """The CBD requirement under §7.7.3.1, net of any §7.7.3.4 parking credit.
+
+    Returns None when the floor area is unknown, since the fixed rate has no
+    other basis to work from.
+
+    The credit is deliberately not rounded before it is subtracted. §7.7.2
+    rounds the *requirement* up to the next whole number and the DCP says
+    nothing about rounding the credit, so rounding the net figure once at the
+    end is the reading that neither invents a space nor gives one away.
+    """
+    if not floor_area_sqm:
+        return None
+
+    gross = CBD_FIXED_RATE["rate"] * (floor_area_sqm / CBD_FIXED_RATE["per_area"])
+    basis = [
+        f"{floor_area_sqm:g}m² GFA at {CBD_FIXED_RATE['rate']:g} spaces per "
+        f"{CBD_FIXED_RATE['per_area']:g}m² (the fixed CBD rate) = {gross:.2f}"
+    ]
+
+    result = {
+        "rate_applied": "CBD fixed rate",
+        "gross_requirement": math.ceil(gross),
+        "source": CBD_FIXED_RATE["source"],
+        "rate": CBD_FIXED_RATE["verbatim"],
+    }
+
+    credit = 0.0
+    if existing_gfa_sqm:
+        deemed = CBD_PARKING_CREDIT["rate"] * (existing_gfa_sqm / CBD_PARKING_CREDIT["per_area"])
+        credit = max(0.0, deemed - (existing_spaces_on_site or 0))
+        basis.append(
+            f"less a deemed parking credit: {existing_gfa_sqm:g}m² of existing GFA at "
+            f"{CBD_PARKING_CREDIT['rate']:g} per {CBD_PARKING_CREDIT['per_area']:g}m² "
+            f"= {deemed:.2f}, less {existing_spaces_on_site or 0} space(s) already on the "
+            f"site = {credit:.2f}"
+        )
+        result["parking_credit"] = {
+            "credit_spaces": round(credit, 2),
+            "formula": CBD_PARKING_CREDIT["verbatim"],
+            "source": CBD_PARKING_CREDIT["source"],
+            "if_previously_paid": CBD_PARKING_CREDIT["evidenced_alternative"],
+        }
+
+    net = max(0, math.ceil(gross - credit))
+    basis.append(f"net requirement {net} space(s)")
+
+    result["spaces_required"] = net
+    result["basis"] = basis
+    if not existing_gfa_sqm:
+        result["credit_not_applied"] = (
+            "No existing floor area was given, so no §7.7.3.4 parking credit has been "
+            "deducted. If this is a change of use or redevelopment of an existing CBD "
+            "building, supply existing_gfa_sqm — the credit is often most of the "
+            "requirement and is not applied automatically."
+        )
+    return result
+
+
+def shortfall_options(gap: int, in_cbd: bool, dev_type: str = "") -> dict:
+    """What the DCP actually offers a business that cannot provide the spaces.
+
+    This is the point of the tool. A space count and a shortfall are only the
+    setup; Chapter 7 contains named mechanisms for closing the gap, and a
+    business that does not know they exist argues the wrong case in its SEE.
+    """
+    options: list[dict] = []
+
+    if in_cbd:
+        consolidated = CBD_REDUCTIONS["consolidated"]
+        options.append({
+            "option": consolidated["name"],
+            "effect": "The requirement for each space paid out rather than built is reduced "
+                      "by 25%, and the remainder is met by the payment instead of by "
+                      "construction.",
+            "provision": consolidated["verbatim"],
+            "source": consolidated["source"],
+            "rate": CBD_CASH_IN_LIEU_RATE,
+        })
+
+        shared = CBD_REDUCTIONS["shared"]
+        options.append({
+            "option": shared["name"],
+            "effect": "Reduces the requirement for the shared component by 25%. Only worth "
+                      "considering if there are spaces on the site to open up — it does not "
+                      "help a tenancy with no parking at all.",
+            "provision": shared["verbatim"],
+            "conditions_all_of_which_apply": shared["conditions"],
+            "ordering": shared["ordering"],
+            "source": shared["source"],
+        })
+
+        options.append({
+            "option": "Deemed parking credit for the existing building",
+            "effect": "An existing CBD site is deemed to have already provided parking to the "
+                      "CBD, and that amount comes off the requirement. Supply existing_gfa_sqm "
+                      "to have it calculated.",
+            "provision": CBD_PARKING_CREDIT["verbatim"],
+            "source": CBD_PARKING_CREDIT["source"],
+        })
+
+        options.append({
+            "option": "One-off floor space allowance for an existing commercial premises",
+            "effect": f"Up to {CBD_EXPANSION_ALLOWANCE['percent']:.0%} of existing GFA, capped "
+                      f"at {CBD_EXPANSION_ALLOWANCE['cap_sqm']}m², added without a parking "
+                      "charge — once per premises, ever.",
+            "provision": CBD_EXPANSION_ALLOWANCE["verbatim"],
+            "note": CBD_EXPANSION_ALLOWANCE["note"],
+            "source": CBD_EXPANSION_ALLOWANCE["source"],
+        })
+
+        if dev_type in ("cafe", "restaurant", "take_away"):
+            options.append({
+                "option": "Keep outdoor dining unenclosed",
+                "effect": "An unenclosed area is not gross floor area, so it generates no "
+                          "parking requirement at all. This is usually the cheapest lever a "
+                          "café has.",
+                "rules": CBD_OUTDOOR_DINING["rules"],
+                "note": CBD_OUTDOOR_DINING["note"],
+                "source": CBD_OUTDOOR_DINING["source"],
+            })
+
+    options.append({
+        "option": "Argue the shortfall on the merits",
+        "effect": "Council is directed to consider the criteria below in setting the "
+                  "requirement, so a variation is argued against them rather than by asserting "
+                  "that nearby parking is sufficient. Nearby on-street or public parking is an "
+                  "argument for a variation, not evidence of compliance.",
+        "what_council_must_consider": MERIT_CRITERIA["criteria"],
+        "source": MERIT_CRITERIA["source"],
+    })
+
+    options.append({
+        "option": "Separate the hours of the uses",
+        "effect": "Two uses in one development are normally added together, but where one "
+                  "operates entirely outside the other's hours only the higher rate applies.",
+        "provision": COMBINED_USES["verbatim"],
+        "source": COMBINED_USES["source"],
+    })
+
+    return {
+        "shortfall": gap,
+        "location_assumed": "Lismore CBD" if in_cbd else "outside the Lismore CBD",
+        "options": options,
+        "watch_out_for": {
+            "losing_on-street_spaces": ON_STREET_LOSS["in_cbd"] if in_cbd
+                                       else ON_STREET_LOSS["outside_cbd"],
+            "source": ON_STREET_LOSS["source"],
+        },
+        "before_you_lodge": "Take the shortfall and the option you intend to rely on to the "
+                            "free Duty Planner (Tuesdays and Thursdays, 8:30–10:30am) before "
+                            "lodging. Parking is the most common thing a CBD business argues "
+                            "with Council about, and it is far cheaper to settle the approach "
+                            "before the DA is assessed than after it is conditioned.",
     }

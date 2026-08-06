@@ -397,18 +397,65 @@ Two questions this could not settle, because no document in the repo answers the
 fitout that increases GFA within an existing tenancy. Both are named in the tool's output as
 Duty Planner questions rather than guessed at.
 
-### 2.2 Make parking a decision, not a number
+> **Update, item 2.2 (2026-08-06):** the first of those is now half settled. DCP §7.7.3.3 does
+> provide for a contribution in lieu of parking in the CBD — the provision was in the repo the
+> whole time. Its *rate* remains unrecoverable, since the DCP points at the repealed Section 94
+> and the current contributions plan has no car parking category, so it stays a Duty Planner
+> question rather than a number.
 
-`get_parking_rates` computes the requirement and any shortfall **[verified]**. For a CBD business
-the shortfall is usually the whole argument: an existing tenancy has no on-site parking and cannot
-grow any. What a business needs next is what to *do* about it — the existing-use credit for parking
-already attributable to the previous use, whether a contribution in lieu applies, and how to argue
-a shortfall in the SEE.
+### 2.2 Make parking a decision, not a number — ✅ **DONE 2026-08-06**
 
-DCP Chapter 7 is in the repo, so start by reading it for those three rather than assuming they
-need an outside answer: §2.1 of item 0.3 found the *rates* were all wrong while nobody had looked,
-and the same may be true of the provisions around them. Where the chapter genuinely does not say,
-name it as a Duty Planner question in the output.
+Reading the chapter first was the right instruction, and the suspicion behind it was correct.
+Chapter 7 answers all three questions — and reading it turned up something none of them
+anticipated.
+
+**Schedule 1 is not the rate in the CBD.** §7.7.2 sets it as the minimum "for developments located
+outside the Lismore CBD"; §7.7.3.1 replaces it inside the CBD with a flat **3.3 spaces/100m² GFA**
+for all non-residential use. Nothing in the server knew the distinction existed, so every answer it
+ever gave a CBD business used the wrong schedule — for exactly the businesses this repo is for. On
+the standing 80m² café example:
+
+| | spaces |
+|---|---|
+| Schedule 1, what the tool said | **14** |
+| §7.7.3.1 fixed CBD rate | **3** |
+| less the §7.7.3.4 deemed credit (80m² @ 2.5/100m²) | **1** |
+
+"You are 14 spaces short, justify it" and "you owe one space, which you may be able to pay for" are
+different proposals, and the first talks a viable business out of a tenancy. This is item 0.3
+again: the numbers were nobody's guess, they were simply never read.
+
+**All three of the things this item asked for are in the chapter**, none needed an outside answer:
+
+- **Existing-use credit** — §7.7.3.4. A CBD site being redeveloped is deemed to have already
+  provided parking at 2.5 spaces/100m² of existing GFA, *less* the spaces physically on the site.
+  It is usually most of a change-of-use requirement and it is not automatic. If the site has
+  evidence of a past cash-in-lieu payment for more, the greater figure applies, on the developer.
+- **Contribution in lieu** — §7.7.3.3, "consolidated parking". This settles the question item 2.1
+  left open: **yes, it exists**, in the CBD, and the component paid out is *also* reduced by 25%.
+  The **rate is not recoverable**, though: the DCP cites the repealed Section 94 and a plan section
+  (2.5.5) that does not exist in the current plan, and the Section 7.11 Plan 2024-2041 has no car
+  parking contribution category at all. So it is named, sourced and explained — never estimated,
+  the same treatment as Section 64.
+- **Arguing a shortfall** — §7.5 lists the six criteria Council must consider, which is what a
+  variation is actually argued against. Plus §7.7.3.2 shared parking (25% off, five conditions,
+  applied *after* the credit), §7.7.3.1(iii)'s one-off 20%/40m² floor space allowance, and for a
+  café the one that matters most: **unenclosed outdoor dining is not GFA and generates no
+  requirement at all** (§7.7.3.1(ii)).
+
+**The CBD boundary is never inferred.** Map 1 defines it and is a bitmap on the chapter's last page
+with no extractable text. The E2 zone is close to that line but is not it. So `location` is an
+argument, and without it the tool returns both figures and says plainly that neither is the answer
+yet — the same discipline the contributions catchment follows, for the same reason.
+
+`generate_see_draft` was carrying the same defect, which is the failure CLAUDE.md already names it
+for. On an E2 site it now assesses **both** rates: it still refuses to report a shortfall as
+adequate, but states the shortfall as a range and tells the applicant to settle Map 1 before
+lodging. Deferring entirely would have given up the guarantee that matters more.
+
+The audit was extended to presence-check all twelve §7.7.x provisions against the PDF, not just
+Schedule 1 — and it immediately caught two of the new transcriptions where the wording had been
+compressed.
 
 ### 2.3 Signage
 

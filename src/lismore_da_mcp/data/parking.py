@@ -362,3 +362,234 @@ PARKING_RATES = {
         "spec": None,
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# The Lismore CBD is assessed under a different rate entirely (§7.7.2, §7.7.3)
+# ---------------------------------------------------------------------------
+#
+# Schedule 1 above is **not** the rate inside the CBD. §7.7.2 sets it as the
+# minimum "for developments located outside the Lismore CBD, as defined on
+# Map 1"; §7.7.3.1 replaces it inside the CBD with a single fixed rate of 3.3
+# spaces per 100m2 GFA for all non-residential use.
+#
+# Everything in this file predates that distinction, so every answer this
+# server has ever given a CBD business used the wrong schedule. It is not a
+# rounding difference. An 80m2 café with four staff:
+#
+#     Schedule 1 (what the tool said)   14 spaces
+#     §7.7.3.1 fixed CBD rate            3 spaces
+#     less the §7.7.3.4 deemed credit    2 spaces  (80m2 @ 2.5/100m2)
+#     ------------------------------------------------
+#     net requirement                    1 space
+#
+# and that one space may itself be satisfied by a payment under §7.7.3.3
+# rather than built. "You are 14 spaces short, justify it" and "you owe one
+# space, which you can pay for" are different proposals — the first talks a
+# viable business out of a tenancy. This is the same failure as PLAN.md 0.3:
+# the numbers were nobody's guess, they were simply never read.
+#
+# **CBD membership is never inferred.** Map 1 defines the boundary and is a
+# bitmap on the last page of the chapter with no extractable text, so nothing
+# here can decide it. The E2 Commercial Centre zone is close but is not the
+# same line. The caller states it or the tool returns both readings.
+
+CHAPTER = "DCP Chapter 7"
+
+CBD_FIXED_RATE = {
+    "rate": 3.3,
+    "per_area": 100,
+    "verbatim": "a fixed rate of no less than 3.3 car spaces/100m2 of gross floor area "
+                "(as defined in the Lismore LEP) shall be required for development within "
+                "the CBD/City Centre",
+    "source": f"{CHAPTER} §7.7.3.1, p8",
+    # Exception (i). Residential and tourist accommodation stay on Schedule 1
+    # even inside the CBD, so the fixed rate must not be applied to them.
+    "excluded_uses": (
+        "residential_flat_building", "multi_dwelling_housing", "dwelling_house",
+        "dual_occupancy", "secondary_dwelling", "boarding_house", "motel",
+        "bed_and_breakfast", "caravan_park",
+    ),
+    "exclusion_verbatim": "Where the development is (or includes) residential accommodation "
+                          "or tourist and visitor accommodation, the minimum number of spaces "
+                          "required shall be as described in Schedule 1",
+}
+
+# §7.7.3.4. Read the formula carefully: the credit is the requirement the
+# *existing* building would generate at 2.5/100m2 **less the spaces already on
+# the site**. A site that already parks its own cars gets a smaller credit, not
+# a larger one — the credit represents parking the site is deemed to have
+# contributed to the CBD pool, and spaces it kept for itself are not in it.
+CBD_PARKING_CREDIT = {
+    "rate": 2.5,
+    "per_area": 100,
+    "verbatim": "Deemed Parking Credit = parking requirement for existing development @ 2.5 "
+                "spaces/100m2 gross floor area less the number of parking spaces physically "
+                "provided on the existing development site.",
+    "source": f"{CHAPTER} §7.7.3.4, p10",
+    "evidenced_alternative": "Where evidence can be provided that the development site has, "
+                             "through cash in lieu payment, provided a greater number of "
+                             "parking spaces to the CBD than that given by the above formula, "
+                             "the greater number of parking spaces shall be taken to be the "
+                             "allowable reduction applied to the proposed development parking "
+                             "requirement. The onus is on the developer to prove the existence "
+                             "of any such payments.",
+}
+
+# §7.7.3.3 and §7.7.3.2. Both reduce the requirement by 25%, and both apply
+# only to the component treated that way — not to the whole requirement.
+CBD_REDUCTIONS = {
+    "consolidated": {
+        "name": "Monetary contribution in lieu of providing the space (consolidated parking)",
+        "reduction": 0.25,
+        "verbatim": "Where an applicant considers it impractical, impossible or undesirable to "
+                    "physically provide the required parking spaces on site in the CBD, a cash "
+                    "contribution for each parking space not provided may be accepted by "
+                    "Council under Section 94 of the Environmental Planning and Assessment Act "
+                    "1979 to provide “consolidated” parking elsewhere.",
+        "source": f"{CHAPTER} §7.7.3.3, pp9-10",
+    },
+    "shared": {
+        "name": "Shared parking — spaces on site left open to the public",
+        "reduction": 0.25,
+        "verbatim": "Where part or the whole of the parking required for a new development "
+                    "(apart from the residential uses listed above) is shared parking the "
+                    "minimum requirement for the component of parking that is shared will be "
+                    "reduced by 25%.",
+        "source": f"{CHAPTER} §7.7.3.2, p9",
+        "conditions": [
+            "At least 6 spaces if the parking is visible from a vehicle on a public road, or "
+            "15 spaces if it is not.",
+            "Provided within the development site.",
+            "Available to the general public at least 9am–11pm, Monday to Saturday.",
+            "Not reserved for users of the development — spaces cannot be marked for the use "
+            "of employees or customers of the business.",
+            "Signposted as available to the public, and designed to Crime Prevention by "
+            "Design principles.",
+        ],
+        # §7.7.3.2's closing note. Order matters: 25% of the post-credit
+        # requirement is a smaller reduction than 25% of the gross one.
+        "ordering": "The reduction in car parking required will be calculated after any "
+                    "parking credit is applied (refer to section 7.7.3.4 below).",
+    },
+}
+
+# The rate for the §7.7.3.3 payment is **not recoverable from this repo**, and
+# saying so is the honest answer rather than a gap to be filled with a guess.
+# The DCP points at "Council's Contributions Plan prepared pursuant to Section
+# 94", and §7.7.3.1(ii)(d) at "the Lismore Contributions Plan (Section 2.5.5)".
+# Section 94 was repealed and re-enacted as Section 7.11 in 2017, and the
+# current plan in this repo — Section 7.11 Infrastructure Contributions Plan
+# 2024-2041 — has **no car parking contribution category at all** (its
+# categories are community facilities, public domain, open space, walking and
+# cycling, traffic management, stormwater, heavy haulage, administration), and
+# no section 2.5.5. So the DCP's cross-reference is stale and whether the
+# payment is still levied, and at what rate, is a question only Council can
+# answer. Same treatment as the Section 64 charge in data/contributions.py:
+# name it, source it, refuse to invent it.
+CBD_CASH_IN_LIEU_RATE = {
+    "status": "not quantifiable from Council's published documents",
+    "why": "DCP §7.7.3.3 sets the contribution at the rate in Council's contributions plan, "
+           "but it cites the repealed Section 94 and a section number that does not exist in "
+           "the current plan. The Section 7.11 Infrastructure Contributions Plan 2024-2041 "
+           "carries no car parking contribution category, so no rate can be read from it.",
+    "ask_council": "Ask the Duty Planner whether a contribution in lieu of parking is still "
+                   "levied in the CBD and at what rate per space, before assuming a shortfall "
+                   "can be paid out.",
+    "source": f"{CHAPTER} §7.7.3.3; Section 7.11 Contributions Plan 2024-2041",
+}
+
+# §7.7.3.1(iii). Small but directly useful: a fitout expanding within an
+# existing CBD tenancy may add floor space once without a parking charge.
+CBD_EXPANSION_ALLOWANCE = {
+    "verbatim": "Existing commercial premises (commercial premises has the same meaning as in "
+                "Lismore LEP 2012) within the Lismore CBD (see map 1 of this DCP) may, with "
+                "consent, increase internal floor space by up to 20% of the existing building "
+                "GFA up to a maximum of 40m2 without incurring Section 94 charges for car "
+                "parking. This allowance will only be available once to each premises (whether "
+                "20% or 40m2 is achieved or not), and any further internal extensions will "
+                "attract relevant Sec 94 charges.",
+    "percent": 0.20,
+    "cap_sqm": 40,
+    "source": f"{CHAPTER} §7.7.3.1(iii), p9",
+    "note": "Once per premises, from 28 April 2011. Ask Council whether a previous occupant "
+            "of the tenancy has already used it — the allowance attaches to the premises, not "
+            "to the business.",
+}
+
+# §7.7.3.1(ii). Outdoor dining is where a café's parking charge is actually
+# decided, and the answer turns on two things a business can control: whether
+# the area is enclosed, and whether it is in the Magellan Street precinct.
+CBD_OUTDOOR_DINING = {
+    "source": f"{CHAPTER} §7.7.3.1(ii), pp8-9",
+    "rules": [
+        "Unenclosed outdoor dining, anywhere in the CBD: no parking charge — an unenclosed "
+        "area is not gross floor area, so it does not generate a requirement at all.",
+        "Enclosed outdoor dining inside the Magellan Street Entertainment/Activity Precinct: "
+        "no parking charge.",
+        "Enclosed outdoor dining outside that precinct: charged at the DCP rate for "
+        "non-provision of parking.",
+        "If a new outdoor dining area removes on-street spaces, a contribution for the lost "
+        "spaces is levied — unless the area is within the Magellan Street precinct.",
+    ],
+    "note": "“Enclosed” has the same meaning as in the definition of gross floor area in "
+            "Lismore LEP 2012. The Magellan Street precinct is Map No 2 of Council's Outdoor "
+            "Dining Policy adopted 14 September 2010. Whether a proposed screen or awning "
+            "makes an area enclosed is worth settling with Council before building it.",
+}
+
+# §7.5. These are the grounds an under-provision is actually argued on. A
+# shortfall is not waved through by asserting that the street is quiet — it is
+# argued against the criteria the consent authority is directed to consider.
+MERIT_CRITERIA = {
+    "source": f"{CHAPTER} §7.5, p3",
+    "intro": "In determining the carparking requirements for any development, Council shall "
+             "consider:",
+    "criteria": [
+        "The minimum number of spaces required by Schedule 1 (outside the CBD) or clause "
+        "7.7.3 (inside it).",
+        "The size, type and nature of the development and its traffic generating potential.",
+        "Traffic volumes on the public road network servicing the development.",
+        "The probable mode of transport of users to and from the development.",
+        "The characteristics of the streetscape, the site, topography, neighbouring "
+        "development pattern and street design — including existing on-street parking, "
+        "loading spaces and access arrangements.",
+        "The time of peak demand for parking — evening versus normal retail use may allow "
+        "shared use of facilities.",
+    ],
+}
+
+# §7.7.2. A genuine reduction for mixed proposals, and one applicants miss:
+# two uses in one tenancy are normally added together, but a use operating
+# entirely outside the other's hours is not.
+COMBINED_USES = {
+    "verbatim": "Where combinations of uses are incorporated in the one development, for "
+                "example, restaurant and shop, the parking provision shall be the combined "
+                "total of the requirements specified in Schedule 1. However, where one of the "
+                "uses will operate exclusively outside the hours of the other, the car parking "
+                "rate will be based on the higher land use parking requirement.",
+    "source": f"{CHAPTER} §7.7.2, p8",
+}
+
+# §7.7.3.5 inside the CBD, §7.7.2 outside it. Worth stating because a business
+# widening a driveway for a delivery bay can create a requirement it never
+# counted on.
+ON_STREET_LOSS = {
+    "outside_cbd": "On-street car parking spaces lost as a result of a development, for "
+                   "example, through construction of an additional driveway entrance, will be "
+                   "required to be provided off-street by the development, unless a variation "
+                   "can be justified under this chapter.",
+    "in_cbd": "Where on-street car parking spaces in the CBD are lost as a result of a "
+              "development taking place, for example, through construction of an additional "
+              "driveway entrance, a “debit” may occur.",
+    "source": f"{CHAPTER} §7.7.2 and §7.7.3.5, pp8, 10",
+}
+
+# §7.7.1. Applies regardless of location, and is a function of what is
+# provided rather than what is required.
+DISABILITY_PARKING = {
+    "verbatim": "Regardless of the location of the development, parking for people with "
+                "disability shall be provided at a rate of no less than 1 space for every 100 "
+                "spaces provided by a development.",
+    "source": f"{CHAPTER} §7.7.1, p8",
+}

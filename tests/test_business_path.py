@@ -152,10 +152,25 @@ class TestDraftParkingMatchesTheDCP:
         assert f"Required Spaces:     {expected}" in section
 
     def test_a_shortfall_is_never_reported_as_adequate(self, call):
+        """The fixture site is zoned E2, which may or may not be inside the CBD
+        as Map 1 draws it — and that decides whether the requirement is Schedule
+        1's 14 or the fixed CBD rate's 3 (PLAN.md 2.2). The draft states the
+        shortfall as a range rather than picking one, but the guarantee this test
+        exists for is unchanged: a site with no parking at all is never written
+        up as adequate, and the applicant is told to address it."""
         section = self.parking(call, existing_parking_spaces=0)
-        assert "Parking Shortfall: 14 space(s)." in section
+        assert "Parking Shortfall: between 3 and 14 space(s)" in section
         assert "adequate" not in section.lower()
         assert "APPLICANT TO ADDRESS" in section
+
+    def test_the_cbd_rate_is_not_silently_substituted_for_schedule_1(self, call):
+        """Nor the reverse. Answering an E2 site off Schedule 1 alone overstated
+        its requirement more than fourfold; answering it off the CBD rate alone
+        would understate a site that turns out to be outside Map 1."""
+        section = self.parking(call, existing_parking_spaces=0)
+        assert "Schedule 1" in section and "7.7.3.1" in section
+        assert "APPLICANT TO RESOLVE" in section
+        assert "Map 1" in section
 
     def test_enough_spaces_is_reported_as_compliant(self, call):
         section = self.parking(call, existing_parking_spaces=20)

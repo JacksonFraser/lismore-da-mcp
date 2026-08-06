@@ -256,3 +256,250 @@ class TestTheCafeReading:
         """The interpretation lives in `spec` and `note`. `rate` is the DCP's own
         wording and must never be edited to match an interpretation of it."""
         assert normalise(PARKING_RATES["cafe"]["rate"]) in schedule
+
+
+# ---------------------------------------------------------------------------
+# PLAN.md item 2.2 — the CBD is a different rate, and a shortfall is a decision
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def chapter():
+    from audit_parking_rates import chapter_text
+    return normalise(chapter_text())
+
+
+class TestCbdProvisionsAreInTheDCP:
+    """The §7.7.3 provisions get the same guarantee as the Schedule 1 rates.
+
+    They are hand-transcribed from the same PDF and carry more consequence per
+    word — §7.7.3.3 is the difference between building a space and paying for
+    it. Two of these strings were wrong when first written and this caught them.
+    """
+
+    @pytest.mark.parametrize("label", [
+        "fixed_rate", "exclusion", "credit", "credit_alternative",
+        "shared", "shared_ordering", "consolidated", "expansion",
+        "combined_uses", "on_street_outside", "on_street_cbd", "disability",
+    ])
+    def test_provision_appears_verbatim(self, label, chapter):
+        from lismore_da_mcp.data.parking import (
+            CBD_EXPANSION_ALLOWANCE, CBD_FIXED_RATE, CBD_PARKING_CREDIT,
+            CBD_REDUCTIONS, COMBINED_USES, DISABILITY_PARKING, ON_STREET_LOSS)
+        quotes = {
+            "fixed_rate": CBD_FIXED_RATE["verbatim"],
+            "exclusion": CBD_FIXED_RATE["exclusion_verbatim"],
+            "credit": CBD_PARKING_CREDIT["verbatim"],
+            "credit_alternative": CBD_PARKING_CREDIT["evidenced_alternative"],
+            "shared": CBD_REDUCTIONS["shared"]["verbatim"],
+            "shared_ordering": CBD_REDUCTIONS["shared"]["ordering"],
+            "consolidated": CBD_REDUCTIONS["consolidated"]["verbatim"],
+            "expansion": CBD_EXPANSION_ALLOWANCE["verbatim"],
+            "combined_uses": COMBINED_USES["verbatim"],
+            "on_street_outside": ON_STREET_LOSS["outside_cbd"],
+            "on_street_cbd": ON_STREET_LOSS["in_cbd"],
+            "disability": DISABILITY_PARKING["verbatim"],
+        }
+        assert normalise(quotes[label]) in chapter, (
+            f"{label} is no longer in DCP Chapter 7 verbatim. Read the chapter before "
+            "editing — do not adjust the stored text to make this pass."
+        )
+
+
+class TestTheCbdRateReplacesSchedule1:
+    """The regression this item exists to fix.
+
+    Schedule 1 is the rate for development *outside* the CBD (§7.7.2). Inside
+    it, §7.7.3.1 sets a flat 3.3 spaces/100m² for non-residential use. Every
+    answer this server gave a CBD business used the wrong schedule, and for the
+    café worked example it overstated the requirement 14 to 3.
+    """
+
+    def test_cbd_cafe_is_charged_the_fixed_rate_not_schedule_1(self, call):
+        cbd = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd",
+            "floor_area_sqm": 80, "num_employees": 4})
+        outside = call("get_parking_rates", {
+            "development_type": "cafe", "location": "outside_cbd",
+            "floor_area_sqm": 80, "num_employees": 4})
+        assert cbd["calculation"]["spaces_required"] == 3      # 80 @ 3.3/100
+        assert outside["calculation"]["spaces_required"] == 14  # Schedule 1
+        assert "3.3" in cbd["rate_description"]
+
+    def test_the_displaced_schedule_1_rate_is_still_shown(self, call):
+        """Overstating is the failure being fixed, but a business that has been
+        quoted the Schedule 1 figure by someone else needs to see why it differs
+        rather than be told two numbers with no reconciliation."""
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd", "floor_area_sqm": 80})
+        assert "7.7.2" in result["schedule_1_rate_not_applied"]
+
+    def test_accommodation_stays_on_schedule_1_inside_the_cbd(self, call):
+        """§7.7.3.1 exception (i). Applying 3.3/100m² to a motel would understate
+        it badly, which is the opposite error and just as damaging."""
+        result = call("get_parking_rates", {
+            "development_type": "motel", "location": "cbd", "floor_area_sqm": 500})
+        assert "exception (i)" in result["cbd_treatment"]
+        assert "3.3" not in result["rate_description"]
+
+
+class TestTheCbdBoundaryIsNeverAssumed:
+    """Map 1 defines the CBD and is a bitmap with no extractable text.
+
+    So nothing here can decide it, and the repo's rule for the contributions
+    catchment applies unchanged: return both readings rather than defaulting to
+    one, because a silent default puts a wrong number in a business's plans.
+    """
+
+    def test_both_rates_are_returned_when_location_is_unstated(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "floor_area_sqm": 80, "num_employees": 4})
+        both = result["which_rate_applies"]
+        assert "14 space(s)" in both["outside_the_cbd"]
+        assert "3 space(s)" in both["inside_the_cbd"]
+        assert "Neither figure" in both["unresolved"]
+
+    def test_it_says_how_to_settle_the_question(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "shop", "floor_area_sqm": 200})
+        assert "Map 1" in result["which_rate_applies"]["how_to_settle_it"]
+
+    def test_zone_is_not_offered_as_a_proxy_for_the_boundary(self):
+        """E2 is close to the CBD but is not the same line, and the tool must not
+        invite a caller to substitute one for the other."""
+        from lismore_da_mcp.registry import registered
+        schema = registered()["get_parking_rates"].schema
+        assert "not the same line" in schema["properties"]["location"]["description"]
+
+
+class TestTheParkingCredit:
+    """§7.7.3.4. Usually most of a change-of-use requirement, and never automatic."""
+
+    def test_existing_floor_area_earns_a_deemed_credit(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd",
+            "floor_area_sqm": 80, "existing_gfa_sqm": 80})
+        # 80m² @ 3.3/100 = 2.64 → 3 gross; credit 80 @ 2.5/100 = 2.0; net 1.
+        assert result["calculation"]["gross_requirement"] == 3
+        assert result["calculation"]["parking_credit"]["credit_spaces"] == 2.0
+        assert result["calculation"]["spaces_required"] == 1
+
+    def test_spaces_already_on_site_reduce_the_credit(self, call):
+        """The formula subtracts them: the credit is parking the site is deemed
+        to have given the CBD, and spaces it kept are not part of that."""
+        result = call("get_parking_rates", {
+            "development_type": "shop", "location": "cbd",
+            "floor_area_sqm": 400, "existing_gfa_sqm": 400,
+            "existing_spaces_on_site": 6})
+        assert result["calculation"]["parking_credit"]["credit_spaces"] == 4.0
+
+    def test_a_credit_is_never_applied_unasked(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd", "floor_area_sqm": 80})
+        assert "parking_credit" not in result["calculation"]
+        assert "credit_not_applied" in result["calculation"]
+
+    def test_the_credit_cannot_go_negative(self, call):
+        """A site with more spaces than the formula deems does not owe negative
+        parking, and must not silently inflate the requirement."""
+        result = call("get_parking_rates", {
+            "development_type": "shop", "location": "cbd",
+            "floor_area_sqm": 200, "existing_gfa_sqm": 100,
+            "existing_spaces_on_site": 50})
+        assert result["calculation"]["parking_credit"]["credit_spaces"] == 0.0
+        assert result["calculation"]["spaces_required"] == 7
+
+
+class TestShortfallIsADecision:
+    """The point of the item: name what the DCP lets a business actually do."""
+
+    def _options(self, result):
+        return [o["option"] for o in result["addressing_the_shortfall"]["options"]]
+
+    def test_a_cbd_shortfall_offers_the_dcp_mechanisms(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd",
+            "floor_area_sqm": 80, "spaces_provided": 0})
+        options = " ".join(self._options(result))
+        assert "contribution in lieu" in options.lower()
+        assert "Shared parking" in options
+        assert "Deemed parking credit" in options
+
+    def test_cbd_only_mechanisms_are_not_offered_outside_the_cbd(self, call):
+        """§7.7.3 is expressly the CBD section. Offering a village business a
+        contribution in lieu would send it to Council with a request the DCP does
+        not support."""
+        result = call("get_parking_rates", {
+            "development_type": "shop", "location": "outside_cbd",
+            "floor_area_sqm": 200, "spaces_provided": 2})
+        options = " ".join(self._options(result)).lower()
+        assert "contribution in lieu" not in options
+        assert "shared parking" not in options
+        assert "merits" in options
+
+    def test_a_cafe_is_told_about_unenclosed_outdoor_dining(self, call):
+        """Usually the cheapest lever a café has: unenclosed area is not GFA, so
+        it generates no requirement at all."""
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd",
+            "floor_area_sqm": 80, "spaces_provided": 0})
+        assert any("unenclosed" in o.lower() for o in self._options(result))
+
+    def test_the_merit_criteria_are_the_dcp_s_own(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "shop", "location": "outside_cbd",
+            "floor_area_sqm": 200, "spaces_provided": 0})
+        merits = next(o for o in result["addressing_the_shortfall"]["options"]
+                      if "merits" in o["option"])
+        assert len(merits["what_council_must_consider"]) == 6
+        assert "7.5" in merits["source"]
+
+    def test_no_options_are_offered_when_there_is_no_shortfall(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd",
+            "floor_area_sqm": 80, "spaces_provided": 10})
+        assert "addressing_the_shortfall" not in result
+
+    def test_nearby_public_parking_is_still_not_treated_as_compliance(self, call):
+        """The one thing that has to survive making the answer more encouraging."""
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd",
+            "floor_area_sqm": 80, "spaces_provided": 0})
+        merits = next(o for o in result["addressing_the_shortfall"]["options"]
+                      if "merits" in o["option"])
+        assert "not evidence of compliance" in merits["effect"]
+
+
+class TestTheCashInLieuRateIsNotInvented:
+    """PLAN.md 2.1 left open whether a contribution in lieu applies in Lismore.
+
+    Chapter 7 answers it: §7.7.3.3 expressly provides for one, in the CBD. The
+    *rate* is a separate question and this repo cannot answer it — the DCP cites
+    the repealed Section 94 and a plan section that does not exist in the
+    current plan, and the Section 7.11 Plan 2024-2041 has no car parking
+    category. Named and sourced, never estimated — the Section 64 treatment.
+    """
+
+    def test_the_provision_is_reported_as_existing(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd",
+            "floor_area_sqm": 80, "spaces_provided": 0})
+        option = next(o for o in result["addressing_the_shortfall"]["options"]
+                      if "lieu" in o["option"])
+        assert "7.7.3.3" in option["source"]
+
+    def test_no_dollar_figure_is_produced(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "location": "cbd",
+            "floor_area_sqm": 80, "spaces_provided": 0})
+        option = next(o for o in result["addressing_the_shortfall"]["options"]
+                      if "lieu" in o["option"])
+        assert option["rate"]["status"].startswith("not quantifiable")
+        assert "Duty Planner" in option["rate"]["ask_council"]
+
+    def test_the_reason_it_cannot_be_quantified_is_given(self):
+        """A bare 'ask Council' is not actionable. The applicant should know the
+        cross-reference is stale so they can ask the right question."""
+        from lismore_da_mcp.data.parking import CBD_CASH_IN_LIEU_RATE
+        assert "Section 94" in CBD_CASH_IN_LIEU_RATE["why"]
+        assert "no car parking contribution category" in CBD_CASH_IN_LIEU_RATE["why"]
