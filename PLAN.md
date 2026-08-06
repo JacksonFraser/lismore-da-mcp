@@ -510,12 +510,53 @@ places and adding two tools failed two unrelated tests. `tests/test_registry.py`
 README's tool table equals `registered()` and that the stated total matches, instead of restating
 a number.
 
-### 2.4 Name the approvals that are not the DA
+### 2.4 Name the approvals that are not the DA — ✅ **DONE 2026-08-06**
 
-Trade waste, food premises registration, footpath/outdoor dining, liquor licensing, the
-Construction Certificate, the Occupation Certificate. These are separate from the DA and are where
-businesses get caught. Even a plain "here is what else you will need and who issues it" is
-disproportionately useful, and cheap to provide.
+`get_other_approvals` and `list_other_approvals`, covering fifteen approvals: trade waste, food
+premises notification and registration, the food safety supervisor, food premises construction
+standards, outdoor dining, liquor licensing, the CC, the Principal Certifier, the OC, the long
+service levy, Section 68 water/sewer/stormwater, on-site sewage management, Section 138 road
+reserve works, the annual fire safety statement and commercial waste.
+
+The framing that makes it work is stated before the list: **development consent decides that the
+use is allowed on the land, and nothing else.** It is not permission to build, connect a sink to
+the sewer, serve food or alcohol, occupy the building, or put a table on the footpath. Two of these
+— the CC and the OC — cannot even be applied for until the consent exists, so they sit *after* the
+DA in the timeline rather than beside it, and the OC is the one that most often moves an opening
+date. The result is grouped by **when** each approval happens rather than listed flat, because the
+useful cut is "what must I do before I lodge" and "what can I not start until consent arrives".
+
+**The selection rule is the inverse of the rest of the repo: over-list.** Everywhere else a
+confident wrong answer is the danger and the tool declines. Here a wrongly included approval costs
+a sentence of reading and a missing one costs weeks, so an unresolved trigger produces the approval
+*plus* a question rather than an omission — every question names what was listed anyway. The one
+exception is trade waste on an unsewered site, which is dropped: it is approval to discharge *to
+the sewer*, so listing it there points at the wrong approval rather than merely an unnecessary one.
+
+Two things the documents turned up that were not in the plan item:
+
+- **Temporary footpath dining is fee-free and is not a Council application.** Under the NSW Outdoor
+  Dining Policy 2019 you apply through Service NSW and "Council and state government agency fees
+  will be waived". Council's schedule agrees — Tiers 1 and 2 read "Subject to NSW Outdoor Dining
+  Policy" where Tiers 3 and 4, permanent structures, carry $85.25 and $113.65 per m² per year. The
+  temporary/permanent line also reaches back into item 2.2: a permanent enclosure becomes gross
+  floor area under DCP §7.7.3.1(ii) and generates a parking requirement that unenclosed dining does
+  not.
+- **Food premises registration stopped being free.** Every annual registration fee in Council's
+  schedule was **$0.00** in 2025-26 and carries a real figure in 2026-27 — $607.50 for a small food
+  business plus a $355 administrative assessment on a new application. A café budgeting from last
+  year's schedule budgets nothing for this. The fee is waived where the application accompanies a
+  DA, which is worth timing deliberately.
+
+**Fees are quoted only from documents this repo carries**, cited by page, and everything set by a
+state agency — the liquor licence, the long service levy — is named with no figure at all, the same
+rule Section 64 follows. `scripts/audit_approvals.py` checks all 25 quoted figures still appear in
+the source PDFs, which is the check that matters here because these go stale on a fixed annual
+cycle.
+
+The server instructions gained a step for this and blew their 4,000-character budget. The budget
+was kept and the existing text compressed instead — the instructions ship in every session, so the
+guard is doing its job.
 
 ### 2.5 Set expectations on time, and on what stops the clock
 

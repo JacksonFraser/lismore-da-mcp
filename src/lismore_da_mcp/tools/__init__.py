@@ -5,6 +5,7 @@ schema via @tool, so adding a tool means editing one file.
 """
 
 from lismore_da_mcp.tools import (  # noqa: F401
+    approvals,
     documents,
     fees,
     parking,

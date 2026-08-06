@@ -53,7 +53,7 @@ claude
 
 ## Available MCP Tools
 
-25 tools in total.
+27 tools in total.
 
 **Lookups**
 
@@ -76,6 +76,8 @@ claude
 | `check_referrals` | External agency referrals (integrated development) a proposal may trigger |
 | `calculate_da_fees` | What a DA costs: lodgement fee, Council's notification and technology charges, and the Section 7.11 developer contribution — which on a commercial DA is usually far larger than the fee |
 | `get_da_checklist` | Required documents for a DA, by development type |
+| `get_other_approvals` | The approvals that are **not** the DA — trade waste, food premises registration, footpath dining, liquor licensing, the CC and the OC — with who issues each and when it is needed |
+| `list_other_approvals` | List every non-DA approval, with the issuing authority |
 | `get_contact_info` | Council contacts and duty planner availability |
 
 **Documents**
