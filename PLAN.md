@@ -558,11 +558,55 @@ The server instructions gained a step for this and blew their 4,000-character bu
 was kept and the existing text compressed instead — the instructions ship in every session, so the
 guard is doing its job.
 
-### 2.5 Set expectations on time, and on what stops the clock
+### 2.5 Set expectations on time, and on what stops the clock — ✅ **DONE 2026-08-06**
 
-40 business days is the headline, but a request for information pauses it, and an incomplete
-lodgement never starts it. A business planning a fit-out around an assumed date needs to know which
-of its own omissions will cost it weeks.
+`get_assessment_timeline`. **The only Phase 2 item whose source was not already in the repo** —
+nothing under `documents/` said anything about assessment time, because the periods are set by
+regulation rather than by Council. So the EP&A Regulation 2021 was fetched
+(`scripts/fetch_epa_regulation.py`, Playwright, since legislation.nsw.gov.au 403s plain HTTP)
+rather than written from memory, and it is now the first thing in `documents/legislation/`.
+
+**Doing that immediately contradicted this repo's own knowledge base.** The item above, and
+CLAUDE.md, both said *40 business days*. Section 91(4) says **"The assessment period is 40 days"** —
+calendar days. The regulation uses "business days" in the two places it means them, so the
+distinction is the drafter's and not an inference. Forty business days is about eight weeks; forty
+calendar days is under six. CLAUDE.md is corrected and carries a note saying what it used to say,
+since it is loaded as context in every session and would otherwise have the agent contradict its
+own tool.
+
+**The bigger correction is what the period is at all.** Section 91(1): the consent authority "is
+taken to have refused" consent if it does not determine in time. That is a **deemed refusal — an
+appeal right, not a delivery date.** Passing 40 days does not refuse the DA, does not invalidate
+it, and does not oblige Council to stop assessing. Quoting the number and qualifying it afterwards
+is how it became a delivery date in the first place, so the correction is the first field in the
+response and the tool refuses to turn any period into a calendar date.
+
+Three provisions do the real work of the item, and none are guessable:
+
+- **s92(1): the clock starts at lodgement**, which is when the Portal completeness check passes and
+  the fee is paid — not when the applicant presses submit. Days spent before that are simply lost,
+  and they are the part most within the applicant's control.
+- **s94(2)-(3): a request for information stops the clock, but only if made within 25 days of
+  lodgement.** A request on day 30 does not stop it at all. This is the least-known provision in
+  the area and it cuts both ways.
+- **s39: a rejected DA is "taken never to have been made."** Not delayed — undone, starting again
+  from zero, with the fee refunded in full (s254(1)) and a 14-day window for Council to do it.
+
+Plus the trap in **s36(5)**: missing the deadline in an information request means you are *taken to
+have notified* that you will not provide it, and the DA is determined on what is already there.
+Silence is treated as a decision. And **s36(2)**, a genuine limit applicants do not know they have:
+Council may not demand information at DA stage that belongs with the Construction Certificate.
+
+The fetch script **refuses to write anything that does not contain the provisions being sought**,
+which is what caught a wrong SL number returning a live 404 page on the first attempt — the same
+failure that once put fifteen error pages into `documents/lep/`. `scripts/audit_timing.py` then
+checks all 17 quotes against the fetched text; unlike the other audits it guards against *the law
+changing*, not a transcription slipping.
+
+**The instructions budget was raised, having been held twice.** Items 2.2 and 2.3 were absorbed by
+compressing the surrounding text; 2.4 was too. This one would not fit without cutting something
+load-bearing, so the 4,000-character guard moved to 4,200 with the reasoning recorded in the test.
+The server had 21 tools when 4,000 was set and now has 28. Compress before raising it again.
 
 ---
 

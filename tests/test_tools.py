@@ -42,6 +42,7 @@ VALID_ARGS = {
     "list_signage_types": {},
     "get_other_approvals": {"proposed_use": "cafe"},
     "list_other_approvals": {},
+    "get_assessment_timeline": {},
     "list_zones": {},
     "get_definition": {"term": "dwelling house"},
     "check_permissibility": {"zone_code": "R2", "land_use": "dwelling houses"},

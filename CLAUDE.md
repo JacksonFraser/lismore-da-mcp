@@ -45,10 +45,11 @@ curl localhost:8080/health                # → "ok"
 | `planning-data-reviewer` agent | Checks transcribed data in `data/` against the source documents. The repo's core risk is that this data is hand-copied and nothing verifies it; the tests pin that it has not *changed*, not that it is *right*. |
 | `scripts/audit_parking_rates.py` | Checks every parking requirement in `data/parking.py` still appears verbatim in DCP Chapter 7. Schedule 1 is a three-column PDF table that cannot be diffed structurally, so the rates are stored verbatim and presence-checked. All 22 entries were wrong before 2026-08-02. |
 | `scripts/audit_zone_tables.py` | Diffs every zone land use table against `documents/lep/lep-2012-nsw-full.txt`. All 21 match as of 2026-08-02; `tests/test_zone_transcription.py` keeps it that way. Known defects in the *scraped source text* — three lost semicolons — are listed in `SOURCE_TEXT_DEFECTS` rather than silently tolerated. |
+| `scripts/audit_timing.py` | Checks the assessment-period quotes in `data/timing.py` against `documents/legislation/epa-regulation-2021-assessment-periods.txt`, and that each stored figure matches its own quote. Unlike the others this guards against **the law changing**, not a transcription slipping — that text is a fetched snapshot of legislation.nsw.gov.au, so a mismatch means an amendment. |
 | `scripts/audit_approvals.py` | Checks every dollar figure quoted in `data/approvals.py` still appears in Council's fees schedule, and that `SEQUENCE`/`BY_ACTIVITY` resolve. These are prose, not verbatim quotes, so the figures are what can be checked — and Council reissues the schedule every July, a refresh this repo has already missed twice. |
 | `scripts/audit_signage.py` | Checks every DCP Chapter 9 definition, standard and general provision in `data/signage.py` still appears verbatim in the chapter, and reports any sign type §9.3 defines that the data does not carry. That last check found `business identification sign` and `building identification sign` missing — the two the §9.2 heritage exception turns on. |
 | `scripts/audit_contributions.py` | Checks the Section 7.11 rates two ways: every figure still appears in the plan PDF, **and** all 30 cells of Table E2 rebuild from Table E1's components. The derivation catches a transposed digit that a presence check cannot, and it found one real discrepancy in the published table (`KNOWN_TABLE_DISCREPANCIES`). Prefer this shape wherever a source table has recoverable internal arithmetic. |
-| `scripts/verify_against_council.py` | The three audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
+| `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 
 `.claude/settings.local.json` stays out of git (per-machine permissions); everything else in
@@ -73,9 +74,9 @@ imports keep working. It is not where the code lives. Find things by module:
 
 | Layer | Where | What |
 |---|---|---|
-| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `contacts`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
-| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
+| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `contacts`. No logic. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
 
@@ -143,7 +144,7 @@ authoritative answer for permissibility — prefer them over the prose summaries
 
 **Document access is two-tier.** Structured tools answer from the dicts; `search_dcp` /
 `read_dcp_section` / `list_documents` fall back to the files under `documents/`. Scope is
-centralised in `DOC_CATEGORIES` (dcp, lep, forms, fees, exempt-development) and
+centralised in `DOC_CATEGORIES` (dcp, lep, forms, fees, exempt-development, business, legislation) and
 `SEARCHABLE_SUFFIXES` / `LISTABLE_SUFFIXES` — extend those rather than re-globbing in a handler.
 `_score_lines()` scores lines by how many distinct query tokens they contain (stopwords dropped,
 exact-phrase is only a ranking bonus) so partial concept matches still surface; `search_document()`
@@ -654,9 +655,21 @@ Most forms of development require Council approval (development consent).
 - Submissions can be made via DA Tracker
 
 ### Assessment Timeframe
-- Standard: 40 business days for most local development
-- Clock pauses if Additional Information Request issued
-- Complex developments may take longer
+⚠️ This section said **"40 business days"** until 2026-08-06. It is **40 calendar days** —
+EP&A Regulation 2021 s91(4) says "40 days", and the regulation says "business days" in the
+places it means them. Prefer `get_assessment_timeline`, which quotes the provisions.
+- Standard: **40 days** (calendar) for most local development; 60 for designated, integrated or
+  concurrence development; 90 for State significant; 70 for Crown
+- This is a **deemed refusal threshold, not a delivery date** — passing it gives the applicant a
+  right to appeal as if refused. It does not refuse the DA or stop Council assessing it
+- The clock starts at **lodgement**, which is when the Portal completeness check passes and the
+  fee is paid — not when the applicant presses submit
+- An Additional Information Request pauses it, **but only if made within 25 days of lodgement**
+  (s94(3)). A later request does not stop the clock
+- Missing the deadline in such a request means the applicant is **taken to have said they will
+  not provide it** (s36(5)), and the DA is determined on what is already there
+- A DA rejected under s39, within 14 days of receipt, is **taken never to have been made** — it
+  starts again from zero, with the fee refunded
 
 ### What Council Considers
 - LEP 2012 zoning and development standards
