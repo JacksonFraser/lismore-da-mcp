@@ -53,7 +53,7 @@ claude
 
 ## Available MCP Tools
 
-23 tools in total.
+27 tools in total.
 
 **Lookups**
 
@@ -66,14 +66,18 @@ claude
 | `check_permissibility` | Check whether a specific land use is permitted (with/without consent) in a specific zone |
 | `get_definition` | Standard Instrument LEP definition of a land-use term, plus related terms |
 | `list_definitions` | List all land-use terms with a definition available |
-| `get_parking_rates` | Off-street parking requirements for a development type, with shortfall calculation |
+| `get_parking_rates` | Off-street parking requirements for a development type, with shortfall calculation and the DCP mechanisms for addressing a shortfall. Pass `location` — the Lismore CBD is charged a different rate from the rest of the LGA |
 | `list_parking_types` | List development types with parking rate data available |
+| `get_signage_requirements` | Whether a sign needs an application at all, whether it is prohibited on the site, and the DCP Chapter 9 standard. Most shopfront signage is Exempt Development |
+| `list_signage_types` | List sign types grouped by the approval each needs (exempt / CDC / DA) |
 | `get_setback_requirements` | Front/side/rear setback requirements for residential development |
 | `get_residential_standards` | DCP Chapter 1 standards: site coverage, private open space, landscaping, car parking design |
 | `get_flood_requirements` | Flood planning level and floor level requirements, with exemptions |
 | `check_referrals` | External agency referrals (integrated development) a proposal may trigger |
 | `calculate_da_fees` | What a DA costs: lodgement fee, Council's notification and technology charges, and the Section 7.11 developer contribution — which on a commercial DA is usually far larger than the fee |
 | `get_da_checklist` | Required documents for a DA, by development type |
+| `get_other_approvals` | The approvals that are **not** the DA — trade waste, food premises registration, footpath dining, liquor licensing, the CC and the OC — with who issues each and when it is needed |
+| `list_other_approvals` | List every non-DA approval, with the issuing authority |
 | `get_contact_info` | Council contacts and duty planner availability |
 
 **Documents**
@@ -99,12 +103,32 @@ claude
 User: What are the parking requirements for a restaurant?
 
 Claude: [Uses get_parking_rates tool]
-For a restaurant or cafe in Lismore:
-- 1 per 2 employees, plus the greater of 1 per 3 seats or 15 per 100m² GFA
-- Source: Lismore DCP Chapter 7 Schedule 1, p14
-- An 80m² cafe with 40 seats and 6 staff needs 17 spaces; with 20 seats, 15.
+First: is the site inside the Lismore CBD? The two rates are not close.
+- Outside the CBD, Schedule 1 applies: 1 per 2 employees, plus the greater of
+  1 per 3 seats or 15 per 100m² GFA (DCP Chapter 7 Schedule 1, p14). An 80m²
+  cafe with 40 seats and 6 staff needs 17 spaces; with 20 seats, 15.
   (Schedule 1's wording is ambiguous about what "whichever is greater" governs —
   the tool says so, and says which reading it applies.)
+- Inside the CBD, a fixed rate of 3.3 spaces/100m² GFA replaces it (clause
+  7.7.3.1). The same 80m² cafe needs 3 — and if it is taking over an existing
+  80m² building, a deemed parking credit (clause 7.7.3.4) takes that to 1.
+The CBD boundary is Map 1 of the chapter, which is a map image, so the tool
+never guesses it: without `location` it returns both figures and says neither
+is the answer yet.
+
+User: I'm 4 spaces short in the CBD and the tenancy has nowhere to put them.
+
+Claude: [Uses get_parking_rates tool]
+A shortfall is a decision, not just a number to justify. Chapter 7 offers:
+- A monetary contribution in lieu of building the spaces (clause 7.7.3.3),
+  which also reduces the requirement for that component by 25%. The rate is
+  not published in any current Council document — ask the Duty Planner.
+- A deemed credit for parking the existing building is taken to have already
+  provided (clause 7.7.3.4) — often most of the requirement.
+- 25% off any component you open to the public as shared parking (7.7.3.2).
+- For a cafe, keeping outdoor dining unenclosed: it is not gross floor area,
+  so it generates no requirement at all (clause 7.7.3.1(ii)).
+- Arguing it on the six merit criteria Council must consider (clause 7.5).
 
 User: I'm opening an 80m² cafe in a vacant Lismore shop. What will the DA cost?
 

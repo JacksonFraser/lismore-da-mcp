@@ -368,3 +368,98 @@ CHECKLIST_SYNONYMS = {
     "demolition": "demolition",
     "knock down": "demolition",
 }
+
+
+# What a business calls its sign, mapped to what DCP Chapter 9 calls it.
+# Nobody walks in asking for a "portable footpath sign" — they ask about the
+# A-frame they have already bought, which is the one Chapter 9 says is not
+# permissible. Getting that term to resolve is most of the value here.
+SIGNAGE_SYNONYMS = {
+    # portable footpath signs — the trap, and the most-used words for it
+    "a frame": "portable_footpath_sign",
+    "a-frame": "portable_footpath_sign",
+    "a frame sign": "portable_footpath_sign",
+    "sandwich board": "portable_footpath_sign",
+    "sandwich board sign": "portable_footpath_sign",
+    "footpath sign": "portable_footpath_sign",
+    "pavement sign": "portable_footpath_sign",
+    "portable sign": "portable_footpath_sign",
+    "street sign": "portable_footpath_sign",
+
+    # the ordinary shopfront set
+    "shopfront sign": "wall_sign",
+    "shop front sign": "wall_sign",
+    "shop sign": "wall_sign",
+    "business sign": "business_identification_sign",
+    "name sign": "business_identification_sign",
+    "identification sign": "business_identification_sign",
+    "fence sign": "wall_sign",
+    "painted wall": "wall_sign",
+    "mural": "wall_sign",
+    "window decal": "window_sign",
+    "window graphics": "window_sign",
+    "window lettering": "window_sign",
+    "glass sign": "window_sign",
+    "facia sign": "fascia_sign",
+    "awning fascia": "fascia_sign",
+    "awning sign": "awning_sign_below",
+    "under awning": "awning_sign_below",
+    "under awning sign": "awning_sign_below",
+    "underawning sign": "awning_sign_below",
+    "hanging sign": "awning_sign_below",
+    "above awning": "awning_sign_above",
+    "on awning": "awning_sign_above",
+    "verandah sign": "awning_sign_above",
+    "door sign": "top_hamper_sign",
+    "doorway sign": "top_hamper_sign",
+    "transom sign": "top_hamper_sign",
+
+    # menu boards — a café's word, and it matters which one they mean
+    "menu board": "chalkboard_sign",
+    "menu sign": "chalkboard_sign",
+    "blackboard": "chalkboard_sign",
+    "blackboard sign": "chalkboard_sign",
+    "specials board": "chalkboard_sign",
+
+    # freestanding and projecting
+    "pylon": "pylon_sign",
+    "pole sign": "pylon_sign",
+    "freestanding sign": "pylon_sign",
+    "free standing sign": "pylon_sign",
+    "directory board": "pylon_sign",
+    "directory sign": "pylon_sign",
+    "blade sign": "projecting_wall_sign",
+    "projecting sign": "projecting_wall_sign",
+
+    # illuminated and moving
+    "neon": "illuminated_sign",
+    "neon sign": "illuminated_sign",
+    "led sign": "illuminated_sign",
+    "lit sign": "illuminated_sign",
+    "backlit sign": "illuminated_sign",
+    "light box": "illuminated_sign",
+    "lightbox": "illuminated_sign",
+    "digital sign": "animated_sign",
+    "flashing sign": "animated_sign",
+    "moving sign": "animated_sign",
+    "electronic sign": "animated_sign",
+
+    # roof, billboard and the rest
+    "roof sign": "sky_roof_fin_sign",
+    "sky sign": "sky_roof_fin_sign",
+    "fin sign": "sky_roof_fin_sign",
+    "billboard": "advertising_billboard",
+    "hoarding": "advertising_billboard",
+    "banner": "temporary_sign",
+    "flag": "temporary_sign",
+    "flags": "temporary_sign",
+    "event sign": "temporary_sign",
+    "balloon": "blimp_balloon_sign",
+    "blimp": "blimp_balloon_sign",
+    "inflatable": "blimp_balloon_sign",
+    "for sale sign": "real_estate_sign",
+    "for lease sign": "real_estate_sign",
+    "tourist signage": "tourist_sign",
+    "highway sign": "tourist_sign",
+    "brown sign": "tourist_sign",
+}

@@ -33,6 +33,15 @@ def schedule_text() -> str:
     return " ".join(" ".join(p.split()) for p in pages)
 
 
+def chapter_text() -> str:
+    """The whole chapter, for the §7.x provisions that sit before Schedule 1."""
+    import fitz
+
+    with fitz.open(CHAPTER) as doc:
+        pages = [doc[i].get_text() for i in range(doc.page_count)]
+    return " ".join(" ".join(p.split()) for p in pages)
+
+
 def normalise(text: str) -> str:
     """Compare on wording, not typography.
 
@@ -40,8 +49,53 @@ def normalise(text: str) -> str:
     en dashes. None of those change the rule.
     """
     text = text.replace("m²", "m2").replace("’", "'").replace("‘", "'")
+    text = text.replace("“", '"').replace("”", '"')
     text = text.replace("–", "-").replace("—", "-")
     return " ".join(text.lower().split())
+
+
+def check_provisions(chapter: str) -> int:
+    """Presence-check the §7.7.3 CBD provisions, not just Schedule 1.
+
+    Schedule 1 is not the whole chapter, and for the businesses this server is
+    for it is not even the operative part: §7.7.3 sets an entirely different
+    rate inside the CBD and the mechanisms for dealing with a shortfall. Those
+    are transcribed verbatim for the same reason the rates are, so they get the
+    same check.
+    """
+    from lismore_da_mcp.data.parking import CBD_EXPANSION_ALLOWANCE
+    from lismore_da_mcp.data.parking import CBD_FIXED_RATE
+    from lismore_da_mcp.data.parking import CBD_PARKING_CREDIT
+    from lismore_da_mcp.data.parking import CBD_REDUCTIONS
+    from lismore_da_mcp.data.parking import COMBINED_USES
+    from lismore_da_mcp.data.parking import DISABILITY_PARKING
+    from lismore_da_mcp.data.parking import ON_STREET_LOSS
+
+    quotes = {
+        "7.7.3.1 fixed CBD rate": CBD_FIXED_RATE["verbatim"],
+        "7.7.3.1 residential exception": CBD_FIXED_RATE["exclusion_verbatim"],
+        "7.7.3.1(iii) expansion allowance": CBD_EXPANSION_ALLOWANCE["verbatim"],
+        "7.7.3.2 shared parking": CBD_REDUCTIONS["shared"]["verbatim"],
+        "7.7.3.2 ordering note": CBD_REDUCTIONS["shared"]["ordering"],
+        "7.7.3.3 contribution in lieu": CBD_REDUCTIONS["consolidated"]["verbatim"],
+        "7.7.3.4 parking credit formula": CBD_PARKING_CREDIT["verbatim"],
+        "7.7.3.4 evidenced alternative": CBD_PARKING_CREDIT["evidenced_alternative"],
+        "7.7.2 combined uses": COMBINED_USES["verbatim"],
+        "7.7.2 on-street loss": ON_STREET_LOSS["outside_cbd"],
+        "7.7.3.5 on-street debit": ON_STREET_LOSS["in_cbd"],
+        "7.7.1 accessible parking": DISABILITY_PARKING["verbatim"],
+    }
+
+    print("\nCBD provisions (§7.7.1–7.7.3.5):")
+    problems = 0
+    for label, quote in quotes.items():
+        if normalise(quote) in chapter:
+            print(f"  ✓ {label}")
+        else:
+            problems += 1
+            print(f"  ✗ {label}")
+            print(f"      stored: {quote[:110]}")
+    return problems
 
 
 def main() -> int:
@@ -77,6 +131,8 @@ def main() -> int:
         print(f"\n  {len(unsourced)} entr(ies) with no Schedule 1 land use, by design:")
         for key in unsourced:
             print(f"      {key} — {PARKING_RATES[key]['rate']}")
+
+    problems += check_provisions(normalise(chapter_text()))
 
     print(f"\n{len(PARKING_RATES)} entr(ies) checked, {problems} not matching the DCP.")
     if problems:

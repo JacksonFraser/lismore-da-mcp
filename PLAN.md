@@ -397,30 +397,166 @@ Two questions this could not settle, because no document in the repo answers the
 fitout that increases GFA within an existing tenancy. Both are named in the tool's output as
 Duty Planner questions rather than guessed at.
 
-### 2.2 Make parking a decision, not a number
+> **Update, item 2.2 (2026-08-06):** the first of those is now half settled. DCP §7.7.3.3 does
+> provide for a contribution in lieu of parking in the CBD — the provision was in the repo the
+> whole time. Its *rate* remains unrecoverable, since the DCP points at the repealed Section 94
+> and the current contributions plan has no car parking category, so it stays a Duty Planner
+> question rather than a number.
 
-`get_parking_rates` computes the requirement and any shortfall **[verified]**. For a CBD business
-the shortfall is usually the whole argument: an existing tenancy has no on-site parking and cannot
-grow any. What a business needs next is what to *do* about it — the existing-use credit for parking
-already attributable to the previous use, whether a contribution in lieu applies, and how to argue
-a shortfall in the SEE.
+### 2.2 Make parking a decision, not a number — ✅ **DONE 2026-08-06**
 
-DCP Chapter 7 is in the repo, so start by reading it for those three rather than assuming they
-need an outside answer: §2.1 of item 0.3 found the *rates* were all wrong while nobody had looked,
-and the same may be true of the provisions around them. Where the chapter genuinely does not say,
-name it as a Duty Planner question in the output.
+Reading the chapter first was the right instruction, and the suspicion behind it was correct.
+Chapter 7 answers all three questions — and reading it turned up something none of them
+anticipated.
 
-### 2.3 Signage
+**Schedule 1 is not the rate in the CBD.** §7.7.2 sets it as the minimum "for developments located
+outside the Lismore CBD"; §7.7.3.1 replaces it inside the CBD with a flat **3.3 spaces/100m² GFA**
+for all non-residential use. Nothing in the server knew the distinction existed, so every answer it
+ever gave a CBD business used the wrong schedule — for exactly the businesses this repo is for. On
+the standing 80m² café example:
 
-Almost every business needs it; it is DCP Chapter 9; there is no tool. Signage on a heritage item
-or in a conservation area is a common refusal point in a CBD.
+| | spaces |
+|---|---|
+| Schedule 1, what the tool said | **14** |
+| §7.7.3.1 fixed CBD rate | **3** |
+| less the §7.7.3.4 deemed credit (80m² @ 2.5/100m²) | **1** |
 
-### 2.4 Name the approvals that are not the DA
+"You are 14 spaces short, justify it" and "you owe one space, which you may be able to pay for" are
+different proposals, and the first talks a viable business out of a tenancy. This is item 0.3
+again: the numbers were nobody's guess, they were simply never read.
 
-Trade waste, food premises registration, footpath/outdoor dining, liquor licensing, the
-Construction Certificate, the Occupation Certificate. These are separate from the DA and are where
-businesses get caught. Even a plain "here is what else you will need and who issues it" is
-disproportionately useful, and cheap to provide.
+**All three of the things this item asked for are in the chapter**, none needed an outside answer:
+
+- **Existing-use credit** — §7.7.3.4. A CBD site being redeveloped is deemed to have already
+  provided parking at 2.5 spaces/100m² of existing GFA, *less* the spaces physically on the site.
+  It is usually most of a change-of-use requirement and it is not automatic. If the site has
+  evidence of a past cash-in-lieu payment for more, the greater figure applies, on the developer.
+- **Contribution in lieu** — §7.7.3.3, "consolidated parking". This settles the question item 2.1
+  left open: **yes, it exists**, in the CBD, and the component paid out is *also* reduced by 25%.
+  The **rate is not recoverable**, though: the DCP cites the repealed Section 94 and a plan section
+  (2.5.5) that does not exist in the current plan, and the Section 7.11 Plan 2024-2041 has no car
+  parking contribution category at all. So it is named, sourced and explained — never estimated,
+  the same treatment as Section 64.
+- **Arguing a shortfall** — §7.5 lists the six criteria Council must consider, which is what a
+  variation is actually argued against. Plus §7.7.3.2 shared parking (25% off, five conditions,
+  applied *after* the credit), §7.7.3.1(iii)'s one-off 20%/40m² floor space allowance, and for a
+  café the one that matters most: **unenclosed outdoor dining is not GFA and generates no
+  requirement at all** (§7.7.3.1(ii)).
+
+**The CBD boundary is never inferred.** Map 1 defines it and is a bitmap on the chapter's last page
+with no extractable text. The E2 zone is close to that line but is not it. So `location` is an
+argument, and without it the tool returns both figures and says plainly that neither is the answer
+yet — the same discipline the contributions catchment follows, for the same reason.
+
+`generate_see_draft` was carrying the same defect, which is the failure CLAUDE.md already names it
+for. On an E2 site it now assesses **both** rates: it still refuses to report a shortfall as
+adequate, but states the shortfall as a range and tells the applicant to settle Map 1 before
+lodging. Deferring entirely would have given up the guarantee that matters more.
+
+The audit was extended to presence-check all twelve §7.7.x provisions against the PDF, not just
+Schedule 1 — and it immediately caught two of the new transcriptions where the wording had been
+compressed.
+
+### 2.3 Signage — ✅ **DONE 2026-08-06**
+
+`get_signage_requirements` and `list_signage_types`, from DCP Chapter 9. Reading the chapter
+reordered the tool before it was written.
+
+**The answer is usually "you don't need an application".** §9.11 says it outright — "These
+Environmental Planning Instruments provide for certain types of signage as Exempt or Complying
+Development and the provisions of this DCP chapter are not applicable." The ordinary shopfront set
+— wall, window, fascia, under-awning, top hamper — is Exempt Development, needing neither a DA nor
+a CDC, provided it meets the SEPP's criteria. Projecting wall signs and pylon/directory boards are
+Complying Development, so they take a CDC. So the tool leads with the **approval pathway**, then
+the site prohibition, then the size standard. A size table first would answer a question most
+businesses do not have and bury the one they do — the exemption is stated as conditional
+throughout, because "no application needed" without "if it meets every criterion" is the harmful
+simplification here.
+
+**The A-frame is the trap, and it is worse than a size breach.** Portable footpath signs —
+sandwich boards, A-frames — are *not permissible* unless they meet LEP 2012 Schedule 2. And §9.8
+compounds it: the footpath is Council or RMS land, the landowner's agreement must be in the DA, and
+"Council will not agree to the erection of signage in the road reserve for commercial development
+other than signage attached to protrusions such as awnings". So it fails at owner's consent rather
+than on the merits — earlier and more final — and the tool raises it unprompted. Nobody asks about
+a "portable footpath sign", so the synonym table carries the words a business actually uses; the
+café's other board, the chalkboard menu, is a *different* entry that must be affixed to private
+property.
+
+**Heritage, the refusal point this item named.** §9.2 prohibits advertising in a heritage area,
+residential zone, conservation area, open space and waterways — but the exception is the half a
+business needs: building and business identification signs are excepted. So a shop in a heritage
+area or a home business in a residential zone can still put its name up; what it cannot have is
+general advertising for someone who does not trade there. A prohibited result therefore says what
+the business *can* still do rather than stopping at "no", and on a heritage site the §9.4
+guidelines are reordered to lead with Character — the only guideline phrased as a prohibition
+("no sign shall obstruct or block the view of any feature of historic architecture"). Heritage is
+never inferred from the zone, and an unestablished heritage status is reported as unestablished
+rather than as clear.
+
+**A stale cross-reference, flagged not relied on.** The chapter cites SEPP 64 throughout; SEPP 64
+was repealed and folded into SEPP (Industry and Employment) 2021 Chapter 3. No document in this
+repo carries the current instrument, so that is returned as a pointer with an explicit "not
+verified here" — a business searching "SEPP 64" today finds a repealed policy and may conclude the
+control is gone. It has not.
+
+`scripts/audit_signage.py` presence-checks all 24 sign types plus the general provisions, the
+prohibited-zone list and the design guidelines, and reports any sign type §9.3 defines that the
+data does not carry — which is how `business identification sign` and `building identification
+sign`, the two the heritage exception turns on, were caught missing on the first pass.
+
+**Housekeeping done in passing**, because it blocked this: the tool count was hardcoded in three
+places and adding two tools failed two unrelated tests. `tests/test_registry.py` now asserts the
+README's tool table equals `registered()` and that the stated total matches, instead of restating
+a number.
+
+### 2.4 Name the approvals that are not the DA — ✅ **DONE 2026-08-06**
+
+`get_other_approvals` and `list_other_approvals`, covering fifteen approvals: trade waste, food
+premises notification and registration, the food safety supervisor, food premises construction
+standards, outdoor dining, liquor licensing, the CC, the Principal Certifier, the OC, the long
+service levy, Section 68 water/sewer/stormwater, on-site sewage management, Section 138 road
+reserve works, the annual fire safety statement and commercial waste.
+
+The framing that makes it work is stated before the list: **development consent decides that the
+use is allowed on the land, and nothing else.** It is not permission to build, connect a sink to
+the sewer, serve food or alcohol, occupy the building, or put a table on the footpath. Two of these
+— the CC and the OC — cannot even be applied for until the consent exists, so they sit *after* the
+DA in the timeline rather than beside it, and the OC is the one that most often moves an opening
+date. The result is grouped by **when** each approval happens rather than listed flat, because the
+useful cut is "what must I do before I lodge" and "what can I not start until consent arrives".
+
+**The selection rule is the inverse of the rest of the repo: over-list.** Everywhere else a
+confident wrong answer is the danger and the tool declines. Here a wrongly included approval costs
+a sentence of reading and a missing one costs weeks, so an unresolved trigger produces the approval
+*plus* a question rather than an omission — every question names what was listed anyway. The one
+exception is trade waste on an unsewered site, which is dropped: it is approval to discharge *to
+the sewer*, so listing it there points at the wrong approval rather than merely an unnecessary one.
+
+Two things the documents turned up that were not in the plan item:
+
+- **Temporary footpath dining is fee-free and is not a Council application.** Under the NSW Outdoor
+  Dining Policy 2019 you apply through Service NSW and "Council and state government agency fees
+  will be waived". Council's schedule agrees — Tiers 1 and 2 read "Subject to NSW Outdoor Dining
+  Policy" where Tiers 3 and 4, permanent structures, carry $85.25 and $113.65 per m² per year. The
+  temporary/permanent line also reaches back into item 2.2: a permanent enclosure becomes gross
+  floor area under DCP §7.7.3.1(ii) and generates a parking requirement that unenclosed dining does
+  not.
+- **Food premises registration stopped being free.** Every annual registration fee in Council's
+  schedule was **$0.00** in 2025-26 and carries a real figure in 2026-27 — $607.50 for a small food
+  business plus a $355 administrative assessment on a new application. A café budgeting from last
+  year's schedule budgets nothing for this. The fee is waived where the application accompanies a
+  DA, which is worth timing deliberately.
+
+**Fees are quoted only from documents this repo carries**, cited by page, and everything set by a
+state agency — the liquor licence, the long service levy — is named with no figure at all, the same
+rule Section 64 follows. `scripts/audit_approvals.py` checks all 25 quoted figures still appear in
+the source PDFs, which is the check that matters here because these go stale on a fixed annual
+cycle.
+
+The server instructions gained a step for this and blew their 4,000-character budget. The budget
+was kept and the existing text compressed instead — the instructions ship in every session, so the
+guard is doing its job.
 
 ### 2.5 Set expectations on time, and on what stops the clock
 
@@ -447,12 +583,12 @@ already framed gets far more out of them.
 
 Small, non-urgent, and worth doing when next in the area rather than as a project.
 
-- **Derive the tool count instead of hardcoding it in three places.** It currently appears in
-  `README.md`, `tests/test_registry.py` and a docstring in `tests/test_instructions.py`, so adding
-  a tool means editing three unrelated files and CI fails on the two you forget. It caught out three
-  separate changes on 2026-08-01 alone. The registry already knows how many tools there are —
-  assert the README table matches `registered()` rather than restating the number, and drop it from
-  the docstring.
+- ~~**Derive the tool count instead of hardcoding it in three places.**~~ ✅ **DONE 2026-08-06**,
+  in the course of item 2.3, which added two tools and was promptly failed by two unrelated tests —
+  the fourth time this has caught a change. `tests/test_registry.py` now parses the README's tool
+  tables and asserts they equal `registered()`, plus that the stated total agrees; the literal is
+  gone from the `test_instructions.py` docstring. The README is the right thing to check against,
+  because it is the part a human maintains.
 
 ## Deliberately not doing
 
