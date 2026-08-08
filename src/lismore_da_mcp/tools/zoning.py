@@ -6,7 +6,7 @@ from mcp.types import TextContent
 
 from lismore_da_mcp.addresses import lookup_constraints
 from lismore_da_mcp.addresses import lookup_zone
-from lismore_da_mcp.data.definitions import LAND_USE_DEFINITIONS
+from lismore_da_mcp.data.definitions import DEFINITION_CATEGORIES, LAND_USE_DEFINITIONS
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.landuse import NOT_A_LAND_USE
 from lismore_da_mcp.landuse import canonical_use
@@ -278,9 +278,28 @@ def get_definition(arguments: dict):
         entry = LAND_USE_DEFINITIONS[match.key]
         result = {
             **entry,
-            "source": "Standard Instrument (Local Environmental Plans) Order 2006 — Dictionary, as carried into Lismore LEP 2012",
-            "caveat": "Paraphrased for readability. Definitions can be amended — verify against the current Lismore LEP 2012 Dictionary before relying on this for a formal submission."
+            "source": "Lismore LEP 2012 Dictionary (Standard Instrument), quoted verbatim",
+            "how_to_read_this": (
+                "`definition` is the LEP's own words. Quote it in a DA — a submission that "
+                "argues from a paraphrase invites Council to answer from the real text. "
+                "`why_this_matters` is this tool's guidance and is not part of the definition."
+            ),
         }
+        if entry.get("additional_controls"):
+            # The Dictionary defines the term; the numbers are in clause 5.4.
+            # Every figure this file once invented was a real control filed
+            # against the wrong provision, so the two are reported apart.
+            result["note_on_figures"] = (
+                "The definition itself sets no floor area, bedroom count or similar limit — "
+                f"those are in {entry['additional_controls']['source']}, quoted under "
+                "`additional_controls`."
+            )
+        if entry.get("land_use_table_term"):
+            result["note_on_the_land_use_table"] = (
+                f"The zone land use table spells this {entry['land_use_table_term']!r}, not "
+                f"{entry['term']!r}. Use the table's spelling in check_permissibility and in "
+                "a Planning Portal lodgement."
+            )
         if match.how != "exact":
             # The planning term is often not the word the applicant used, and
             # which term applies decides permissibility — so name the swap.
@@ -310,20 +329,13 @@ def list_definitions(arguments: dict):
         {"key": k, "term": v["term"]}
         for k, v in LAND_USE_DEFINITIONS.items()
     ]
-    categories = {
-        "retail_commercial": ["retail_premises", "food_and_drink_premises", "shop", "restaurant_or_cafe", "take_away_food_and_drink_premises", "business_premises", "commercial_premises", "neighbourhood_shop"],
-        "home_based": ["home_business", "home_occupation"],
-        "residential": ["dwelling_house", "dual_occupancy", "secondary_dwelling", "multi_dwelling_housing", "residential_flat_building", "attached_dwellings", "shop_top_housing", "boarding_house"],
-        "industrial": ["light_industries", "general_industries", "warehouse_or_distribution_centre", "vehicle_repair_station"],
-        "community_recreation": ["recreation_facility_indoor", "community_facility", "centre_based_child_care_facility"],
-        "accommodation": ["hotel_or_motel_accommodation", "bed_and_breakfast_accommodation"],
-    }
     return [TextContent(
         type="text",
         text=json.dumps({
             "available_definitions": definitions_list,
-            "categories": categories,
+            "categories": DEFINITION_CATEGORIES,
             "total_count": len(definitions_list),
+            "source": "Lismore LEP 2012 Dictionary, quoted verbatim",
             "usage": "Use get_definition with any term key to get the full definition"
         }, indent=2)
     )]

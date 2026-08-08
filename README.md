@@ -64,7 +64,7 @@ claude
 | `get_zone_info` | Zone objectives, permitted uses, and development standards for an LEP 2012 zone |
 | `list_zones` | List all zone codes available in Lismore LEP 2012 |
 | `check_permissibility` | Check whether a specific land use is permitted (with/without consent) in a specific zone |
-| `get_definition` | Standard Instrument LEP definition of a land-use term, plus related terms |
+| `get_definition` | Lismore LEP 2012 Dictionary definition of a land-use term, quoted verbatim, with the clause 5.4 controls that apply to it |
 | `list_definitions` | List all land-use terms with a definition available |
 | `get_parking_rates` | Off-street parking requirements for a development type, with shortfall calculation and the DCP mechanisms for addressing a shortfall. Pass `location` — the Lismore CBD is charged a different rate from the rest of the LGA |
 | `list_parking_types` | List development types with parking rate data available |

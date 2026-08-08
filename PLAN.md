@@ -76,13 +76,19 @@ its site — are the three that fail.
 Nothing else on this plan matters if the numbers are wrong. Every item here is answerable from a
 document in `documents/`, which is what makes it doable.
 
-0.1 to 0.5 are done. The zone tables came back **clean**; the parking rates did not, and
+0.1 to 0.7 are done. The zone tables came back **clean**; the parking rates did not, and
 0.3 is the one to read — most of the 22 entries were wrong, in both directions, on the numbers a
 CBD assessment argues about. **0.5 is the one to read next**, because it found the same failure in
 a file this phase had never looked at: the flood freeboard was wrong by 200mm and three of its
-fields cited provisions that exist in no document here. Both remaining unaudited files are now
-done: **0.6** found `standards.py` worse than `flood.py` — seventeen of nineteen figures invented,
-with eleven tests pinning them in place.
+fields cited provisions that exist in no document here. **0.6** found `standards.py` worse than
+`flood.py` — seventeen of nineteen figures invented, with eleven tests pinning them in place.
+
+**The phase was twice declared finished before it was.** After 0.4 it was called done without
+`flood.py` or `standards.py` having been opened; after 0.6 it was called done again while
+`data/definitions.py` — which had no audit, described itself as paraphrased, and decides which term
+every other tool is answering about — had still never been checked. That is 0.7. The lesson is
+narrow and worth keeping: *the file nobody has looked at is not the file nobody needs to look at*,
+and "all the data modules are audited" was said twice without anyone listing the data modules.
 
 ### 0.1 Refresh the fee schedule — ✅ **DONE 2026-08-01**
 
@@ -404,6 +410,82 @@ All three are handled in `normalise`/`chapter_text` rather than by trimming the 
 CLAUDE.md's Part 2 residential section was fabricated in the same way — a 14m maximum external wall
 length, 3 dwellings under one roof, 4m between dwelling groups, 50–60% site coverage, none of which
 appear in the chapter — and is replaced with the real controls.
+
+### 0.7 Re-transcribe the land use definitions — ✅ **DONE 2026-08-08**
+
+The last data module without an audit, and the one with the widest blast radius. **Which defined
+term a proposal falls under is the whole assessment**: it decides permissibility off the land use
+table, the DCP Chapter 7 parking rate, and — per item 2.1 — whether a change of use owes a
+contribution at all. Shop → café is nil and office → café is $12,310 for the same 80m² tenancy,
+entirely because the first pair are both retail premises and the second pair are not.
+
+The file did not contain the definitions. It contained paraphrases written from memory, and unlike
+`flood.py` and `standards.py` it admitted as much in its own docstring — which is probably why
+nobody checked it. The paraphrases were wrong in both directions:
+
+| the old file said | the LEP Dictionary says |
+|---|---|
+| warehouse: "whether or not goods are sold by retail" | **"but from which no retail sales are made"** — inverted. It also excludes local distribution premises, and self-storage is a separate term |
+| business premises: a service provided "on 2+ days per week" | "on a regular basis". **"days per week" appears nowhere in the LEP.** Its exclusion list was wrong in both directions too: the LEP excludes a **medical centre**, and *includes* funeral homes |
+| neighbourhood shop: "retail floor area of not more than 80m²" | the definition sets **no area**. Clause 5.4(7) sets **200m²** |
+| home business: "no manufacture, alteration, servicing or repair" | that is **home industry**'s wording. Home business allows **2 employees** other than the residents, which is what makes the term usable |
+| boarding house: lodgers, shared facilities, rooms | omitted (d) **affordable housing** and (e) **managed by a registered community housing provider** — the whole modern definition |
+| child care: excludes "out-of-school-hours care" | paragraph (a)(iii) **includes** it. What is excluded is *school-based* child care |
+| restaurant or cafe: "provides seating and dining facilities" | the test is the **principal purpose**; seating is not mentioned. Seats price the parking rate, they do not decide the term |
+| attached dwellings: private open space, separate access | 3+ dwellings, **each on its own lot**, none above another |
+| residential flat building: access via common corridors | not mentioned; the definition works by excluding the other three types |
+| bed and breakfast: "commonly 6" guests | clause 5.4(1): **no more than 5 bedrooms** |
+| secondary dwelling: "typically 60m²" | clause 5.4(9): the **greater** of 60m² or 25% of the principal dwelling |
+| hotel or motel: "includes dining/bar facilities" | "**may** provide meals" — optional |
+| vehicle repair station: excludes tyre sales | excludes **vehicle sales or hire premises** |
+
+**Every invented figure was a real control filed under the wrong provision.** That is what made
+them survive review, and it is item 0.6's finding restated: the Dictionary *defines terms*, the
+numbers live in **clause 5.4**, and a number appearing in a definition is nearly always a sign it
+has been moved there from somewhere real. So `additional_controls` now carries clause 5.4 verbatim
+for the six terms it reaches, and `FIGURES_NOT_IN_THE_DEFINITION` records the four inventions with
+the clause that actually sets each — the applicant still needs the number, and the old file was at
+least right that they wanted one.
+
+**Reading the Dictionary changed two things beyond the wording.**
+
+- **The Dictionary term is not always the land use table term.** The table lists "Light
+  industries", "Attached dwellings" and "Recreation facilities (indoor)"; the Dictionary defines
+  the singular of each. `check_permissibility` matches the table, so `land_use_table_term` carries
+  the plural where it differs and the audit checks it against `data/zones.py`.
+- **`LAND_USE_HIERARCHY` had `office premises` as a type of business premises.** It is not — the
+  LEP's own notes make both types of *commercial premises*, and they are mutually exclusive, the
+  test being whether the public is dealt with at the premises directly and regularly. `landuse.py`
+  walks that chain to answer permissibility from a parent term, so the error was live. It is now
+  read off the LEP's "X is a type of Y" notes rather than asserted.
+
+Nine terms were **added**, all business-facing and all previously dangling or absent: `pub` (which
+the synonym table sent to *hotel or motel accommodation* — a different group with a different
+permissibility), `office premises`, `medical centre`, `specialised retail premises` (the current
+name for what the DCP still calls bulky goods), `home industry`, `industry`, `artisan food and
+drink industry`, `tourist and visitor accommodation` and `residential accommodation`. The artisan
+one earns its place: a brewery, distillery or roastery with a tasting room is a **light industry**,
+not a food and drink premises, so it is permissible in industrial zones where a café is not.
+
+`scripts/audit_definitions.py` runs seven checks. Presence is the least of them. It verifies each
+quote **opens with its own term**, because verbatim LEP text lifted from the wrong entry passes a
+presence check unharmed; it reads the "is a type of" notes off the document to check the hierarchy;
+it checks the table spellings against `data/zones.py`; and it asserts the absences.
+
+**The absence check needed two attempts, and the first version is the more instructive.** It
+searched each definition for the *old wording* — `80m²` — so reinventing the identical control as
+"80 square metres" passed silently. A reinvention is written in fresh words by definition. Each
+record now names the **kind** of figure the definition does not set, as a pattern, and the audit
+asserts no figure of that kind appears at all — scoped by unit, so the numbers definitions
+legitimately contain ("3 or more dwellings", "more than 2 persons", "at least 3 months") do not
+trip it. `tests/test_definitions.py` feeds all seven checks a fault each, including the same
+invented cap in four different wordings.
+
+Two smaller things done in passing: `list_definitions` hardcoded its category lists in the handler,
+so adding nine terms would have left them out of the listing without failing anything — the same
+shape as the hardcoded tool count in Housekeeping. `DEFINITION_CATEGORIES` moved to the data layer
+with an exhaustiveness check. And the synonym table gained the words a business uses — brewery,
+hairdresser, bottle shop, doctors surgery, bulky goods.
 
 # Phase 1 — Make the business path work end to end — ✅ **DONE 2026-08-02**
 
