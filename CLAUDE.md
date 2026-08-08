@@ -50,6 +50,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_readiness.py` | Checks the lodgement and rejection provisions in `data/readiness.py` against the fetched EP&A Regulation text, reusing `audit_timing.py`'s comparison. It also checks every paragraph of s39(1) is carried, reading the letters off the source rather than a hardcoded list — a list of five rejection grounds out of six reads as complete and is not. Like `audit_timing.py` it guards against **the law changing**. |
 | `scripts/audit_signage.py` | Checks every DCP Chapter 9 definition, standard and general provision in `data/signage.py` still appears verbatim in the chapter, and reports any sign type §9.3 defines that the data does not carry. That last check found `business identification sign` and `building identification sign` missing — the two the §9.2 heritage exception turns on. |
 | `scripts/audit_contributions.py` | Checks the Section 7.11 rates two ways: every figure still appears in the plan PDF, **and** all 30 cells of Table E2 rebuild from Table E1's components. The derivation catches a transposed digit that a presence check cannot, and it found one real discrepancy in the published table (`KNOWN_TABLE_DISCREPANCIES`). Prefer this shape wherever a source table has recoverable internal arithmetic. |
+| `scripts/audit_flood.py` | Checks all 40 flood controls in `data/flood.py` against DCP Chapter 8 and the LEP text. Two checks beyond presence: the derived constants must agree with the quotes they were read from (the freeboard was wrong by 200mm and nothing noticed), and every numbered control in §8.4–§8.8 is counted off the document, so a requirement nobody transcribed is reported rather than invisible. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 
@@ -76,7 +77,7 @@ imports keep working. It is not where the code lives. Find things by module:
 | Layer | Where | What |
 |---|---|---|
 | Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
 | Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
@@ -264,6 +265,27 @@ fifteen-minute Duty Planner session. Each carries what it costs to leave unresol
 fifteen minutes does not fit ten questions and the applicant has to choose. **If you add a tool
 that declines to answer something, add the question here too** — otherwise the refusal is a dead
 end rather than a redirection.
+
+**`flood.py` selects; `data/flood.py` is the chapter.** DCP Chapter 8 sets its controls per flood
+hazard area, and there are five of them — Floodway, High Flood Risk, Flood Fringe, Low Flood Risk
+and CBD Flood Liable, which §8.3 gives the Flood Fringe's controls — plus rural land. They differ
+enough that answering "commercial" with one requirement, which the old data did, was wrong four
+times out of five: the High Flood Risk Area demands a mezzanine refuge above the 1-in-500 year
+level, the Flood Fringe does not, and the Low Flood Risk Area has no controls at all. Three rules
+hold this together. **The area is never inferred** — Map 1 is a bitmap, the zone is not a proxy,
+and without `flood_area` the tool returns every area's controls rather than picking one, exactly as
+`parking.py` does with the CBD boundary. **A change of use is checked against §8.3 first**, which
+lifts the commercial and industrial controls entirely in the High Flood Risk and Flood Fringe
+areas — the commonest business DA there is, so reporting a 25%-above-FPL requirement against a café
+fitout is this repo's most likely flood-shaped mistake. And **the DCP never goes back alone**: LEP
+cl 5.21(2) is a bar on granting consent rather than a standard to design to, and cl 5.21(3)(a)
+requires climate change to be considered, which the DCP's 2001 modelling predates.
+
+The freeboard in the old file was 500mm against the chapter's 300mm, and three of its fields cited
+a "CBD Development Exemption Precinct" and a "2090 climate change level" that exist in no document
+here. Both `data/standards.py` and `data/flood.py` had gone unaudited while every other data module
+got a script; `standards.py` still is, and fails the same inspection (PLAN.md item 0.6). **Do not
+add a figure to either file that you have not read in a document under `documents/`.**
 
 ---
 
@@ -557,32 +579,66 @@ Setbacks depend on zone, lot size, and adjoining development. General principles
 
 # FLOOD PLANNING (DCP Chapter 8 & LEP Clause 5.21)
 
+⚠️ This section said the freeboard was **500mm** until 2026-08-06, and described a
+**"CBD Development Exemption Precinct"** and a **"2090 climate change level (~13.4m)"**.
+DCP Chapter 8 §8.2 says the freeboard is **300mm**, three times; the other two appear
+nowhere in the chapter, nowhere in LEP 2012, and nowhere else in `documents/`. They are
+gone. Prefer `get_flood_requirements`, which quotes the chapter.
+
 ## Flood Planning Level (FPL)
 
-### Current Standard
-- 1% AEP (1-in-100 year) flood level + 500mm freeboard
+- **FPL = the 1 in 100 year ARI flood level for the site (Map 2) + 300mm freeboard** (§8.2)
+- The chapter says "1 in 100 year ARI" throughout and never says "1% AEP"
+- **1 in 500 year ARI level = the 1 in 100 year level + 1.03m.** Several commercial and
+  industrial controls are set against the 1-in-500 level, not the FPL
+- Map 2 is a scanned image, so the site's 1-in-100 level is **not** in this repo. It comes
+  from Council — a s10.7 planning certificate or a Flood Information Request
 
-### Proposed Changes (Under Review)
-- 1% AEP 2090 climate change level + 500mm freeboard
-- Approximately 13.4m for high-risk areas
+## The controls are per flood hazard area, and there are five
 
-## Habitable Floor Level Requirements
+Map 1 divides the LGA into **Floodway** (§8.4), **High Flood Risk** (§8.5), **Flood Fringe**
+(§8.6) and **Low Flood Risk** (§8.7), plus a fifth category, **CBD Flood Liable**, which §8.3
+gives the same controls as the Flood Fringe. Rural land (§8.8) is separate again. They differ
+sharply — a commercial building in the High Flood Risk Area needs a mezzanine refuge above the
+1-in-500 level and one in the Flood Fringe does not; Low Flood Risk has no controls at all.
 
-### Residential Development
-- All habitable floor areas must be at or above FPL
-- Extensions/additions: Habitable floors at or above FPL
-- Exceptions only where Council considers requirement impractical/unreasonable
+**Map 1 is a bitmap on the chapter's last page with no extractable text, so the area cannot be
+derived from an address, and the zone is not a proxy** — the areas are drawn on depth and
+velocity modelling, and the CBD Flood Liable area is not the shape of the E2 zone. `flood_area`
+is an argument to `get_flood_requirements`; without it the tool returns every area's controls
+and declines to pick. Same discipline as the CBD parking boundary.
 
-### Commercial/Industrial Development
-- Percentage of development must be above FPL
-- Some developments: Minimum 25% of gross floor area above FPL
+## ⚠️ A change of use is exempt from the commercial and industrial controls
 
-## CBD Development Exemption Precinct
-Allows residential development (shop-top housing, tourist accommodation) if:
-- Habitable floor levels above FPL
-- Structural soundness proven
-- Site-specific evacuation plan prepared
-- Refuge available above Probable Maximum Flood (PMF)
+§8.3: *"The controls applying to new commercial and industrial development in the High Flood
+Risk Area and the Flood Fringe Area are not applicable where a change of use is proposed."*
+A café taking over a CBD shop does **not** have to put 25% of its floor area above the FPL.
+This is the commonest business DA there is, so pass `is_change_of_use=True`. The exemption does
+not lift LEP cl 5.21, and does not reach a fitout that adds floor space — §8.3 sends that to be
+considered on its merits.
+
+## Headline requirements (all verbatim in `data/flood.py`)
+
+- **Residential, Flood Fringe**: habitable floor areas at or above the FPL
+- **Residential, High Flood Risk**: no *new* residential unless a flood report displaces the
+  hazard categorisation; extensions and replacements at or above FPL
+- **Commercial, either area**: 25% of gross floor area at or above the FPL, plus a structural
+  engineer's risk analysis — plus a mezzanine refuge in the High Flood Risk Area only
+- **All development**: surveyor's certificate of floor level, certificate of structural
+  adequacy, flood compatible materials below the FPL. In the Flood Fringe, work under $50,000
+  (other than restumping) is exempt from the structural adequacy certificate (§8.6.4)
+
+## LEP 2012 sits over the DCP
+
+**cl 5.21(2) is a bar on granting consent, not a standard to design to** — a proposal can meet
+every figure above and still fail it. cl 5.21(3)(a) makes projected climate change a mandatory
+consideration, which the DCP's levels (modelled 2001, mapped 2003 and 2007) predate. cl 5.22
+reaches land *between* the flood planning area and the PMF for sensitive and hazardous
+development, which includes childcare and educational facilities.
+
+⚠️ **The NSW ePlanning Flood Planning Map holds no features for the Lismore LGA**, so an
+automated lookup can never establish that a site is unaffected. Absence of a mapped constraint
+is not evidence the land does not flood.
 
 ## Important Note
 **Always consult Duty Planner regarding Clause 5.21 flood planning requirements before lodging DA.**

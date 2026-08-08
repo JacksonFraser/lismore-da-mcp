@@ -35,9 +35,16 @@
 lodgements. The `get_zone_info` / `check_permissibility` tools carry the current land use tables.
 
 ## Flood Planning
-- **FPL**: 1% AEP + 500mm freeboard
-- **Residential**: Habitable floors at/above FPL
-- **CBD Exemption**: Shop-top housing if above FPL + refuge above PMF
+- **FPL**: the site's 1 in 100 year ARI flood level (Council's Map 2) + **300mm** freeboard
+- **Five hazard areas** — Floodway, High Flood Risk, Flood Fringe, CBD Flood Liable (same
+  controls as Flood Fringe), Low Flood Risk — with different controls. Map 1 is a bitmap, so
+  the area comes from Council, not from an address or a zone
+- **Residential**: habitable floors at/above FPL
+- **Commercial**: 25% of GFA at/above FPL + engineer's risk analysis; mezzanine refuge too in
+  the High Flood Risk Area
+- **⚠️ A change of use is exempt** from the commercial and industrial controls in the High
+  Flood Risk and Flood Fringe areas (§8.3)
+- `get_flood_requirements` is the source of truth; this is indicative only
 
 ## Parking (Check DCP Chapter 7)
 - Single dwelling: 1-2 spaces

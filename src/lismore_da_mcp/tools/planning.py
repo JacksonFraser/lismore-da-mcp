@@ -9,8 +9,9 @@ from lismore_da_mcp.data.checklists import (
     DA_CHECKLISTS,
     UNIVERSAL_DOCUMENTS,
 )
+from lismore_da_mcp import flood
 from lismore_da_mcp.data.contacts import CONTACT_INFO
-from lismore_da_mcp.data.flood import FLOOD_PLANNING
+from lismore_da_mcp.data.flood import FLOOD_AREAS
 from lismore_da_mcp.data.referrals import CHARACTERISTIC_TRIGGERS
 from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS
 from lismore_da_mcp.data.standards import RESIDENTIAL_STANDARDS
@@ -22,31 +23,70 @@ from lismore_da_mcp.vocabulary import unresolved_error
 
 @tool(
     name='get_flood_requirements',
-    description='Get flood planning requirements for development in Lismore, including floor level requirements and exemptions.',
+    description=(
+        "Flood controls from DCP Chapter 8 and LEP 2012 cl 5.21. The controls differ by flood "
+        "hazard area — Floodway, High Flood Risk, Flood Fringe (which includes the CBD Flood "
+        "Liable area), Low Flood Risk, and rural land — so pass `flood_area` if you know it. "
+        "It cannot be worked out from an address or a zone. Pass `is_change_of_use` for a "
+        "business taking over existing premises: §8.3 lifts the commercial and industrial "
+        "controls entirely in that case."
+    ),
     properties={
-        'development_type': {'type': 'string', 'description': "Type of development: 'residential', 'commercial', or 'cbd'"},
+        'development_type': {
+            'type': 'string',
+            'description': (
+                "What is being built or done: 'residential', 'commercial' or 'industrial'. "
+                "Business uses (cafe, shop, office, gym) all resolve to commercial — Chapter 8 "
+                "has no finer categories."
+            ),
+        },
+        'flood_area': {
+            'type': 'string',
+            'description': (
+                "Optional, and never guessed if omitted: 'floodway', 'high_flood_risk', "
+                "'flood_fringe', 'cbd_flood_liable', 'low_flood_risk' or 'rural'. From Council's "
+                "Map 1, a s10.7 certificate, or the Duty Planner."
+            ),
+        },
+        'is_change_of_use': {
+            'type': 'boolean',
+            'description': (
+                "True if an existing building is changing use rather than new development being "
+                "built. Changes which controls apply — see DCP §8.3."
+            ),
+        },
     },
     required=['development_type'],
 )
 def get_flood_requirements(arguments: dict):
-    dev_type = arguments.get("development_type", "").lower()
+    dev_type = arguments.get("development_type", "")
+    area_arg = arguments.get("flood_area")
+    is_change_of_use = bool(arguments.get("is_change_of_use", False))
 
-    response = {
-        "flood_planning_level": FLOOD_PLANNING["flood_planning_level"],
-        "proposed_fpl": FLOOD_PLANNING["proposed_fpl"],
-        "advice": FLOOD_PLANNING["advice"]
-    }
+    resolved = flood.resolve_development_type(dev_type)
+    if not resolved:
+        return [TextContent(type="text", text=json.dumps(
+            unresolved_error(dev_type, resolved, "development type",
+                             flood.DEVELOPMENT_TYPES), indent=2))]
 
-    if "residential" in dev_type:
-        response["requirement"] = FLOOD_PLANNING["residential_requirement"]
-    elif "commercial" in dev_type or "industrial" in dev_type:
-        response["requirement"] = FLOOD_PLANNING["commercial_requirement"]
-    elif "cbd" in dev_type:
-        response["cbd_exemption"] = FLOOD_PLANNING["cbd_exemption"]
-    else:
-        response["residential_requirement"] = FLOOD_PLANNING["residential_requirement"]
-        response["commercial_requirement"] = FLOOD_PLANNING["commercial_requirement"]
-        response["cbd_exemption"] = FLOOD_PLANNING["cbd_exemption"]
+    area_key = None
+    if area_arg:
+        area = flood.resolve_flood_area(area_arg)
+        if not area:
+            error = unresolved_error(area_arg, area, "flood area", FLOOD_AREAS)
+            error["how_to_find_it"] = flood.AREA_NOT_INFERABLE["how_to_settle"]
+            return [TextContent(type="text", text=json.dumps(error, indent=2))]
+        area_key = area.key
+
+    response = flood.requirements(resolved.key, area_key, is_change_of_use)
+    if area_arg:
+        response["flood_area_asked_for"] = area_arg
+        if flood.is_cbd_flood_liable(area_arg):
+            response["cbd_flood_liable"] = (
+                "The CBD Flood Liable area is its own category on Map 1, and DCP §8.3 gives it "
+                "the same planning controls as the Flood Fringe Area. The controls below are "
+                "the ones that apply to it."
+            )
 
     return [TextContent(
         type="text",

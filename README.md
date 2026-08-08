@@ -72,7 +72,7 @@ claude
 | `list_signage_types` | List sign types grouped by the approval each needs (exempt / CDC / DA) |
 | `get_setback_requirements` | Front/side/rear setback requirements for residential development |
 | `get_residential_standards` | DCP Chapter 1 standards: site coverage, private open space, landscaping, car parking design |
-| `get_flood_requirements` | Flood planning level and floor level requirements, with exemptions |
+| `get_flood_requirements` | Flood controls from DCP Chapter 8, which differ by flood hazard area — pass `flood_area` if you know it, and `is_change_of_use` for a business taking over existing premises, which §8.3 exempts from the commercial controls |
 | `check_referrals` | External agency referrals (integrated development) a proposal may trigger |
 | `calculate_da_fees` | What a DA costs: lodgement fee, Council's notification and technology charges, and the Section 7.11 developer contribution — which on a commercial DA is usually far larger than the fee |
 | `get_da_checklist` | Required documents for a DA, by development type |

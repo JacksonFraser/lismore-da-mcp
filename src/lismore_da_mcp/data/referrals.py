@@ -70,9 +70,15 @@ REFERRAL_REQUIREMENTS = {
     },
     "council_flood_assessment": {
         "trigger": "Development on flood prone land — the defining constraint across much of this LGA",
-        "types": ["Any development below the Flood Planning Level", "Habitable floor space on flood prone land", "Development in the CBD flood exemption precinct"],
+        # "the CBD flood exemption precinct" was here until 2026-08-06, with an
+        # evacuation-plan-and-PMF-refuge document set attached to it. No such
+        # precinct appears in DCP Chapter 8, in LEP 2012, or anywhere else in
+        # documents/ — see the header of data/flood.py. What Map 1 actually has
+        # is a **CBD Flood Liable** category, which §8.3 gives the Flood Fringe
+        # Area's controls and no exemption of any kind.
+        "types": ["Any development below the Flood Planning Level", "Habitable floor space on flood prone land", "Development in the CBD Flood Liable area, which takes the Flood Fringe controls (DCP §8.3)"],
         "approval": "Council assessment against LEP 2012 clause 5.21 and DCP Chapter 8 (internal, not an external referral)",
-        "documents": ["Flood Risk Assessment", "Survey showing floor levels relative to the Flood Planning Level", "Site-specific evacuation plan and refuge above the Probable Maximum Flood (CBD precinct)"],
+        "documents": ["Flood Risk Assessment", "Survey showing floor levels relative to the Flood Planning Level", "Certificate of structural adequacy from a qualified structural/civil engineer (DCP §8.5.4/§8.6.4)", "Risk analysis report from a structural engineer, for commercial and industrial development"],
     },
     "mine_subsidence": {
         "trigger": "Development within Mine Subsidence District",
