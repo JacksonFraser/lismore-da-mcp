@@ -942,11 +942,54 @@ Small, non-urgent, and worth doing when next in the area rather than as a projec
 
 ## Open questions
 
-1. **Is anyone using the public server?** It has had structured logging since 5.1 and nobody has
-   read it. If real businesses are connecting, their questions are the best possible input to this
-   plan, and worth more than everything above. If they are not, then distribution — getting it in
-   front of businesses, perhaps via Council or the chamber of commerce — matters more than any
-   feature here.
+1. ~~**Is anyone using the public server?**~~ **ANSWERED 2026-08-08: no. Nobody outside this
+   project is using it.** The logs had gone unread since 5.1; they have now been read.
+
+   Seven days of traffic (2–8 August, all Render retains — the service has run since 27 July and
+   the earlier days are gone) contain **30 tool calls, every one of them ours**:
+
+   | source | calls | what it is |
+   |---|---:|---|
+   | Azure / GitHub Actions runners | 14 | the CI deploy check, one `get_zone_info` per deploy |
+   | one Australian ISP address | 9 | the repo owner |
+   | Anthropic's `160.79.106.x` range | 7 | a Claude session driving the server through the connector |
+
+   The AU address is the developer on behaviour, not assertion: every burst lands just after a tool
+   ships — `get_parking_rates` and `calculate_da_fees` hours after items 0.3/2.1 merged,
+   `prepare_prelodgement_brief` the day after Phase 3 merged it, `get_flood_requirements` the
+   morning the flood chapter merged. A business does not call `prepare_prelodgement_brief` the day
+   after it exists.
+
+   **The deployment itself is healthy**, which is worth recording separately because it was also
+   unverified: 21 restarts, the search index reported `present` on every single one (904 → 1,241
+   segments), **zero** `outcome=error` in seven days, and the rate limiter has never engaged. The
+   internal health checker accounts for ~1,957 of the ~2,100 requests the service has received.
+   Everything else is scanner noise — `robots.txt` probes and bare `GET /`.
+
+   Three caveats on the finding. The window is seven days, not the life of the service, so a user
+   in the first six days is invisible. IP attribution is inference — the merge-timing correlation
+   is strong but it is not proof. And the day-level log queries silently truncate at 1,000 lines,
+   which showed only 4 calls on the first pass; the numbers above come from text-filtered queries
+   that returned well under the cap. **Anyone re-running this should filter server-side rather
+   than paging by day** — the truncation is silent and undercounts by 7×.
+
+   **What follows from it.** The conditional in the original question has resolved onto the second
+   branch: *distribution now matters more than any feature here.* This repo has 30 tools, ten
+   audit scripts, 900+ tests and a data layer verified line by line against source documents, and
+   in a week it served no real business at all. Further Phase 0-style work — the four missing DCP
+   chapters, the quarterly `verify_against_council.py` schedule — improves a tool nobody is using.
+   Both are still worth doing and both are smaller than this. Question 2 below is now the live one,
+   and getting the server in front of even one real business would answer it.
+
+   One faint signal worth keeping: three of four `calculate_da_fees` calls in an 18-second span on
+   2 August returned `invalid_arguments` — someone fighting the schema of the most complex tool
+   here. It was during that tool's own development, so it is weak evidence, but it is the only
+   usability data this repo has ever had.
+
+   Note the privacy guard is still **untested in production**: `fill_see_pdf` and
+   `generate_see_draft`, the tools that take an applicant's name and address, were never called in
+   the window. No applicant data appeared in any log line, but that is not yet evidence the
+   shape-based enforcement in `observability.py` holds under real use.
 2. **Which businesses, and what actually went wrong for them?** "Issues with DAs and the council"
    covers refusals, delays, RFIs, cost surprises and confusion, and they need different fixes. Two
    or three real cases would sharpen this plan more than any amount of code reading.
