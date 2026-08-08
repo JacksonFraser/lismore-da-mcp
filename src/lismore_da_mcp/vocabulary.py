@@ -231,7 +231,10 @@ DEFINITION_SYNONYMS = {
     "milk bar": "neighbourhood_shop",
     "motel": "hotel_or_motel_accommodation",
     "hotel": "hotel_or_motel_accommodation",
-    "pub": "hotel_or_motel_accommodation",
+    # "pub" pointed here until 2026-08-08. A pub is a *food and drink premises*
+    # under the LEP Dictionary — hotel or motel accommodation is a different
+    # term in a different group, permissible in different zones. It is now a
+    # definition of its own, so this table no longer needs to guess at it.
     "working from home": "home_occupation",
     "home office": "home_occupation",
     "home based business": "home_business",
@@ -242,6 +245,27 @@ DEFINITION_SYNONYMS = {
     "factory": "general_industries",
     "warehouse": "warehouse_or_distribution_centre",
     "storage": "warehouse_or_distribution_centre",
+    # The terms added with the 0.7 re-transcription, in the words a business
+    # uses for them. A brewery or roastery with a tasting room is an artisan
+    # food and drink industry — a type of light industry, so it is permissible
+    # in industrial zones where a cafe is not.
+    "brewery": "artisan_food_and_drink_industry",
+    "distillery": "artisan_food_and_drink_industry",
+    "roastery": "artisan_food_and_drink_industry",
+    "cellar door": "artisan_food_and_drink_industry",
+    "office": "office_premises",
+    "doctors surgery": "medical_centre",
+    "medical practice": "medical_centre",
+    "dentist": "medical_centre",
+    "physio": "medical_centre",
+    "bulky goods": "specialised_retail_premises",
+    "bulky goods premises": "specialised_retail_premises",
+    "bottle shop": "shop",
+    "hairdresser": "business_premises",
+    "barber": "business_premises",
+    "beauty salon": "business_premises",
+    "nail salon": "business_premises",
+    "dry cleaner": "business_premises",
 }
 
 SEE_SECTION_SYNONYMS = {

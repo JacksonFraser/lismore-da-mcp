@@ -52,6 +52,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_contributions.py` | Checks the Section 7.11 rates two ways: every figure still appears in the plan PDF, **and** all 30 cells of Table E2 rebuild from Table E1's components. The derivation catches a transposed digit that a presence check cannot, and it found one real discrepancy in the published table (`KNOWN_TABLE_DISCREPANCIES`). Prefer this shape wherever a source table has recoverable internal arithmetic. |
 | `scripts/audit_standards.py` | Checks every DCP Chapter 1 quote in `data/standards.py` against the chapter, and reads the Acceptable Solution labels (A1.1, A26.3, …) off the document to report any the data does not carry. It also runs the check the others cannot: that the figures recorded in `NOT_SET_BY_THIS_CHAPTER` really are **absent**. A presence check only looks at what is stored, so it is structurally blind to invention — which is how this file came to assert a side setback, a site coverage maximum and a deep soil percentage that Chapter 1 does not contain. |
 | `scripts/audit_flood.py` | Checks all 40 flood controls in `data/flood.py` against DCP Chapter 8 and the LEP text. Two checks beyond presence: the derived constants must agree with the quotes they were read from (the freeboard was wrong by 200mm and nothing noticed), and every numbered control in §8.4–§8.8 is counted off the document, so a requirement nobody transcribed is reported rather than invisible. |
+| `scripts/audit_definitions.py` | Checks all 36 land use definitions in `data/definitions.py` against the LEP Dictionary, plus the clause 5.4 controls each carries. Beyond presence it checks each quote **opens with its own term** (verbatim LEP text lifted from the wrong entry passes a presence check), that `land_use_table_term` really is how `data/zones.py` spells the use, that `LAND_USE_HIERARCHY`'s first links agree with the LEP's own "X is a type of Y" notes — which caught `office premises` recorded as a type of business premises — and, like `audit_standards.py`, that the recorded inventions are still **absent**. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 
@@ -300,6 +301,27 @@ researched because each collided with a real number somewhere in the source. **D
 to either file that you have not read in the document, and prefer `NOT_SET_BY_THIS_CHAPTER` to a
 plausible guess** — a presence-checking audit cannot catch an invention, which is why
 `audit_standards.py` also asserts the absences.
+
+**`data/definitions.py` quotes the LEP Dictionary, and the same failure had reached it.** Which
+defined term a proposal falls under is the whole assessment — it decides permissibility off the
+land use table, the Chapter 7 parking rate, and whether a change of use owes a contribution at all
+(shop → café is nil, office → café is $12,310). Until 2026-08-08 the file held paraphrases written
+from memory, and said so in its own docstring. `warehouse or distribution centre` read "whether or
+not goods are sold by retail" where the LEP says **"but from which no retail sales are made"**;
+`business premises` invented a "2+ days per week" test that appears nowhere in the LEP and dropped
+the exclusion of a medical centre; `boarding house` omitted the affordable-housing and registered-
+provider paragraphs that are the whole modern definition; `centre-based child care facility`
+excluded out-of-school-hours care, which paragraph (a)(iii) includes.
+
+Three rules hold it together. **Definitions are quoted, never summarised** — anything that is not
+the LEP's words lives in `why_this_matters`, which the tool labels as guidance. **A number in a
+definition is almost always in the wrong place**: the Dictionary defines terms and the figures live
+in clause 5.4, so every invented figure was a real control filed under the wrong provision — a
+neighbourhood shop is **200m²** (cl 5.4(7)), not the 80m² the file asserted, and `FIGURES_NOT_IN_
+THE_DEFINITION` records the four with the clause that really sets each. And **the Dictionary term
+is not always the land use table term** — the table says "Light industries" and "Attached
+dwellings" where the Dictionary defines the singular, so `land_use_table_term` carries the plural
+and the audit checks it against `data/zones.py`.
 
 ---
 
