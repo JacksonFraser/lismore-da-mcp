@@ -76,9 +76,12 @@ its site — are the three that fail.
 Nothing else on this plan matters if the numbers are wrong. Every item here is answerable from a
 document in `documents/`, which is what makes it doable.
 
-0.1, 0.2 and 0.3 are done. The zone tables came back **clean**; the parking rates did not, and
+0.1 to 0.5 are done. The zone tables came back **clean**; the parking rates did not, and
 0.3 is the one to read — most of the 22 entries were wrong, in both directions, on the numbers a
-CBD assessment argues about.
+CBD assessment argues about. **0.5 is the one to read next**, because it found the same failure in
+a file this phase had never looked at: the flood freeboard was wrong by 200mm and three of its
+fields cited provisions that exist in no document here. One unaudited data file remains, `standards.py`
+— item 0.6.
 
 ### 0.1 Refresh the fee schedule — ✅ **DONE 2026-08-01**
 
@@ -271,6 +274,82 @@ falls two years behind regardless of whether the watcher ever runs. Prefer that 
 that fails loudly in CI beats a job that has to be alive to be useful.
 
 </details>
+
+### 0.5 Re-transcribe the flood controls — ✅ **DONE 2026-08-08**
+
+**Phase 0 was declared done without ever reaching `data/flood.py` or `data/standards.py`.** Every
+other data module got an audit — zones, parking, contributions, signage, approvals, timing,
+readiness. These two are the oldest files in `data/`, they had no audit, and checking the first of
+them against DCP Chapter 8 found it was not a transcription at all.
+
+**The freeboard was wrong.** The file said the Flood Planning Level was "1% AEP + **500mm**
+freeboard". §8.2 says the freeboard is **300mm**, and says it three times. A 200mm error is the
+difference between a compliant slab and a non-compliant one, in the LGA that went 14m under in
+2022, and `get_flood_requirements` returned it as the headline field.
+
+Three more fields were unsourced rather than merely wrong. `"1% AEP"`, `"2090"`, `"13.4"` and
+`"Exemption Precinct"` appear **zero times** in the chapter, zero times in LEP 2012, and nowhere
+else in `documents/` — the chapter says "1 in 100 year ARI" throughout. A "CBD Development
+Exemption Precinct" allowing shop-top housing above the PMF was being reported to applicants as a
+Council provision. It is gone, along with its copy in `data/referrals.py`, which was attaching an
+evacuation plan and a PMF refuge to a precinct that does not exist. `TestTheInventedProvisionsAreGone`
+keeps all four out.
+
+**Reading the chapter properly changed the shape of the tool, not just its numbers.**
+
+- **The controls are per flood hazard area, and there are five** — Floodway (§8.4), High Flood Risk
+  (§8.5), Flood Fringe (§8.6), Low Flood Risk (§8.7), plus CBD Flood Liable, which §8.3 gives the
+  Flood Fringe's controls; rural land (§8.8) is separate again. They differ sharply: a commercial
+  building in the High Flood Risk Area needs a **mezzanine refuge above the 1-in-500 year level**
+  and one in the Flood Fringe does not, and Low Flood Risk has no controls at all. Answering
+  "commercial" with one requirement was wrong four times out of five. The old data also gave the
+  commercial answer as 25% of GFA alone, omitting the engineer's risk analysis and the mezzanine —
+  both of which cost money and change a design.
+- **§8.3 exempts a change of use from the commercial and industrial controls** in both the High
+  Flood Risk and Flood Fringe areas. This is the most valuable sentence in the chapter for this
+  repo's audience, and it inverts the answer: **a café taking over a CBD shop does not have to put
+  25% of its floor area above the Flood Planning Level.** The old tool would have told it that it
+  did. `is_change_of_use` selects it, and the exemption is stated *instead of* the requirements
+  rather than beside them — with what it does **not** lift said plainly, since cl 5.21 and the
+  building-work controls survive it.
+- **The area is never inferred.** Map 1 is a bitmap on the chapter's last page. Same wall as the
+  CBD parking boundary in item 2.2 and the contributions catchment in 2.1, same treatment:
+  `flood_area` is an argument, and without it every area's controls come back with "none of these
+  is your requirement yet". The zone is explicitly not a proxy — the areas are drawn on depth and
+  velocity, and the CBD Flood Liable area is not the shape of the E2 zone.
+- **The LEP is never omitted.** cl 5.21(2) is a *bar on granting consent*, not a standard to design
+  to, so a proposal can meet every DCP figure and still fail it — and cl 5.21(3)(a) makes projected
+  climate change mandatory to consider, which the DCP's levels (modelled 2001, mapped 2003 and
+  2007) predate. cl 5.22 additionally reaches land between the flood planning area and the PMF for
+  childcare, educational and tourist uses.
+
+Two smaller finds worth their space: §8.6.4(2) exempts work **under $50,000** from the certificate
+of structural adequacy and §8.5.4(2) does not, which is real money to a fitout; and §8.5.3 measures
+its 25% against the 1-in-100 ARI level where §8.6.3 uses the Flood Planning Level. Both look like
+drafting slips and both are carried as written rather than tidied.
+
+`scripts/audit_flood.py` checks all 40 stored controls against the chapter and the LEP text. It
+does two things a presence check alone cannot: it verifies the **derived constants agree with the
+quotes they were read from**, so `FREEBOARD_MM` cannot drift from its own source sentence the way
+the old figure had; and it **counts the numbered controls off the document** and reports any the
+data does not carry, because three commercial requirements out of four reads as complete and is
+not. Scoping that scan to §8.4 onward mattered — counting §8.1's objectives reported three
+permanent false gaps, and an audit that always reports the same false gaps is one nobody reads
+twice, which is item 0.1's lesson again.
+
+CLAUDE.md and `QUICK_REFERENCE.md` both carried the 500mm figure and the invented precinct. Both
+are corrected, and CLAUDE.md says what it used to say — it is loaded as context in every session
+and would otherwise have the agent contradict its own tool, exactly as in item 2.5. The server
+instructions gained a flood line and were held at the 4,200-character budget by compressing, which
+is what the guard is for.
+
+**Still open: `data/standards.py`, the other unaudited file.** It fails the same inspection — its
+"0.9m side setback" is Chapter 1's *fence articulation recess*, its "4.5m front setback" is an
+apartment separation figure, its "15% deep soil" is the chapter's *land steeper than 15%*, and its
+80m² private open space carries a 5m minimum dimension where the table says 2.5m and applies only
+to lots under 400m². Lower value than flood under the business reframing, since it is residential —
+but `get_setback_requirements` states those figures with no hedge, and A1.4's **15m street setback
+in RU1, R5 and E3** is a business-zone control sitting unread. That is item 0.6.
 
 # Phase 1 — Make the business path work end to end — ✅ **DONE 2026-08-02**
 

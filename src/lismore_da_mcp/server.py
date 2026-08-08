@@ -43,7 +43,7 @@ from lismore_da_mcp.data.definitions import (  # noqa: F401
     LAND_USE_HIERARCHY,
 )
 from lismore_da_mcp.data.fees import DA_FEE_BRACKETS, DA_FEE_SCHEDULE_YEAR  # noqa: F401
-from lismore_da_mcp.data.flood import FLOOD_PLANNING  # noqa: F401
+from lismore_da_mcp.data.flood import FLOOD_AREAS  # noqa: F401
 from lismore_da_mcp.data.instruments import (  # noqa: F401
     SUPERSEDED_NOTE,
     instrument_for,
