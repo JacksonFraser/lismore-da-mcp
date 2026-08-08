@@ -70,8 +70,8 @@ claude
 | `list_parking_types` | List development types with parking rate data available |
 | `get_signage_requirements` | Whether a sign needs an application at all, whether it is prohibited on the site, and the DCP Chapter 9 standard. Most shopfront signage is Exempt Development |
 | `list_signage_types` | List sign types grouped by the approval each needs (exempt / CDC / DA) |
-| `get_setback_requirements` | Front/side/rear setback requirements for residential development |
-| `get_residential_standards` | DCP Chapter 1 standards: site coverage, private open space, landscaping, car parking design |
+| `get_setback_requirements` | Front setback for residential development, which DCP Chapter 1 sets by zone — 6m in R1/R2/R3/RU5, 15m in RU1/R5/E3, 28m on an RMS road. The chapter sets no side or rear setback for an ordinary lot, and the tool says so rather than inventing one |
+| `get_residential_standards` | DCP Chapter 1 by element — open space and landscaping, density, privacy, earthworks, parking, fences, solar access — plus small lot housing, secondary dwellings, shop top housing and the Lismore Health Precinct |
 | `get_flood_requirements` | Flood controls from DCP Chapter 8, which differ by flood hazard area — pass `flood_area` if you know it, and `is_change_of_use` for a business taking over existing premises, which §8.3 exempts from the commercial controls |
 | `check_referrals` | External agency referrals (integrated development) a proposal may trigger |
 | `calculate_da_fees` | What a DA costs: lodgement fee, Council's notification and technology charges, and the Section 7.11 developer contribution — which on a commercial DA is usually far larger than the fee |

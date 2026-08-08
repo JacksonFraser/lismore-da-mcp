@@ -80,8 +80,9 @@ document in `documents/`, which is what makes it doable.
 0.3 is the one to read — most of the 22 entries were wrong, in both directions, on the numbers a
 CBD assessment argues about. **0.5 is the one to read next**, because it found the same failure in
 a file this phase had never looked at: the flood freeboard was wrong by 200mm and three of its
-fields cited provisions that exist in no document here. One unaudited data file remains, `standards.py`
-— item 0.6.
+fields cited provisions that exist in no document here. Both remaining unaudited files are now
+done: **0.6** found `standards.py` worse than `flood.py` — seventeen of nineteen figures invented,
+with eleven tests pinning them in place.
 
 ### 0.1 Refresh the fee schedule — ✅ **DONE 2026-08-01**
 
@@ -343,13 +344,66 @@ and would otherwise have the agent contradict its own tool, exactly as in item 2
 instructions gained a flood line and were held at the 4,200-character budget by compressing, which
 is what the guard is for.
 
-**Still open: `data/standards.py`, the other unaudited file.** It fails the same inspection — its
-"0.9m side setback" is Chapter 1's *fence articulation recess*, its "4.5m front setback" is an
-apartment separation figure, its "15% deep soil" is the chapter's *land steeper than 15%*, and its
-80m² private open space carries a 5m minimum dimension where the table says 2.5m and applies only
-to lots under 400m². Lower value than flood under the business reframing, since it is residential —
-but `get_setback_requirements` states those figures with no hedge, and A1.4's **15m street setback
-in RU1, R5 and E3** is a business-zone control sitting unread. That is item 0.6.
+### 0.6 Re-transcribe the residential standards — ✅ **DONE 2026-08-08**
+
+The other unaudited file, and the worse of the two. **Of about nineteen figures in
+`data/standards.py`, two were recognisably from Chapter 1 and even those had lost the conditions
+that give them meaning.** The rest were invented — and each one collided with a real number
+elsewhere in the chapter, which is exactly why they read as researched:
+
+| the old file said | Chapter 1 actually says |
+|---|---|
+| side setback 0.9m single storey | 0.9m is **small lot housing's** side setback (A26.3), lots under 400m² only — and separately a 0.9m × 0.9m *recess in a front fence* (A17.3) |
+| front setback 4.5m to an articulated facade | 4.5m is the Health Precinct's **five-storey non-habitable-room separation** (A39). The front setback is 6m (A1.1), flat |
+| deep soil 15% of site | 15% is **land steeper than 15%**, excluded from an open space calculation |
+| site coverage max 50% | there is **no site coverage control**. A7.1 requires landscaping and open space over **40%** of the site — the same thing measured from the other end |
+| private open space 80m², min dimension 5m | 80m² at **2.5m**, plus 25m² functional at 4m, and only on lots **under** 400m². Over 400m², no specific requirement |
+| height 8.5m or 2 storeys, whichever is less | A4.1 sets none; it defers to the LEP map |
+| battle-axe setbacks, 45° building envelopes, garage widths, driveway widths | **none of these appear anywhere in the chapter** |
+
+**Eleven tests were pinning the invention.** `TestSetbackRequirements` asserted "Minimum 3m for
+single storey" and a battle-axe "5m from access handle boundary" — CLAUDE.md's own warning about
+this data, that the tests pin that it has not *changed* rather than that it is *right*, turned out
+to be exactly true. They are rewritten against the chapter.
+
+**Two things reading the chapter changed beyond the numbers.**
+
+- **The front setback is set by the zone**, and the old tool never asked for one. It asked for
+  `storeys` and `lot_configuration`, so it could not reach the right figure by any route. It is 6m
+  in R1/R2/R3/RU5 and **15m in RU1, R5 and E3** — nine metres apart, so a default would be a guess
+  with consequences, and without a zone the tool now returns the table and picks nothing. A1.4
+  reaching **E3 Productivity Support** matters for this repo's audience: it is the only numeric
+  setback in a residential chapter that binds a business zone, and nothing here carried it.
+- **Chapter 1 is Performance Criteria with Acceptable Solutions**, which the old file's flat
+  dictionary of limits misrepresented entirely. §1.3 says meeting the Acceptable Solution is *one*
+  way to satisfy the criterion and Council "may be prepared to approve development proposals that
+  demonstrate consistency with Design Principles and Performance Criteria". A figure is a
+  deemed-to-comply safe harbour, not a limit — so reporting one as mandatory talks an applicant out
+  of an argument the chapter invites. Every answer now carries the criterion beside the number.
+
+**Where the chapter sets nothing, the tool says so.** There is no side setback, no rear setback and
+no site coverage maximum for an ordinary lot; the deep soil figures are in a table reproduced as an
+image. `NOT_SET_BY_THIS_CHAPTER` answers each with what governs instead — usually A4.2's
+performance criterion, sometimes another instrument — because "the DCP sets none" is a real answer
+to a question applicants ask constantly, and filling it with a plausible number is precisely how
+this file went wrong.
+
+`scripts/audit_standards.py` checks all 167 quotes and runs the check none of the other audits
+needed: **that the recorded absences really are absent.** A presence check only ever looks at what
+is stored, so it is structurally blind to invention — the failure mode of this file specifically.
+It also reads the Acceptable Solution labels off the document rather than a hardcoded list, which
+immediately found fifty the first pass had not carried, including the whole of §4.10 On-Site
+Sewage. All are carried now.
+
+Three extraction problems worth recording, because the next DCP chapter will have them too:
+bullets are **U+F0B7**, a private-use Symbol-font character that `str.split()` does not touch, so
+every quoted list failed to match; words hyphenate across line breaks ("all-\nweather"); and figure
+captions are floating text boxes that land mid-sentence — "Figure 21: Fencing" sits inside A21.2.
+All three are handled in `normalise`/`chapter_text` rather than by trimming the quotes.
+
+CLAUDE.md's Part 2 residential section was fabricated in the same way — a 14m maximum external wall
+length, 3 dwellings under one roof, 4m between dwelling groups, 50–60% site coverage, none of which
+appear in the chapter — and is replaced with the real controls.
 
 # Phase 1 — Make the business path work end to end — ✅ **DONE 2026-08-02**
 

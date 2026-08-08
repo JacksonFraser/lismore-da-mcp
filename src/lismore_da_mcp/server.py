@@ -52,7 +52,7 @@ from lismore_da_mcp.data.instruments import (  # noqa: F401
 from lismore_da_mcp.data.parking import PARKING_RATES  # noqa: F401
 from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS  # noqa: F401
 from lismore_da_mcp.data.see_templates import SEE_TEMPLATES  # noqa: F401
-from lismore_da_mcp.data.standards import RESIDENTIAL_STANDARDS  # noqa: F401
+
 from lismore_da_mcp.data.zones import ZONES  # noqa: F401
 from lismore_da_mcp.fees import calculate_da_fee  # noqa: F401
 from lismore_da_mcp.landuse import (  # noqa: F401

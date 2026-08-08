@@ -14,7 +14,7 @@ from lismore_da_mcp.data.contacts import CONTACT_INFO
 from lismore_da_mcp.data.flood import FLOOD_AREAS
 from lismore_da_mcp.data.referrals import CHARACTERISTIC_TRIGGERS
 from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS
-from lismore_da_mcp.data.standards import RESIDENTIAL_STANDARDS
+from lismore_da_mcp import standards
 from lismore_da_mcp.registry import tool
 from lismore_da_mcp.vocabulary import CHECKLIST_SYNONYMS
 from lismore_da_mcp.vocabulary import resolve
@@ -98,122 +98,37 @@ def get_flood_requirements(arguments: dict):
     name='get_setback_requirements',
     description=(
         "Setback requirements for residential development from Lismore DCP Chapter 1. "
-        "Front setbacks depend on lot configuration and side/rear setbacks on the number of "
-        "storeys, so supply those to get the applicable figure rather than every variant."
+        "The front setback is set by zone — 6m in R1/R2/R3/RU5, 15m in RU1/R5/E3, 28m on an "
+        "RMS road — so supply the zone. Chapter 1 sets no side or rear setback for an ordinary "
+        "lot; those are answered by performance criteria, and this tool says so rather than "
+        "inventing a figure."
     ),
     properties={
         'setback_type': {'type': 'string', 'description': "Type of setback: 'front', 'side', 'rear', or 'all'"},
-        'storeys': {'type': 'integer', 'description': "Optional: number of storeys proposed. Determines the side and rear setback."},
-        'lot_configuration': {'type': 'string', 'description': "Optional: 'standard', 'corner', or 'battle_axe'. Determines the front setback."},
-        'development_type': {'type': 'string', 'description': "Deprecated: use storeys and lot_configuration. Accepted as 'single_storey', 'two_storey', 'corner_lot' or 'battle_axe'."},
+        'zone': {'type': 'string', 'description': "The LEP zone code, which determines the front setback: R1, R2, R3, RU5, RU1, R5 or E3. lookup_zone_by_address derives it from an address."},
+        'lot_configuration': {'type': 'string', 'description': "Optional: 'standard' or 'corner'. A corner allotment has a 3m secondary road setback."},
+        'fronts_rms_road': {'type': 'boolean', 'description': "Optional, and only relevant in RU1, R5 and E3: whether the site fronts an RMS road, which raises the setback from 15m to 28m."},
+        'storeys': {'type': 'integer', 'description': "Accepted but not used: Chapter 1 sets no setback by storey. Supply zone instead."},
+        'development_type': {'type': 'string', 'description': "Accepted but not used: superseded by zone and lot_configuration."},
     },
     required=['setback_type'],
 )
 def get_setback_requirements(arguments: dict):
-    setback_type = arguments.get("setback_type", "all").lower()
-    setbacks = RESIDENTIAL_STANDARDS["setbacks"]
-
-    # DCP Chapter 1 applies by development type, not by zone: it covers "building,
-    # altering or using land for the construction of residential development,
-    # including ancillary structures such as sheds, pools and garages" — wherever
-    # that occurs. So there is no zone to filter on, but the scope does need
-    # stating, because a caller asking about a shopfront setback would otherwise
-    # get residential numbers with nothing to say they do not apply.
-    scope = (
-        "DCP Chapter 1 controls residential development, including ancillary structures "
-        "(sheds, pools, garages), in any zone where such development is permitted. "
-        "Commercial setbacks are in Chapter 2 and industrial in Chapter 3."
+    result = standards.setbacks(
+        arguments.get("setback_type", "all"),
+        arguments.get("zone"),
+        arguments.get("lot_configuration"),
+        arguments.get("fronts_rms_road"),
     )
 
-    storeys = arguments.get("storeys")
-    lot_configuration = (arguments.get("lot_configuration") or "").lower().strip()
-
-    # The old single `development_type` conflated two independent things — how
-    # many storeys, and what shape the lot is — so a two-storey corner lot could
-    # not be expressed at all. Still accepted, mapped onto whichever it meant.
-    legacy = (arguments.get("development_type") or "").lower().strip()
-    if legacy in ("single_storey", "single storey") and storeys is None:
-        storeys = 1
-    elif legacy in ("two_storey", "two storey") and storeys is None:
-        storeys = 2
-    elif legacy in ("corner_lot", "corner") and not lot_configuration:
-        lot_configuration = "corner"
-    elif legacy in ("battle_axe", "battleaxe") and not lot_configuration:
-        lot_configuration = "battle_axe"
-
-    def applicable(kind: str) -> tuple[str | None, str | None, str | None]:
-        """(the applicable requirement, why it applies, what input would narrow it)."""
-        options = setbacks[kind]
-        if kind == "front":
-            if lot_configuration == "corner":
-                return options.get("corner_lots"), "corner lot", None
-            if lot_configuration == "battle_axe":
-                return options.get("battle_axe"), "battle-axe lot", None
-            if lot_configuration == "standard":
-                return options.get("general"), "standard lot", None
-            return None, None, "lot_configuration ('standard', 'corner' or 'battle_axe')"
-        if kind == "side":
-            if storeys is None:
-                return None, None, "storeys"
-            if storeys <= 1:
-                return options.get("single_storey"), "single storey", None
-            return options.get("two_storey"), f"{storeys} storeys", None
-        if kind == "rear":
-            if storeys is None:
-                return None, None, "storeys"
-            # "Minimum 3m for single storey, 6m for two storey" — return only the
-            # half that applies, so a two-storey answer does not lead with the
-            # single-storey figure.
-            general = options.get("general", "")
-            halves = [h.strip() for h in general.split(",")]
-            if len(halves) == 2:
-                part = halves[0] if storeys <= 1 else halves[1]
-            else:
-                part = general
-            return part, ("single storey" if storeys <= 1 else f"{storeys} storeys"), None
-        return None, None, None
-
-    if setback_type == "all":
-        kinds = ["front", "side", "rear"]
-    elif setback_type in setbacks:
-        kinds = [setback_type]
-    else:
-        return [TextContent(type="text", text=json.dumps({
-            "error": f"Setback type '{setback_type}' not found",
-            "available_types": ["front", "side", "rear", "all"],
-        }, indent=2))]
-
-    answer: dict = {}
-    unresolved: list[str] = []
-    for kind in kinds:
-        requirement, because, needs = applicable(kind)
-        entry = {"all_cases": setbacks[kind]}
-        if requirement:
-            entry["applicable"] = requirement
-            entry["because"] = because
-        elif needs:
-            # Say what is missing rather than picking a default and presenting it
-            # as the answer — which is what returning "general" unconditionally did.
-            entry["applicable"] = None
-            entry["to_narrow_this"] = f"Supply {needs}."
-            unresolved.append(kind)
-        answer[kind] = entry
-
-    result = {
-        "setback_type": setback_type,
-        "setbacks": answer if len(kinds) > 1 else answer[kinds[0]],
-        "applies_to": scope,
-        "source": "Lismore DCP Chapter 1 - Residential Development",
-        "note": (
-            "Figures are the DCP's standard controls. An established building line, a "
-            "building envelope control or a site-specific constraint can displace them, so "
-            "confirm against Chapter 1 and the site before relying on a number."
-        ),
-    }
-    if unresolved:
-        result["not_determined"] = (
-            "No single figure given for: " + ", ".join(unresolved)
-            + ". Every case is listed under all_cases."
+    # The old schema asked for storeys and lot configuration and never for the
+    # zone, so a caller carrying those arguments forward is asking a question
+    # this chapter does not answer that way. Say it, rather than ignoring them.
+    if arguments.get("storeys") is not None or arguments.get("development_type"):
+        result["about_the_arguments_you_passed"] = (
+            "storeys and development_type do not determine any setback in Chapter 1 — an earlier "
+            "version of this tool said they did, using figures that are not in the chapter. The "
+            "front setback comes from the zone; side and rear are performance-based."
         )
 
     return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -221,38 +136,45 @@ def get_setback_requirements(arguments: dict):
 
 @tool(
     name='get_residential_standards',
-    description='Get residential development standards from DCP Chapter 1, including site coverage, private open space, landscaping, and car parking design requirements.',
+    description=(
+        "Residential development standards from DCP Chapter 1 — open space and landscaping, "
+        "density, privacy, earthworks, car parking, fences, service areas, solar access — plus "
+        "the housing types with their own provisions (small lot housing, secondary dwellings, "
+        "shop top housing, expanded dwellings) and the Lismore Health Precinct. Chapter 1 is "
+        "written as Performance Criteria with Acceptable Solutions, so a figure is a "
+        "deemed-to-comply safe harbour, not a limit."
+    ),
     properties={
-        'standard_type': {'type': 'string', 'description': "Type of standard: 'site_coverage', 'private_open_space', 'landscaping', 'car_parking_design', 'building_height', or 'all'. Defaults to 'all'."},
+        'standard_type': {
+            'type': 'string',
+            'description': (
+                "What to return: an element ('open_space_and_landscaping', 'density', "
+                "'building_height', 'visual_privacy', 'acoustic_privacy', 'earthworks', "
+                "'car_parking', 'fences', 'service_areas_and_waste', 'orientation_and_shade', "
+                "'on_site_sewage', 'setbacks'), a housing type ('small_lot_housing', "
+                "'secondary_dwelling', 'shop_top_housing', 'expanded_dwelling', "
+                "'adaptable_housing', 'rural_dual_occupancy'), 'health_precinct', or 'all'. "
+                "Plain words resolve — 'site coverage', 'privacy', 'granny flat', 'driveway'."
+            ),
+        },
     },
 )
 def get_residential_standards(arguments: dict):
-    standard_type = arguments.get("standard_type", "all").lower()
+    wanted = arguments.get("standard_type") or "all"
 
-    if standard_type == "all":
-        result = {
-            "residential_standards": RESIDENTIAL_STANDARDS,
-            "source": "Lismore DCP Chapter 1 - Residential Development",
-            "note": "These are summary guidelines. Always check the full DCP chapter for detailed provisions."
-        }
-    elif standard_type in RESIDENTIAL_STANDARDS:
-        result = {
-            "standard_type": standard_type,
-            "requirements": RESIDENTIAL_STANDARDS[standard_type],
-            "source": "Lismore DCP Chapter 1 - Residential Development"
-        }
-    elif standard_type == "setbacks":
-        result = {
-            "standard_type": "setbacks",
-            "requirements": RESIDENTIAL_STANDARDS["setbacks"],
-            "source": "Lismore DCP Chapter 1 - Residential Development"
-        }
-    else:
-        result = {
-            "error": f"Standard type '{standard_type}' not found",
-            "available_types": list(RESIDENTIAL_STANDARDS.keys())
-        }
+    if str(wanted).strip().lower() == "all":
+        result = standards.everything()
+        result["source"] = "Lismore DCP Chapter 1 - Residential Development"
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
+    resolved = standards.resolve_topic(wanted)
+    if not resolved:
+        error = unresolved_error(wanted, resolved, "standard type", standards.STANDARD_TOPICS)
+        error["also_accepted"] = "all"
+        return [TextContent(type="text", text=json.dumps(error, indent=2))]
+
+    result = standards.topic(resolved.key)
+    result["source"] = "Lismore DCP Chapter 1 - Residential Development"
     return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
 

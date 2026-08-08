@@ -50,6 +50,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_readiness.py` | Checks the lodgement and rejection provisions in `data/readiness.py` against the fetched EP&A Regulation text, reusing `audit_timing.py`'s comparison. It also checks every paragraph of s39(1) is carried, reading the letters off the source rather than a hardcoded list — a list of five rejection grounds out of six reads as complete and is not. Like `audit_timing.py` it guards against **the law changing**. |
 | `scripts/audit_signage.py` | Checks every DCP Chapter 9 definition, standard and general provision in `data/signage.py` still appears verbatim in the chapter, and reports any sign type §9.3 defines that the data does not carry. That last check found `business identification sign` and `building identification sign` missing — the two the §9.2 heritage exception turns on. |
 | `scripts/audit_contributions.py` | Checks the Section 7.11 rates two ways: every figure still appears in the plan PDF, **and** all 30 cells of Table E2 rebuild from Table E1's components. The derivation catches a transposed digit that a presence check cannot, and it found one real discrepancy in the published table (`KNOWN_TABLE_DISCREPANCIES`). Prefer this shape wherever a source table has recoverable internal arithmetic. |
+| `scripts/audit_standards.py` | Checks every DCP Chapter 1 quote in `data/standards.py` against the chapter, and reads the Acceptable Solution labels (A1.1, A26.3, …) off the document to report any the data does not carry. It also runs the check the others cannot: that the figures recorded in `NOT_SET_BY_THIS_CHAPTER` really are **absent**. A presence check only looks at what is stored, so it is structurally blind to invention — which is how this file came to assert a side setback, a site coverage maximum and a deep soil percentage that Chapter 1 does not contain. |
 | `scripts/audit_flood.py` | Checks all 40 flood controls in `data/flood.py` against DCP Chapter 8 and the LEP text. Two checks beyond presence: the derived constants must agree with the quotes they were read from (the freeboard was wrong by 200mm and nothing noticed), and every numbered control in §8.4–§8.8 is counted off the document, so a requirement nobody transcribed is reported rather than invisible. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
@@ -77,7 +78,7 @@ imports keep working. It is not where the code lives. Find things by module:
 | Layer | Where | What |
 |---|---|---|
 | Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
 | Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
@@ -281,11 +282,24 @@ fitout is this repo's most likely flood-shaped mistake. And **the DCP never goes
 cl 5.21(2) is a bar on granting consent rather than a standard to design to, and cl 5.21(3)(a)
 requires climate change to be considered, which the DCP's 2001 modelling predates.
 
-The freeboard in the old file was 500mm against the chapter's 300mm, and three of its fields cited
-a "CBD Development Exemption Precinct" and a "2090 climate change level" that exist in no document
-here. Both `data/standards.py` and `data/flood.py` had gone unaudited while every other data module
-got a script; `standards.py` still is, and fails the same inspection (PLAN.md item 0.6). **Do not
-add a figure to either file that you have not read in a document under `documents/`.**
+**`standards.py` answers from DCP Chapter 1, and its hardest job is saying what the chapter does
+not contain.** Chapter 1 is Performance Criteria with Acceptable Solutions, so §1.3 makes every
+figure a deemed-to-comply safe harbour rather than a limit — reporting "you must have 6m" talks an
+applicant out of an argument the chapter expressly invites, so `HOW_TO_READ_A_FIGURE` rides along
+with every answer. The front setback comes from the **zone** (6m in R1/R2/R3/RU5, 15m in RU1/R5/E3,
+28m on an RMS road), which the old tool never asked for; it asked for storeys, which decide nothing
+here. And **Chapter 1 sets no side setback, no rear setback and no site coverage maximum for an
+ordinary lot** — `NOT_SET_BY_THIS_CHAPTER` answers each with what governs instead, because the old
+file filled all three with figures that are not in the document.
+
+Both files' figures were invented rather than transcribed: 500mm of freeboard against the
+chapter's 300mm, a "CBD Development Exemption Precinct" and a "2090 climate change level" in no
+document here, a side setback that is small lot housing's, a front setback that is a five-storey
+building separation, a "15% deep soil" that is the chapter's *land steeper than 15%*. Each looked
+researched because each collided with a real number somewhere in the source. **Do not add a figure
+to either file that you have not read in the document, and prefer `NOT_SET_BY_THIS_CHAPTER` to a
+plausible guess** — a presence-checking audit cannot catch an invention, which is why
+`audit_standards.py` also asserts the absences.
 
 ---
 
@@ -507,26 +521,70 @@ Where development doesn't comply with a development standard (height, lot size, 
 
 # RESIDENTIAL DEVELOPMENT STANDARDS (DCP Chapter 1)
 
-## Building Design
-- Maximum external wall length: 14 metres (unless broken by architectural features)
-- Medium density: Maximum 3 dwellings under single roof
-- Dwelling groups: Minimum 4 metre separation between groups of 3
+⚠️ This section claimed a 14m maximum external wall length, a maximum of 3 dwellings under one
+roof, a 4m separation between dwelling groups and 50–60% site coverage until 2026-08-08. **None
+of those phrases appear anywhere in Chapter 1.** They are gone, along with the matching
+inventions in `data/standards.py` (item 0.6). Prefer `get_residential_standards` and
+`get_setback_requirements`, which quote the chapter.
 
-## Setbacks
-Setbacks depend on zone, lot size, and adjoining development. General principles:
-- Front setback: Generally consistent with established building line
-- Side setbacks: Depend on building height and wall length
-- Rear setbacks: Provide adequate private open space
+## How the chapter works — read this before quoting any figure
 
-## Private Open Space
-- Required for all dwellings
-- Minimum dimensions apply
-- Must be functional and accessible from living areas
+Chapter 1 is written as **Performance Criteria with Acceptable Solutions**. §1.3: meeting the
+Acceptable Solution is one way to satisfy the criterion, and "alternatively, Council may be
+prepared to approve development proposals that demonstrate consistency with Design Principles
+and Performance Criteria". **So a figure here is a deemed-to-comply safe harbour, not a limit.**
+Telling an applicant "you must have 6m" forecloses an argument the chapter expressly invites.
 
-## Site Coverage
-- Maximum site coverage varies by zone
-- Generally 50-60% for residential zones
-- Check specific DCP provisions
+## Setbacks (§4.1) — the front setback is set by the zone
+
+| Zone | Front setback |
+|---|---|
+| R1, R2, R3, RU5 | **6m** (A1.1); corner allotment 6m primary, **3m** secondary (A1.2) |
+| RU1, R5, **E3** | **15m** (A1.4) |
+| RU1, R5, E3 fronting an RMS road | **28m** (A1.5) |
+
+The RMS roads are named in the chapter: Bruxner Highway, Bangalow Road, Nimbin Road, Blue Knob
+Road, Dunoon Road, Rous Road, Coraki Road, Eltham Road. A1.1 measures to buildings and excludes
+earthworks, retaining walls and fencing. Rear lane frontage: a garage perpendicular to the lane
+is set back 5.5m (A1.3).
+
+⚠️ **Chapter 1 sets no side or rear setback for an ordinary lot.** A4.2 handles it by
+performance — "progressively set back from boundaries as building height increases". The only
+numeric side setback in the chapter is **0.9m for small lot housing** (A26.3), which applies on
+lots under 400m² only. There is no battle-axe provision and no building envelope.
+
+## Open space and landscaping (§4.4) — and there is no site coverage control
+
+- **A7.1: landscaping and open space comprise 40% of the site; 70% of that permeable.** This is
+  the control, taken from the opposite direction to site coverage, which the chapter does not set
+- Private open space (A8.1), primary / functional: detached dwelling on a lot **under** 400m²
+  80m² @ 2.5m / 25m² @ 4m; secondary dwelling 35m² @ 3m / 15m² @ 2.5m; dual occupancy, attached,
+  multi-dwelling and residential flat buildings 35m² @ 3m / 16m² @ 4m; units above ground level
+  20m² @ 2.5m. **A detached dwelling on a lot over 400m² has no specific requirement**
+- Excluded from the calculation: vehicle parking or movement areas, setbacks under 1m wide, land
+  steeper than 15%, and any area occupied by a rainwater tank
+- A8.2: no direct ground level access → a 10m² screened balcony or roof garden, minimum 2.5m
+
+## Other numbers worth knowing
+
+- **Density** (A3), site area per dwelling for multi dwelling housing: 1 bed 200m² (180m² on lots
+  over 1200m²), 2 bed 250m²/220m², 3 bed 300m²/270m²
+- **Height** (A4.1): the DCP sets none — it defers to the LEP Height of Buildings Map
+- **Earthworks** (§4.5): cut and fill max 1.8m; retaining walls max 1.8m, and **over 1.2m needs a
+  structural engineer's report**; within 1m of a boundary, max 1m depth
+- **Parking** (§4.6): single dwelling 2 spaces; dual occupancy 1 per dwelling up to 125m² combined,
+  2 per unit above; multi dwelling 1 / 1.5 / 2 by bedrooms plus 1 visitor space per 5 units.
+  **Shop top housing in the CBD needs no parking.** Detached garage in front of the dwelling: max
+  60m² and 3.3m wall height (A14.1)
+- **Fences** (§4.7): front 1.2m, side 1.2m within the building line then 1.8m, rear 1.8m. Most
+  fences are Exempt Development under the Codes SEPP — the chapter says so first
+- **Secondary dwellings** (§7): max GFA is the greater of 60m² or 25% of the principal dwelling,
+  and **clause 4.6 cannot vary it** (LEP cl 5.4(9) / 4.6(8)(c)). Minimum site area 450m², no
+  additional parking required
+- **Shop top housing** (§8): private open space at least 20m², directly accessible from the living
+  area — the housing type a business is most likely to be building
+- **Health Precinct** (§11): its own controls, 4–5 storeys, sites of at least 1200m², 6m setback,
+  and building separation of 6m/3m at 4 storeys and 9m/4.5m at 5 storeys
 
 ---
 
