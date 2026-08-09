@@ -106,25 +106,22 @@ decorator and the registry; `tools/` holds the handlers, one module per domain. 
 writing the decorated function and updating the tool table in `README.md` — nothing else. (The old
 shape, a `TOOLS` list plus a 1,000-line `if/elif` chain in `call_tool`, is gone.)
 
-**`validate_arguments()` is the only gate on arguments, and that is newer than it looks.** It
-checks each call against that tool's own schema — rejecting unknown arguments, missing/empty
-required ones, and (since the mcp 2.0 port) wrong types — rather than letting handlers `.get()` a
-default and answer confidently wrong. An empty `land_use` once returned "permitted without
-consent". **mcp 1.x had the SDK run the schema through jsonschema server-side before dispatch;
-2.0 removed that entirely** — only `mcp.client.session` still carries jsonschema — so a string
-where a number belonged reached `float()` and surfaced as a raw `MCPError` reading "could not
-convert string to float". Type checking lives in `validate_arguments` now. Anything the schema
-can express that this function does not check is unenforced on the server: `_JSON_TYPES` covers
-the type keyword only, and a test fails if a schema declares a type it does not know.
+**`validate_arguments()` is the only gate on arguments.** It checks each call against that tool's
+own schema — rejecting unknown arguments, missing/empty required ones, and wrong types — rather
+than letting handlers `.get()` a default and answer confidently wrong. An empty `land_use` once
+returned "permitted without consent", and a string where a number belonged reached `float()` and
+surfaced as a raw `MCPError` reading "could not convert string to float". **The SDK does not
+validate arguments; nothing checks them but this function**, so anything the schema can express
+that it does not check is unenforced: `_JSON_TYPES` covers the type keyword only, and a test fails
+if a schema declares a type it does not know.
 
-**The SDK's shape is confined to one seam.** mcp 2.0 replaced the `@server.call_tool()` /
-`@server.list_tools()` decorators with handlers registered by method name taking
-`(context, params)` and returning typed results. `server.py` keeps `call_tool(name, arguments)`
-and `list_tools()` as plain functions and wraps them in `_on_call_tool` / `_on_list_tools`
-adapters registered via `add_request_handler`. Tests and `conftest` call the plain functions, so
-the next SDK break lands in two adapters rather than across 800+ tests. Note `Tool.inputSchema` is
-`Tool.input_schema` in 2.x (the wire format is unchanged — it is a pydantic alias), and
-`server.request_handlers` is now `server.get_request_handler(method)`.
+**The SDK's shape is confined to one seam.** Handlers are registered by method name and take
+`(context, params)`, returning typed results. `server.py` keeps `call_tool(name, arguments)` and
+`list_tools()` as plain functions and wraps them in `_on_call_tool` / `_on_list_tools` adapters
+registered via `add_request_handler`. Tests and `conftest` call the plain functions, so the next
+SDK break lands in two adapters rather than across 800+ tests. Note the schema attribute is
+`Tool.input_schema` (the wire format is unchanged — it is a pydantic alias), and handlers are
+read back with `server.get_request_handler(method)`.
 
 **Handlers are synchronous and run on a worker thread** — `call_tool` dispatches through
 `asyncio.to_thread`. Every handler blocks (PDF extraction, SQLite, and HTTPS with an 8s timeout in

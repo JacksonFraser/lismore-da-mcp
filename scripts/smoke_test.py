@@ -5,9 +5,9 @@ The unit tests call handlers directly and CI only imports `build_http_app()`.
 Neither opens an MCP session, and this repo has already shipped two bugs that
 were invisible to everything except a real client:
 
-  * `minor_development_type` carried a schema enum, so "shed" was rejected by
-    SDK-side validation before the handler ran. Every direct-call test passed.
-    It was found by trying the tool with curl.
+  * `minor_development_type` carried a schema enum, so "shed" was rejected
+    before the handler ran. Every direct-call test passed. It was found by
+    trying the tool with curl.
   * a NameError in the HTTP app during the Phase 2 split, which no test reached.
 
 Run after touching the registry, the transports, the SDK version, or any tool
@@ -44,7 +44,7 @@ CHECKS = [
      "an unknown argument is refused, not guessed"),
     ("calculate_da_fees", {"development_cost": "lots"},
      lambda t: "wrong type" in t,
-     "a wrong-typed argument is refused (mcp 2.0 dropped SDK-side validation)"),
+     "a wrong-typed argument is refused"),
     ("preview_see_form", {
         "applicant_name": "A Person", "property_address": "12 Keen Street, Lismore NSW 2480",
         "lot_dp": "Lot 12 DP 758651", "zone_code": "R2", "proposed_use": "dwelling house",
@@ -69,16 +69,32 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-async def run_checks(session, label: str) -> int:
+async def check_session(client, label: str) -> int:
+    """Check what the connection itself delivered, then run the tool checks."""
     failures = 0
-    tools = await session.list_tools()
+
+    # Without these a remote agent gets the tool descriptions and no sense of the
+    # process or the caveats, which is most of what this server is for.
+    instructions = getattr(client.session, "instructions", "") or ""
+    if instructions.strip():
+        print(f"  {label}: connected, {len(instructions)} chars of instructions")
+    else:
+        failures += 1
+        print(f"  {label}: FAIL — no instructions delivered to the client")
+
+    return failures + await run_checks(client, label)
+
+
+async def run_checks(client, label: str) -> int:
+    failures = 0
+    tools = await client.list_tools()
     print(f"  {label}: {len(tools.tools)} tools listed")
     if not tools.tools:
         print(f"  {label}: FAIL — no tools listed")
         return 1
     for name, args, predicate, description in CHECKS:
         try:
-            result = await session.call_tool(name, args)
+            result = await client.call_tool(name, args)
             text = result.content[0].text
             ok = predicate(text)
         except Exception as exc:                              # noqa: BLE001
@@ -91,27 +107,19 @@ async def run_checks(session, label: str) -> int:
 
 
 async def over_stdio() -> int:
-    from mcp import ClientSession, StdioServerParameters
+    from mcp import Client, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
     params = StdioServerParameters(
         command=PY, args=["-m", "lismore_da_mcp.server"],
         env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
     )
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            init = await session.initialize()
-            instructions = getattr(init, "instructions", "") or ""
-            print(f"  stdio: initialized, {len(instructions)} chars of instructions")
-            failures = 0 if instructions.strip() else 1
-            if not instructions.strip():
-                print("  stdio: FAIL — no instructions delivered to the client")
-            return failures + await run_checks(session, "stdio")
+    async with Client(server=stdio_client(params)) as client:
+        return await check_session(client, "stdio")
 
 
 async def over_http() -> int:
-    from mcp import ClientSession
-    from mcp.client.streamable_http import streamable_http_client
+    from mcp import Client
 
     port = free_port()
     proc = subprocess.Popen(
@@ -129,11 +137,8 @@ async def over_http() -> int:
         else:
             print("  http: FAIL — server never came up")
             return 1
-        async with streamable_http_client(f"http://127.0.0.1:{port}/mcp") as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                print(f"  http: initialized on port {port}")
-                return await run_checks(session, "http ")
+        async with Client(server=f"http://127.0.0.1:{port}/mcp") as client:
+            return await check_session(client, "http ")
     finally:
         proc.terminate()
         proc.wait(timeout=10)

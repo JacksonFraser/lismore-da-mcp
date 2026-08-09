@@ -1,7 +1,6 @@
-# Pinned to the 2.x major. 2.0 renamed Tool.inputSchema to input_schema and
-# replaced the server's handler decorators; the code targets that API. This file
-# is the Render deploy manifest, so the upper bound is what stops the next major
-# from reaching the live server before anyone has ported to it.
+# Held to one major, because the server API the code targets is that major's.
+# This file is the Render deploy manifest, so the upper bound is what stops the
+# next major from reaching the live server before anyone has ported to it.
 mcp>=2.0.0,<3
 pymupdf>=1.24.0
 starlette>=0.37.0

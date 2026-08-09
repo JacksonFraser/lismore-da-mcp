@@ -124,13 +124,12 @@ class TestValidation:
 
 
 class TestTypeValidation:
-    """Types are checked here because mcp 2.0 stopped checking them.
+    """Types are checked here because nothing else checks them.
 
-    Under mcp 1.x the SDK ran the tool's schema through jsonschema before
-    dispatching. 2.0 removed server-side validation, so a string where a number
-    belonged reached `float()` and came back to the caller as a raw MCPError
-    reading "could not convert string to float" — an internal traceback string
-    standing in for an answer.
+    The SDK dispatches whatever arrives without measuring it against the tool's
+    schema, so a string where a number belonged reached `float()` and came back
+    to the caller as a raw MCPError reading "could not convert string to float"
+    — an internal traceback string standing in for an answer.
     """
 
     @pytest.mark.parametrize("value,received", [

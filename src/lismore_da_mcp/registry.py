@@ -114,12 +114,10 @@ def validate_arguments(name: str, arguments: dict) -> dict | None:
     misspelt or omitted argument used to produce a confident wrong answer rather than
     an error — an empty land_use reported 'permitted without consent'. Refuse instead.
 
-    Type checking is done here because mcp 2.0 stopped doing it. Under mcp 1.x the
-    SDK ran the tool's schema through jsonschema before dispatching, so a string
-    where a number belonged never reached a handler; 2.0 removed server-side
-    validation entirely (only mcp.client.session still carries jsonschema). Without
-    this, `development_cost: "lots"` reached `float()` and surfaced to the caller as
-    a raw MCPError reading "could not convert string to float" — an internal
+    Type checking is done here because nothing else does it — the SDK dispatches
+    whatever arrives without checking it against the tool's schema. Without this,
+    `development_cost: "lots"` reached `float()` and surfaced to the caller as a
+    raw MCPError reading "could not convert string to float" — an internal
     traceback string standing in for an answer.
     """
     registration = _REGISTRY.get(name)
