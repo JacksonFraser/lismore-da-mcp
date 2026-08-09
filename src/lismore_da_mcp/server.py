@@ -154,12 +154,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 # --- SDK boundary -----------------------------------------------------------
 #
-# mcp 2.0 replaced the `@server.call_tool()` / `@server.list_tools()` decorators
-# with handlers registered against a method name, taking a request context and
-# typed params and returning a typed result. The two functions above keep their
-# plain shape — a name and a dict in, content blocks out — and these adapters
-# translate. That keeps the SDK's shape at one seam instead of through every
-# caller and test, and it is the seam that moved last time.
+# The SDK dispatches to handlers registered against a method name, taking a
+# request context and typed params and returning a typed result. The two
+# functions above keep their plain shape — a name and a dict in, content blocks
+# out — and these adapters translate. That keeps the SDK's shape at one seam
+# instead of through every caller and test, which is the seam that moves.
 
 
 async def _on_call_tool(_context, params: types.CallToolRequestParams) -> types.CallToolResult:

@@ -11,7 +11,7 @@ readme = "README.md"
 # Declaring a lower floor than CI exercises is a claim of support nothing checks.
 requires-python = ">=3.14"
 dependencies = [
-    # See requirements.txt: the code targets the mcp 2.x server API.
+    # See requirements.txt for why this is held to one major.
     "mcp>=2.0.0,<3",
     "pymupdf>=1.24.0",
     "starlette>=0.37.0",
