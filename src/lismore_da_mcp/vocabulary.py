@@ -434,6 +434,19 @@ SIGNAGE_SYNONYMS = {
     "above awning": "awning_sign_above",
     "on awning": "awning_sign_above",
     "verandah sign": "awning_sign_above",
+    # The above-awning sign needs consent and the below-awning one is exempt, so
+    # every phrasing that fails to resolve is a business steered from "you need a
+    # DA" to "no application needed". These five were checked as failing.
+    # SCENARIOS.md D6.
+    "sign above the awning": "awning_sign_above",
+    "sign above the awnings": "awning_sign_above",
+    "sign above awning": "awning_sign_above",
+    "above the awning": "awning_sign_above",
+    "above awning sign": "awning_sign_above",
+    "sign on top of the awning": "awning_sign_above",
+    "sign on top of awning": "awning_sign_above",
+    "on top of awning": "awning_sign_above",
+    "rooftop awning sign": "awning_sign_above",
     "door sign": "top_hamper_sign",
     "doorway sign": "top_hamper_sign",
     "transom sign": "top_hamper_sign",

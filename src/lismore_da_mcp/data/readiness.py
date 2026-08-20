@@ -84,11 +84,18 @@ STATUTORY_CONTENT = {
         "plain": "The application has to *list* the other approvals the development needs. This "
                  "is a content requirement, not a suggestion, and it is the one most often met "
                  "with a blank field — the applicant reads it as asking whether the approvals "
-                 "have been obtained, which is not what it asks. Section 39(1)(d) makes failing "
-                 "to identify them a ground to reject the application outright.",
-        "applies_to": "Every development application. It bites hardest on integrated "
-                      "development, where the approvals are the reason the application is "
-                      "integrated at all.",
+                 "have been obtained, which is not what it asks. Where the development is "
+                 "integrated, section 39(1)(d) additionally makes failing to identify them a "
+                 "ground to reject the application outright.",
+        # s25(b) applies to every application; s39(1)(d) opens "for an
+        # application for integrated development" and does not. Citing the
+        # rejection ground against every proposal overstates the consequence for
+        # the ordinary business DA, which is not integrated. SCENARIOS.md D12.
+        "applies_to": "Every development application — this content requirement is not limited "
+                      "to integrated development. The *rejection ground* in s39(1)(d) is: it "
+                      "reads 'for an application for integrated development', so for a "
+                      "non-integrated DA a missing list is a deficiency to fix rather than a "
+                      "ground to reject.",
     },
     "basix_certificate": {
         "clause": "s27(1)",
@@ -234,10 +241,17 @@ DUTY_PLANNER_QUESTIONS = [
         "key": "flood_planning_level",
         "question": "Is this site in the flood planning area, and what is the Flood Planning "
                     "Level for it?",
+        # "the exemption precinct's evacuation and refuge requirements" was here
+        # until 2026-08-20. There is no such precinct in DCP Chapter 8, in LEP
+        # 2012 or anywhere in documents/ — CLAUDE.md recorded it as invented and
+        # removed on 2026-08-06 and this copy survived into the Duty Planner
+        # brief. SCENARIOS.md D11.
         "why_it_matters": "It sets the minimum floor level, and for a commercial fitout it "
-                          "decides how much of the floor area has to sit above that level. In "
-                          "the CBD it also brings in the exemption precinct's evacuation and "
-                          "refuge requirements.",
+                          "decides how much of the floor area has to sit above that level. "
+                          "Which controls apply turns on the flood hazard area from Map 1 of "
+                          "DCP Chapter 8 — the High Flood Risk Area requires a mezzanine refuge "
+                          "above the 1-in-500 year level and the Flood Fringe does not, so the "
+                          "area matters as much as the level.",
         "cost_if_unresolved": "The single most likely subject of a request for information on a "
                               "Lismore commercial DA, and the one most likely to change the "
                               "design after the lease is signed.",
@@ -341,9 +355,14 @@ DUTY_PLANNER_QUESTIONS = [
     {
         "key": "heritage_status",
         "question": "Is this site a heritage item, or in a heritage conservation area?",
-        "why_it_matters": "It brings in a Heritage Impact Statement, DCP Chapter 12, and for "
-                          "signage the §9.2 prohibition — under which only building and business "
-                          "identification signs remain available.",
+        "why_it_matters": "It brings in LEP cl 5.10, under which Council *may* require a "
+                          "heritage management document — ask which form, rather than "
+                          "commissioning a Heritage Impact Statement on spec. It also brings in "
+                          "DCP Chapter 12, and for signage the §9.2 prohibition, under which "
+                          "only building and business identification signs remain available. "
+                          "Ask about cl 5.10(10) too if the land use table prohibits your use: "
+                          "a heritage building can be approved for a purpose the Plan would "
+                          "otherwise disallow, where the use funds its conservation.",
         "cost_if_unresolved": "A document missing from the lodgement, and a signage proposal "
                               "designed against the wrong rules.",
         "why_we_cannot_answer_it": "lookup_site_constraints reads the state heritage layer, which "

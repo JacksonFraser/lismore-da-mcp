@@ -78,8 +78,17 @@ def _flood_section(is_flood, development_type):
             "    Chapter 8 apply.\n"
             "    • [APPLICANT] State the Flood Planning Level for the site and the floor level\n"
             "      of the premises relative to it. Council provides the flood level on request.\n"
-            "    • [APPLICANT] Address structural soundness, and evacuation — a site-specific\n"
-            "      evacuation plan is required in the CBD exemption precinct.\n"
+            # "the CBD exemption precinct" was here until 2026-08-20. No such
+            # precinct appears anywhere in DCP Chapter 8, in LEP 2012, or in any
+            # document in this repo — CLAUDE.md recorded it as invented and
+            # deleted on 2026-08-06 and this copy survived, reaching SEE drafts
+            # Council reads. SCENARIOS.md D11. The real distinction is the flood
+            # hazard area, which Map 1 draws and no tool here can derive.
+            "    • [APPLICANT] Address structural soundness, and evacuation. Which controls\n"
+            "      apply depends on the flood hazard area the site sits in (Floodway, High\n"
+            "      Flood Risk, Flood Fringe, Low Flood Risk, or CBD Flood Liable) — that comes\n"
+            "      from Map 1 of DCP Chapter 8, which is a map image. Ask Council which area\n"
+            "      applies; get_flood_requirements sets out the controls for each.\n"
             "    • [APPLICANT] Address flood storage and conveyance, and the handling of\n"
             "      stock, plant and hazardous materials in a flood."
             + ("\n    • The proposal involves no external works and does not alter flood flows."
@@ -106,8 +115,12 @@ def _heritage_section(is_heritage):
     if is_heritage:
         return (
             "The site is a heritage item or within a heritage conservation area.\n"
-            "    A Heritage Impact Statement is required (DCP Chapter 12). The impact on\n"
-            "    heritage significance must be assessed, not assumed.\n"
+            "    Council may require a heritage management document under LEP cl 5.10(5) — a\n"
+            "    Heritage Impact Statement is the usual form, but a conservation management\n"
+            "    plan or other guidance document also satisfies it. Ask which is wanted before\n"
+            "    commissioning one. What is not discretionary is cl 5.10(4): the consent\n"
+            "    authority must consider the effect on heritage significance whether or not a\n"
+            "    document is required, so this SEE addresses it either way.\n"
             "    • [APPLICANT] Address any external change — shopfront, awning, signage,\n"
             "      colours, materials — which is where heritage objections usually arise."
         )

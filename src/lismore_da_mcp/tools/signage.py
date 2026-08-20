@@ -6,6 +6,7 @@ from mcp.types import TextContent
 
 from lismore_da_mcp.data.signage import APPLICATION_REQUIREMENTS
 from lismore_da_mcp.data.signage import EXISTING_USE_RIGHTS
+from lismore_da_mcp.data.signage import PATHWAYS
 from lismore_da_mcp.data.signage import SEPP_CURRENCY_WARNING
 from lismore_da_mcp.data.signage import SIGNAGE
 from lismore_da_mcp.registry import tool
@@ -36,11 +37,36 @@ def get_signage_requirements(arguments: dict):
     match = resolve(requested, SIGNAGE, SIGNAGE_SYNONYMS)
     if not match:
         error = unresolved_error(requested, match, "sign type", SIGNAGE)
+        # A bare list of names is not neutral here: the suggestions are ranked by
+        # string similarity, which has no idea that `awning_sign_below` is Exempt
+        # Development and `awning_sign_above` needs consent. Every one of the
+        # eight offered for "sign above the awning" was exempt-pathway, so a
+        # business asking about a sign that needs a DA was steered to "no
+        # application needed". Naming each pathway removes the bias whatever the
+        # ranking does. SCENARIOS.md D6.
+        if error.get("did_you_mean"):
+            error["did_you_mean"] = [
+                {
+                    "sign_type": name,
+                    "pathway": PATHWAYS[SIGNAGE[name]["pathway"]]["label"],
+                }
+                for name in error["did_you_mean"]
+            ]
+            offered = {SIGNAGE[s["sign_type"]]["pathway"] for s in error["did_you_mean"]}
+            if offered == {"exempt"}:
+                error["do_not_read_these_as_exempt"] = (
+                    "Every suggestion above happens to be Exempt Development. That is a "
+                    "property of the closest-spelled names, not a finding about your sign — "
+                    "Chapter 9 has sign types on every pathway, and some of the commonest "
+                    "shopfront signs need consent. Confirm the type before assuming no "
+                    "application is needed."
+                )
         error["note"] = (
             "Chapter 9 names sign types by form rather than by trade, so an unlisted term "
             "usually falls under a broader one — a shopfront sign is generally a wall, window "
-            "or fascia sign depending on where it is fixed. list_signage_types shows the set "
-            "with what each covers."
+            "or fascia sign depending on where it is fixed. Note that where a sign sits "
+            "changes the pathway: a sign below an awning is exempt, one above it needs "
+            "consent. list_signage_types shows the set with what each covers."
         )
         return [TextContent(type="text", text=json.dumps(error, indent=2))]
 

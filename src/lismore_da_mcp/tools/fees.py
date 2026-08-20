@@ -23,7 +23,16 @@ from lismore_da_mcp.registry import tool
         'development_cost': {
             'type': 'number',
             'minimum': 0,
-            'description': 'Estimated cost of development works in dollars. Use 0 for a change of use with no works.',
+            # This used to say "Use 0 for a change of use with no works", which
+            # routes the archetypal business DA to Item 2.1's $153 when the
+            # correct provision is Item 2.7's flat $395 — an under-quote of $242
+            # recommended by the schema itself. SCENARIOS.md D10.
+            'description': (
+                'Estimated cost of development works in dollars. For a change of use with no '
+                'building work, set involves_building_work to false rather than passing 0 — a '
+                'different, flat statutory fee applies (Schedule 4 Item 2.7) and it is higher '
+                'than the nil-cost bracket, not lower.'
+            ),
         },
         'development_type': {
             'type': 'string',

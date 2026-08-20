@@ -368,6 +368,31 @@ PARKING_RATES = {
         "spec": None,
     },
 
+    # The one Schedule 1 entry where the CBD answer is *zero*, and it was
+    # missing entirely until 2026-08-20. `get_parking_rates` errored and
+    # suggested `shop` — 4.4 per 100m² — telling a CBD business to build parking
+    # the DCP expressly does not require. SCENARIOS.md D8.
+    #
+    # `spec` is None for the same reason as dual_occupancy: outside the CBD the
+    # tier is on *each dwelling's* GFA, and one floor-area figure cannot resolve
+    # it. Inside the CBD there is nothing to compute — Schedule 1 says no
+    # requirement, and `cbd_answer` carries that.
+    "shop_top_housing": {
+        "dcp_use": "Shop top housing",
+        "spaces": "CBD: none. Outside the CBD: 1 per dwelling under 125m², 2 per dwelling over",
+        "rate": "CBD (defined in Map 1) - No carparking requirements Outside the CBD - 1 per "
+                "dwelling if GFA <125m2 or 2 per dwelling if GFA is >125m2",
+        "source": "DCP Chapter 7 Schedule 1, p14",
+        "basis": "GFA per dwelling, outside the CBD only",
+        "note": "Inside the CBD this use has no carparking requirement at all — Schedule 1 says "
+                "so expressly, and it is the reason shop top housing is viable above a CBD "
+                "shopfront. Outside the CBD the tier is on each dwelling's own floor area, not "
+                "the site total, so a figure needs the area of each dwelling. Being residential "
+                "accommodation, §7.7.3.1 exception (i) keeps it on Schedule 1 rather than the "
+                "fixed 3.3/100m² CBD rate — which here means zero, not 3.3.",
+        "spec": None,
+    },
+
     # --- uses Schedule 1 does not name --------------------------------------
     #
     # Kept because callers ask for them, but with no invented number. The
@@ -441,6 +466,10 @@ CBD_FIXED_RATE = {
         "residential_flat_building", "multi_dwelling_housing", "dwelling_house",
         "dual_occupancy", "secondary_dwelling", "boarding_house", "motel",
         "bed_and_breakfast", "caravan_park",
+        # Residential accommodation, so exception (i) sends it to Schedule 1 —
+        # which for the CBD says "no carparking requirements". Off this list it
+        # would be charged 3.3/100m² for a use the DCP charges nothing for.
+        "shop_top_housing",
     ),
     "exclusion_verbatim": "Where the development is (or includes) residential accommodation "
                           "or tourist and visitor accommodation, the minimum number of spaces "

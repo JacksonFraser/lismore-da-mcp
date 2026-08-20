@@ -349,6 +349,9 @@ BY_ACTIVITY = {
         "construction_certificate", "principal_certifier", "occupation_certificate",
         "long_service_levy", "fire_safety_statement",
     ],
+    # Non-food trades that still discharge trade waste. `liquid_trade_waste`
+    # names them in its own `triggered_by` and nothing selected it for them.
+    "trade_waste": ["liquid_trade_waste"],
     "unsewered": ["onsite_sewage_management"],
     "sewer_connection": ["section_68_approval"],
     "road_reserve": ["road_reserve_works"],
@@ -362,6 +365,14 @@ WHAT_THE_DA_DOES_NOT_COVER = (
     "not permission to build, to connect to the sewer, to serve food or alcohol, to occupy the "
     "building, or to put anything on the footpath. Each of those is a separate approval, and "
     "several are issued by someone other than Council's planners. Two of them — the "
-    "Construction Certificate and the Occupation Certificate — cannot even be applied for until "
-    "the consent exists, so they sit after the DA in the timeline rather than beside it."
+    "Construction Certificate and the Occupation Certificate — cannot be *issued* until the "
+    "consent exists and its conditions are being met, so they sit after the DA in the timeline "
+    "rather than beside it."
+    # This said they "cannot even be applied for until the consent exists",
+    # which contradicted the Construction Certificate entry below — that entry
+    # describes the CC as certifying drawings against the consent's conditions,
+    # which is a statement about issue, not about lodgement. Nothing in this
+    # repository establishes when a CC application may be lodged, so the claim
+    # is narrowed to the part that is certain rather than reversed.
+    # SCENARIOS.md D12.
 )

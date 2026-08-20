@@ -208,6 +208,12 @@ def check_da_readiness(arguments: dict):
 
     response = {
         "verdict": verdict,
+        # Above the verdict on purpose. Everything below assumes an application
+        # is needed, and this is the one finding that can delete the whole
+        # exercise — burying it under fourteen documents is how a shop becoming
+        # a shop got the full "not ready" workup. SCENARIOS.md D12.
+        **({"before_you_read_any_of_this": result["before_you_read_any_of_this"]}
+           if "before_you_read_any_of_this" in result else {}),
         "what_this_prevents": REJECTION_WINDOW["plain"],
         "understood_as": {
             "proposed_use": p.proposed_use,

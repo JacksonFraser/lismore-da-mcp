@@ -23,6 +23,19 @@ FOOD_WORDS = (
     "canteen", "kiosk", "brewpub", "winery", "cellar door",
 )
 
+# Trades that discharge something other than domestic sewage without handling
+# food. `liquid_trade_waste`'s own `triggered_by` has always named "butcher,
+# hairdresser, mechanic or car wash", but the approval was only ever selected by
+# the `food` activity — so a hairdresser or mechanic got a passing mention in
+# `advice` and no approval entry, while the data said they need one.
+# SCENARIOS.md D12. The butcher is already caught by FOOD_WORDS.
+TRADE_WASTE_WORDS = (
+    "hairdresser", "hairdressing", "salon", "barber", "beauty", "nail",
+    "mechanic", "motor repair", "vehicle repair", "panel beater", "smash repair",
+    "car wash", "carwash", "laundry", "laundrette", "launderette", "dry clean",
+    "dental", "dentist", "veterinary", "vet clinic", "photographic",
+)
+
 ALCOHOL_WORDS = (
     "pub", "hotel", "bar", "brewery", "distillery", "winery", "cellar door", "bottle shop",
     "liquor", "tavern", "club", "brewpub",
@@ -55,6 +68,12 @@ def relevant(proposed_use: str = "", building_work: bool | None = None,
     is_food = _matches(use, FOOD_WORDS)
     if is_food:
         selected.update(BY_ACTIVITY["food"])
+    elif _matches(use, TRADE_WASTE_WORDS):
+        # Not a food business, but still discharging trade waste — which is what
+        # `liquid_trade_waste` says it is triggered by. Same over-listing rule as
+        # everything else here: a wrongly-included approval costs a sentence of
+        # reading and a missing one costs weeks.
+        selected.update(BY_ACTIVITY["trade_waste"])
 
     if serves_alcohol is True or (serves_alcohol is None and _matches(use, ALCOHOL_WORDS)):
         selected.update(BY_ACTIVITY["alcohol"])

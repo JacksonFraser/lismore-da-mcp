@@ -627,8 +627,10 @@ def _describe(label: str, features: list[dict]) -> dict:
                 for f in features
             ],
             "note": (
-                "A Heritage Impact Statement is likely to be required. See DCP "
-                "Chapter 12."
+                "Council may require a heritage management document under LEP "
+                "cl 5.10(5) — usually a Heritage Impact Statement, but not necessarily. "
+                "Ask which is wanted before commissioning one. DCP Chapter 12 sets the "
+                "design guidance; it does not itself require a document."
             ),
         }
 
@@ -649,6 +651,39 @@ def _describe(label: str, features: list[dict]) -> dict:
     }
 
 
+def out_of_area(match: dict) -> dict | None:
+    """A refusal if the geocoder placed this address in another council.
+
+    `lookup_zone` gates on `LGA_NAME` from the zoning features and refuses
+    correctly; `lookup_constraints` asked nothing at all and answered for
+    `1 Jonson Street, Byron Bay` with Lismore-specific reasoning attached —
+    including the flood caveat, which names this LGA and is the single most
+    load-bearing sentence either tool returns. One of the two knew and the other
+    did not ask. SCENARIOS.md D5.
+
+    Gating here rather than on the layers' own `LGA_NAME` because the geocoder
+    answers before any layer is queried, and because Bushfire Prone Land carries
+    no `LGA_NAME` column at all — an out-of-area site whose layers all came back
+    empty would otherwise pass the check by returning nothing.
+    """
+    council = str(match.get("council") or "").strip()
+    if not council or _normalise(council) == _normalise(LGA_NAME):
+        return None
+    return {
+        "error": f"{_format_address(match)} is in the {council} local government area, "
+                 "not Lismore.",
+        "matched_address": _format_address(match),
+        "lga": council,
+        "note": (
+            "This server holds Lismore LEP 2012 and the Lismore DCP only. The state "
+            "mapping layers would answer for this address, but every reading this tool "
+            "puts around them is Lismore-specific — the flood caveat in particular — so "
+            "the answer would be right in its numbers and wrong in its advice. Contact "
+            f"{council} Council instead."
+        ),
+    }
+
+
 def lookup_constraints(address: str) -> dict:
     """Site constraints at an address: height, lot size, heritage, bushfire, flood.
 
@@ -661,6 +696,10 @@ def lookup_constraints(address: str) -> dict:
         return resolved
 
     match, longitude, latitude = resolved["match"], resolved["longitude"], resolved["latitude"]
+
+    elsewhere = out_of_area(match)
+    if elsewhere:
+        return elsewhere
     constraints: dict[str, dict] = {}
 
     def query(label: str) -> tuple[str, dict]:

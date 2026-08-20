@@ -54,6 +54,8 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_flood.py` | Checks all 40 flood controls in `data/flood.py` against DCP Chapter 8 and the LEP text. Two checks beyond presence: the derived constants must agree with the quotes they were read from (the freeboard was wrong by 200mm and nothing noticed), and every numbered control in §8.4–§8.8 is counted off the document, so a requirement nobody transcribed is reported rather than invisible. |
 | `scripts/audit_definitions.py` | Checks all 36 land use definitions in `data/definitions.py` against the LEP Dictionary, plus the clause 5.4 controls each carries. Beyond presence it checks each quote **opens with its own term** (verbatim LEP text lifted from the wrong entry passes a presence check), that `land_use_table_term` really is how `data/zones.py` spells the use, that `LAND_USE_HIERARCHY`'s first links agree with the LEP's own "X is a type of Y" notes — which caught `office premises` recorded as a type of business premises — and, like `audit_standards.py`, that the recorded inventions are still **absent**. |
 | `scripts/audit_landuse_matching.py` | The only audit that checks a **tool** rather than a data file: it asks `check_permissibility` about all 991 land use rows in both the table's spelling and the LEP Dictionary's, and grades the answer against the table. Every other audit here would pass with the matching layer completely broken, which is how ROADMAP.md S1's defect survived 1,346 tests. The singular↔plural pairing is read off the Dictionary in the document, never computed — a candidate spelling the document does not confirm is discarded, so the audit can never grade the tool against a word that is not a land use. It also audits `LAND_USE_TABLE_SPELLINGS` itself, since S1's fix turned that pairing into stored data: every pair must be one the document yields, every pair the document yields must be stored, and every table spelling must appear verbatim in `data/zones.py` — a pair whose right-hand side is not a real table entry resolves onto nothing and reads exactly like one that works. |
+| `scripts/audit_parking_rates.py` **completeness** | Added 2026-08-20. The rates were only ever presence-checked, and the docstring claimed a completeness check that **did not exist** — so "27 entries checked, 0 not matching" printed while `Shop top housing` was absent from `data/parking.py` entirely. Schedule 1's land use column is now isolated from the PDF by x-position (the rate columns still cannot be diffed, which is why rates stay verbatim), every row is either carried or named in `UNCARRIED_SCHEDULE_1_USES`, and the hand-read list is itself checked against the document so it cannot drift into fiction. |
+| `scripts/audit_heritage.py` | Checks the LEP cl 5.10 provisions in `data/heritage.py` against the LEP text, and runs the check that matters more: that DCP **Chapter 12 still requires nothing**. Nine places asserted "a Heritage Impact Statement is required (DCP Chapter 12)" and both halves were wrong, so the correction rests on a negative — which a presence check is structurally blind to. It also pins the *modality*: if cl 5.10(5) ever stops saying "may", every hedge this repo now carries is wrong in the other direction. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 
@@ -363,6 +365,30 @@ THE_DEFINITION` records the four with the clause that really sets each. And **th
 is not always the land use table term** — the table says "Light industries" and "Attached
 dwellings" where the Dictionary defines the singular, so `land_use_table_term` carries the plural
 and the audit checks it against `data/zones.py`.
+
+**`data/heritage.py` exists because one wrong sentence reached nine files.** Every one of them
+asserted *"a Heritage Impact Statement is required (DCP Chapter 12)"*, and both halves are wrong:
+Chapter 12 requires no document at all — it mentions a heritage impact statement twice, both in its
+definitions, and says only that it applies whenever consent is required under cl 5.10 — while the
+provision that *does* bite, **cl 5.10(5), says the consent authority *may* require a heritage
+management document**, of which a HIS is one of three forms. Stating a discretion as a rule sends a
+business to buy a consultant's report before anyone has asked for one, and forecloses the
+conversation in which Council says what it actually wants. Same failure as the residential standards
+in item 0.6.
+
+Two subclauses nothing cited before, and each changes who is affected. **cl 5.10(5)(c) reaches the
+neighbours** — the assessment power applies to land *in the vicinity of* an item, so a site
+`lookup_site_constraints` reports as unlisted can still be caught. **cl 5.10(10) is how a café opens
+in an old bank**: a heritage *building* can be approved for a purpose the Plan would otherwise
+prohibit, where the use funds its conservation. That belongs beside the SEPP caveat in
+`check_permissibility` — both are reasons a prohibited land use table result is not a settled
+refusal — and it is offered there now.
+
+Two rules follow. **Never write into a SEE that a document accompanies the application**: the draft
+used to state as fact that a HIS was attached, in text going to Council over the applicant's name.
+And **`tests/test_heritage.py` greps the whole package** rather than pinning nine call sites — the
+failure mode here was propagation, so what is pinned is the phrase's *absence* everywhere, which
+cannot drift the way nine separate assertions did.
 
 **`landuse.py` decides which stored fact applies, and until 2026-08-20 nothing checked it.** Every
 audit above passes on data; all 21 zone tables match the LEP verbatim; and `check_permissibility`

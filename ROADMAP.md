@@ -72,7 +72,8 @@ Checked on 2026-08-09 because this roadmap was about to propose fixing them:
   (defined in Map 1) – No carparking requirements"* — absent from `data/parking.py` while the audit
   reports "27 entries checked, 0 not matching". The completeness check does not cover this case.
   Reading a docstring is not verifying a claim, which is the same mistake this section exists to
-  prevent. **[corrected]**
+  prevent. **[corrected]** — and on 2026-08-20 it turned out to be worse than "does not cover this
+  case": **there was no completeness check at all**, only a docstring describing one. S5 wrote it.
 - **Fee staleness degrades loudly, not silently.** `schedule_status()` returns an "OUT OF DATE / do
   not budget from it" block the moment the scale is one July behind; the test fails at two. The
   one-year tolerance is deliberate and documented. **[verified]**
@@ -313,7 +314,43 @@ same floor area, with `existing_gross_floor_area_m2` rejected as an unknown argu
 that refuses to assume the catchment assumes this one, and puts $0 into the total rather than
 leaving it out.
 
-### S4 — Say "may" where the source says may · **HIGH**
+### S4 — Say "may" where the source says may · **DONE 2026-08-20**
+
+> **Landed, and it was wider than the two modules named below.** The claim was verified against both
+> sources first: DCP Chapter 12 mentions a heritage impact statement exactly twice, both in its
+> definitions, requires no document, and says of itself only that it applies "whenever development
+> consent is required under clause 5.10". cl 5.10(5) says the consent authority **may** require a
+> **heritage management document** — a conservation management plan, a heritage impact statement, or
+> any other guidance document.
+>
+> **Nine sites, not two.** `readiness.py` and `tools/see.py` were the assertions, but the same wrong
+> citation had reached `see/generate.py` twice, `data/checklists.py` three times, and
+> `data/readiness.py`. And the two modules this item held up as correct were only half right:
+> `addresses.py` and `signage.py` hedged the modality ("likely", "may") and then pointed at a chapter
+> that requires nothing. All nine now cite cl 5.10(5).
+>
+> **The worst one was in the SEE draft.** `see/generate.py` wrote *"A Heritage Impact Statement
+> accompanies this application"* into text going to Council over the applicant's name — a statement
+> of fact about a document cl 5.10(5) only says Council *may* ask for, and which the applicant may
+> not have. It is now an `[APPLICANT TO COMPLETE]`.
+>
+> **Both new clauses are cited.** cl 5.10(5)(c) — land *in the vicinity of* an item — is carried in
+> the readiness findings and the checklist condition, because a site that `lookup_site_constraints`
+> reports as unlisted can still be caught. cl 5.10(10) is offered by `check_permissibility` beside
+> the SEPP caveat, since both are reasons a prohibited result is not a settled refusal.
+>
+> **Guarded by an absence, and by a grep.** `data/heritage.py` quotes the clauses verbatim and
+> `scripts/audit_heritage.py` checks them against the LEP — but the load-bearing check is that
+> Chapter 12 still requires *nothing*, which a presence check cannot see. It also pins the modality:
+> if cl 5.10(5) stops saying "may", every hedge here is wrong in the other direction.
+> `tests/test_heritage.py` greps the whole package for the phrase rather than pinning nine call
+> sites, because propagation was the failure mode.
+>
+> One thing deliberately untouched: `data/referrals.py` lists a Heritage Impact Statement for a
+> **State Heritage Register** item. That is the Heritage Act s60 regime, not cl 5.10, and this repo
+> holds no document for it — changing it would be guessing in the other direction.
+
+### S4 — original entry · **HIGH**
 `readiness.py:431` and `tools/see.py:109` assert *"A Heritage Impact Statement is required (DCP
 Chapter 12)"*. Chapter 12 mentions a HIS twice, both in definitions, and requires nothing; LEP
 cl 5.10(5) says the consent authority **may** require a **heritage management document**, of which
@@ -324,7 +361,46 @@ While in there: `grep -rn "5\.10" src/` returns nothing. cl 5.10(5)(c) reaches l
 vicinity of* a heritage item, and cl 5.10(10) is the provision by which a café opens in a heritage
 building in a zone that would otherwise prohibit it. Neither is cited anywhere.
 
-### S5 — The smaller confirmed defects
+### S5 — The smaller confirmed defects · **DONE 2026-08-20**
+
+> **Landed — thirteen of the fifteen, with two deferred for stated reasons.** D7 was fixed under S3.
+> D9 (natural argument names refused by 13 of 14 tools) is Phase A1, and the sequencing note above
+> says the convenience work waits on the correctness work — which this item completes.
+>
+> The five that mislead rather than annoy:
+>
+> - **D5** — `lookup_site_constraints` now refuses an out-of-LGA address, and the gate is one shared
+>   function so it cannot diverge from its sibling again. Byron Bay was getting a full report with
+>   the Lismore flood caveat attached, which is the most load-bearing sentence either tool returns.
+> - **D6** — five phrasings of "sign above the awning" now resolve, and **every suggestion carries
+>   its pathway**. The bias was structural: string similarity has no idea that the below-awning sign
+>   is exempt and the above-awning one needs consent, so an all-exempt list now says that is a
+>   property of the spelling and not a finding about the caller's sign.
+> - **D8** — `shop top housing` added, and it is on `excluded_uses` so the fixed CBD rate is not
+>   applied to a use Schedule 1 charges nothing for. **The audit's completeness check did not
+>   exist** — the docstring had claimed it since the file was written, which is how "27 entries
+>   checked, 0 not matching" printed while this was absent. It exists now: the land use column is
+>   isolated from the PDF by x-position, and the 51 uncarried entries are named rather than silent.
+> - **D10** — the schema no longer recommends the $242 under-quote, and a nil-cost answer names
+>   Item 2.7 where the caller can see it.
+> - **D11** — the invented "CBD exemption precinct" is gone from both live sites. The notes
+>   recording that it was invented stay, and a test now guards both directions: the phrase must not
+>   be *asserted*, and the records of its removal must not disappear either.
+>
+> D12's ten are all fixed. Three were worth more than their MED rating: **s39(1)(d)** was cited
+> against every application when it reads "for an application for integrated development"; the
+> **document matcher** cleared both the waste and stormwater requirements from a bare "management
+> plan", short-circuiting the very check written to keep them apart; and **cl 5.22** was transcribed,
+> audited, and reached no output that named it — while the natural path,
+> `development_type="childcare centre"`, errored out with three options and no redirect, for the
+> exact use the clause exists for.
+>
+> **`tests/test_smaller_defects.py` keeps them together** rather than scattering them across nine
+> files. They are held together by provenance, not subject: each was found by running
+> `SCENARIOS.md` against the live server and verified by hand against the source. Split up, they
+> would read as unrelated assertions with no record of why anyone thought to check.
+
+### S5 — original entry
 Fifteen more, listed with evidence in `SCENARIOS.md` D5–D12. The ones that mislead rather than
 merely annoy: `lookup_site_constraints` answers for a Byron Bay address with no out-of-area warning
 (its sibling refuses correctly); the signage fallback offers eight suggestions that are **all

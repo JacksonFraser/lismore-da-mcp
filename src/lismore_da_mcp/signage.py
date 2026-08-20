@@ -234,7 +234,8 @@ def relevant_guidelines(sign_type: str, is_heritage: bool | None) -> dict:
             "assessment turns on, and it is the only guideline in §9.4 phrased as a "
             "prohibition: no sign shall obstruct or block the view of any feature of historic "
             "architecture. Address the fixing method too — whether the sign can be removed "
-            "without damaging the fabric is usually asked, and a Heritage Impact Statement may "
-            "be required under DCP Chapter 12."
+            "without damaging the fabric is usually asked, and Council may require a heritage "
+            "management document under LEP cl 5.10(5) — a Heritage Impact Statement is the "
+            "usual form."
         )
     return result
