@@ -78,7 +78,7 @@ def get_flood_requirements(arguments: dict):
             return [TextContent(type="text", text=json.dumps(error, indent=2))]
         area_key = area.key
 
-    response = flood.requirements(resolved.key, area_key, is_change_of_use)
+    response = flood.requirements(resolved.key, area_key, is_change_of_use, asked_about=dev_type)
     if area_arg:
         response["flood_area_asked_for"] = area_arg
         if flood.is_cbd_flood_liable(area_arg):

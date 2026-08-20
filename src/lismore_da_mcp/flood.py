@@ -62,6 +62,24 @@ DEVELOPMENT_SYNONYMS = {
     "medical centre": "commercial",
     "childcare": "commercial",
     "child care": "commercial",
+    # `childcare centre` — the phrasing an applicant actually types — resolved
+    # to nothing and the tool errored with only [commercial, industrial,
+    # residential] and no redirect. It is a commercial building for Chapter 8,
+    # and it is also exactly the use LEP cl 5.22 exists for. SCENARIOS.md D12.
+    "childcare centre": "commercial",
+    "child care centre": "commercial",
+    "childcare facility": "commercial",
+    "centre-based child care facility": "commercial",
+    "day care": "commercial",
+    "daycare": "commercial",
+    "preschool": "commercial",
+    "school": "commercial",
+    "educational establishment": "commercial",
+    "boarding house": "residential",
+    "caravan park": "residential",
+    "hostel": "residential",
+    "seniors housing": "residential",
+    "group home": "residential",
     "bakery": "commercial",
     "brewery": "commercial",
     "pub": "commercial",
@@ -151,7 +169,14 @@ def controls_for(area_key: str, development_type: str, is_change_of_use: bool = 
         "flood_area": area["name"],
         "section": f"DCP Chapter 8 §{area['section']}",
         "definition_verbatim": area["definition_verbatim"],
-        "headline": area["headline"],
+        # An area summary, not an answer about the development type asked for.
+        # Under the old key `headline` it read as the latter and was returned
+        # unchanged for every type — so an industrial proposal in the High Flood
+        # Risk Area was told "commercial buildings need a mezzanine refuge" while
+        # its own requirements list, correctly, included one; and a residential
+        # proposal was told the same thing while its list, correctly, did not.
+        # SCENARIOS.md D12. `requirements` below is the type-specific answer.
+        "about_this_flood_area": area["headline"],
     }
 
     # §8.4: the prohibition is on buildings and structures of any type, so it
@@ -223,6 +248,12 @@ def controls_for(area_key: str, development_type: str, is_change_of_use: bool = 
         )
     else:
         answer["requirements"] = requirements
+        answer["read_the_summary_as_the_area_not_the_proposal"] = (
+            f"`about_this_flood_area` describes the {area['name']} generally and names the "
+            "commercial case, because that is the one most businesses are in. The list above "
+            "is the one that applies to this development type — where the two appear to "
+            "disagree, the list governs."
+        )
         if exempt:
             answer["if_this_is_a_change_of_use"] = (
                 "§8.3 lifts these controls entirely where a change of use is proposed rather "
@@ -234,7 +265,13 @@ def controls_for(area_key: str, development_type: str, is_change_of_use: bool = 
         answer["why_industrial_is_split"] = control["reasoning"]
     answer["all_development_controls"] = list(area.get("all_developments", []))
     if "all_developments_exemption" in area:
-        answer["all_development_controls_exemption"] = area["all_developments_exemption"]
+        # The wire key used to read `all_development_controls_exemption`, which
+        # promises far more than the constant delivers: §8.6.4(2) exempts small
+        # works from the *certificate of structural adequacy* only, not from the
+        # floor-level survey or the flood-compatible materials beside it. Naming
+        # it after the section it exempts from stops it being read as a general
+        # let-off. SCENARIOS.md D12.
+        answer["structural_adequacy_certificate_exemption"] = area["all_developments_exemption"]
     if "boundary_variation_verbatim" in area:
         answer["disputing_the_area"] = {
             "section": f"DCP Chapter 8 §{area['boundary_variation_section']}",
@@ -258,13 +295,41 @@ def _requirements(control: dict):
     return list(control["requirements"])
 
 
+# The cl 5.22(5) categories, in the words an applicant uses. Kept broad on the
+# same principle as `approvals.py`: over-listing costs a paragraph of reading,
+# and missing one costs a use that is caught by a clause nobody mentioned.
+SENSITIVE_OR_HAZARDOUS_WORDS = (
+    "child", "day care", "daycare", "preschool", "pre-school", "school",
+    "educational", "education", "boarding house", "caravan park", "camping",
+    "hostel", "seniors", "aged care", "nursing", "hospital", "health services",
+    "correctional", "detention", "eco-tourist", "group home", "respite",
+    "emergency services", "evacuation", "hazardous", "offensive",
+)
+
+
+def is_sensitive_or_hazardous(term: str) -> bool:
+    """Is this the kind of use LEP cl 5.22 calls sensitive and hazardous?
+
+    Matched on the applicant's words rather than on the resolved Chapter 8
+    category, because Chapter 8 has only three categories and cl 5.22 cuts
+    across all of them — a childcare centre is 'commercial' to the DCP and
+    sensitive to the LEP.
+    """
+    text = (term or "").lower()
+    return any(word in text for word in SENSITIVE_OR_HAZARDOUS_WORDS)
+
+
 def requirements(development_type: str, flood_area: str | None = None,
-                 is_change_of_use: bool = False) -> dict:
+                 is_change_of_use: bool = False, asked_about: str = "") -> dict:
     """The flood answer for one proposal.
 
     `flood_area` is optional and is never guessed. Without it the answer
     carries every area's controls and says plainly that the area has to be
     settled before any of them is the requirement.
+
+    `asked_about` is the caller's own words. Chapter 8 has three categories and
+    cl 5.22 cuts across all of them, so the resolved category cannot tell you
+    whether the clause applies — 'childcare centre' resolves to commercial.
     """
     answer = {
         "development_type": development_type,
@@ -288,6 +353,22 @@ def requirements(development_type: str, flood_area: str | None = None,
             "and one in the Flood Fringe does not, and the Low Flood Risk Area has no controls "
             "at all. Settle the area before designing to any of them."
         )
+
+    # cl 5.22 was in the data and reached no output that named it. It is the
+    # provision that catches a use *outside* the flood planning area — between
+    # it and the probable maximum flood — and the uses it catches are businesses
+    # a shop is not: childcare, schools, boarding houses, caravan parks. Being
+    # one item in the `lep_2012` blob is not raising it. SCENARIOS.md D12.
+    if is_sensitive_or_hazardous(asked_about or development_type):
+        answer["also_clause_5_22"] = {
+            "why_it_applies": (
+                f"'{asked_about or development_type}' is the kind of use cl 5.22 calls sensitive and "
+                "hazardous development. That clause reaches land *between* the flood planning "
+                "area and the probable maximum flood — so a site that is outside the flood "
+                "planning area, and therefore outside everything above, can still be caught."
+            ),
+            **LEP_FLOOD_CLAUSES["5.22"],
+        }
 
     answer["lep_2012"] = LEP_FLOOD_CLAUSES
     answer["over_the_dcp"] = (

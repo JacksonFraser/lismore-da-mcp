@@ -16,9 +16,12 @@ from lismore_da_mcp.data.fees import (
     DA_FEE_DWELLING_UNDER_100K,
     DA_FEE_NO_BUILDING_WORK,
     DA_FEE_SCHEDULE_YEAR,
+    DESIGN_REVIEW_PANEL_FEE,
+    DESIGNATED_DEVELOPMENT_FEE,
     INTEGRATED_DEVELOPMENT_FEE,
     IT_SERVICE_CHARGE_RATE,
     NOTIFICATION_FEES,
+    PRESCRIBED_NOTICE_FEES,
     UNQUANTIFIED_CHARGES,
     schedule_status,
 )
@@ -91,6 +94,23 @@ def calculate_da_fee(
             "charges before relying on this figure."
         ),
     }
+
+    # A nil cost of works with building work still asserted is the shape of a
+    # change of use that was priced off the wrong provision. Item 2.1 with $0
+    # gives $153; Item 2.7 is a flat $395, and it is the correct one for a
+    # change of use with no fitout. The schema used to *recommend* the cheaper
+    # wrong path, so say it here too — a caller who takes the under-quote into a
+    # budget will not read the schema again. SCENARIOS.md D10.
+    if involves_building_work and development_cost == 0:
+        result["check_the_provision"] = (
+            f"A nil cost of works was given and this was priced under Schedule 4 Item 2.1 at "
+            f"${fee:,.2f}. If there is genuinely no building work — a pure change of use, no "
+            f"fitout — the applicable provision is Item 2.7, a flat "
+            f"${DA_FEE_NO_BUILDING_WORK:,.2f} independent of cost. Call again with "
+            f"involves_building_work=false to price it that way. It is the higher figure, so "
+            f"budgeting from this one under-quotes by "
+            f"${DA_FEE_NO_BUILDING_WORK - fee:,.2f}."
+        )
 
     # Only present when the scale is actually behind, so it means something when
     # it appears. The standing caveat above was already on every answer while
@@ -215,6 +235,35 @@ def estimate_total_cost(
             "agency as well as consent. The per-body amount is charged for each agency the "
             "application goes to, so run check_referrals: every referral it reports is a "
             f"possible extra ${INTEGRATED_DEVELOPMENT_FEE['per_approval_body']:,.0f}."
+        ),
+    }
+
+    # Three figures were transcribed, verified against the fees schedule by the
+    # audit, and reached no output at all — including a $1,532 statutory notice
+    # fee, roughly three times a small café's entire quoted total. A number
+    # nobody can see is not a number this server holds. SCENARIOS.md D12.
+    parts["prescribed_notice_fees"] = {
+        "amounts": dict(PRESCRIBED_NOTICE_FEES),
+        "basis": (
+            "EP&A Regulation 2021 Schedule 4 Part 3, charged in addition to the DA fee and to "
+            "Council's own engagement-strategy notification fee above. These bite only where "
+            "the development is designated, prohibited, nominated integrated, or otherwise "
+            "required to be advertised — but where one applies it is large, and it is not in "
+            "budget_at_least because nothing here can establish that it does."
+        ),
+    }
+    parts["designated_or_reviewed_development"] = {
+        "amounts": {
+            "designated_development_additional_fee": DESIGNATED_DEVELOPMENT_FEE,
+            "design_review_panel_referral": DESIGN_REVIEW_PANEL_FEE,
+        },
+        "basis": (
+            "Both are conditional. The designated development fee is additional to the DA fee "
+            "where Schedule 3 of the Regulation catches the proposal — no ordinary shop, café "
+            "or workshop is designated development. The design review panel fee applies where "
+            "Council refers the application to its panel, which is a Council decision rather "
+            "than a threshold this server can test. Ask the Duty Planner whether either "
+            "applies before budgeting; neither is included above."
         ),
     }
 

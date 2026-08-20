@@ -46,7 +46,9 @@ from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.landuse import NOT_A_LAND_USE
 from lismore_da_mcp.landuse import canonical_use
 from lismore_da_mcp.landuse import classify_land_use
+from lismore_da_mcp.data.definitions import LAND_USE_DEFINITIONS
 from lismore_da_mcp.vocabulary import CHECKLIST_SYNONYMS
+from lismore_da_mcp.vocabulary import DEFINITION_SYNONYMS
 from lismore_da_mcp.vocabulary import DOCUMENT_SYNONYMS
 from lismore_da_mcp.vocabulary import resolve
 
@@ -215,8 +217,15 @@ def _claims(claim: str, requirement: str) -> bool:
     claim_tokens, name_tokens = set(claim_words), set(name_words)
     if not claim_tokens or not name_tokens:
         return False
+    # A subset still has to agree on the *first* word — what the document is
+    # about. Without that, a bare "management plan" is a subset of both "waste
+    # management plan" and "stormwater management plan" and cleared them both,
+    # short-circuiting the very check below that exists to keep those two apart.
+    # "site plan" ⊆ "site plan (1:100 or 1:200 scale)" still passes, because the
+    # subset drops trailing detail rather than the distinguishing word.
+    # SCENARIOS.md D12.
     if claim_tokens <= name_tokens or name_tokens <= claim_tokens:
-        return True
+        return claim_words[0] == name_words[0]
     # Both ends have to agree: the head noun says what the document *is*, and
     # the first word says what it is *about*. Overlap alone is not enough —
     # "waste management plan" and "stormwater management plan" share two words
@@ -253,6 +262,17 @@ def document_gap(required: list[str], claimed: list[str]) -> dict:
 
 def _permissibility(p: Proposal) -> list[dict]:
     """Can this use operate on this land at all. The one true blocker."""
+    def _defined_term(term: str) -> str:
+        """The Standard Instrument term this describes, or the words themselves.
+
+        Falling back to the caller's own words is deliberate: two uses this
+        server cannot identify are only "the same" if they were typed the same,
+        and guessing past that would produce the one answer that must never be
+        wrong here — "you may not need an application".
+        """
+        match = resolve(term, LAND_USE_DEFINITIONS, DEFINITION_SYNONYMS)
+        return match.key if match else canonical_use(term)
+
     if canonical_use(p.proposed_use) in _PROCESS_WORDS:
         return [{
             "severity": "stop",
@@ -287,6 +307,34 @@ def _permissibility(p: Proposal) -> list[dict]:
         }]
 
     classified = classify_land_use(p.proposed_use, zone, p.zone_code.upper())
+
+    # Same defined term in and out. A shop becoming a shop is not a change of
+    # use in the land use table's terms at all, and this used to return the full
+    # fourteen-document "not ready" workup without once suggesting the
+    # application might not be needed. It is the one finding that can delete the
+    # whole exercise, so it goes first. SCENARIOS.md D12.
+    # Compared on the *defined term*, not on the land use table row they match.
+    # E2's table lists only "Commercial premises", so a shop and a café both
+    # resolve to it through the hierarchy — comparing the matched row said a
+    # shop becoming a café was no change of use, which is exactly wrong.
+    if p.existing_use and p.proposed_use:
+        if _defined_term(p.existing_use) == _defined_term(p.proposed_use):
+            return [{
+                "severity": "confirm_before_lodging",
+                "finding": "The existing use and the proposed use fall under the same defined "
+                           "land use term, so this may not need development consent at all.",
+                "why": "The land use table works on defined terms, not on trading names or "
+                       "fitouts. Where the term does not change, there may be no change of "
+                       "use to consent to — and some changes between similar commercial uses "
+                       "are exempt or complying development under the Codes SEPP in any event. "
+                       "Nothing in this repository can settle either point.",
+                "source": "LEP 2012 land use table; Codes SEPP",
+                "do_this": "Put this to the free Duty Planner before spending anything: "
+                           f"'the premises is approved as {p.existing_use}, I want to operate "
+                           f"as {p.proposed_use} — do I need a DA?'. Everything below assumes "
+                           "the answer is yes.",
+            }]
+
     if not classified:
         return []
     if classified["permissible"] is False:
@@ -327,10 +375,17 @@ def _statutory(p: Proposal, approval_names: list[str]) -> list[dict]:
         "finding": "The application must list the other approvals this development needs, "
                    "whether or not you have them yet.",
         "why": STATUTORY_CONTENT["list_of_approvals"]["plain"],
-        "source": f"{STATUTORY_CONTENT['list_of_approvals']['clause']}; "
-                  f"{REJECTION_GROUNDS['approvals_not_identified']['clause']}",
+        # s25(b) only. The rejection ground reads "for an application for
+        # integrated development" and citing it here made every proposal look
+        # rejectable over a blank field. SCENARIOS.md D12.
+        "source": STATUTORY_CONTENT["list_of_approvals"]["clause"],
+        "applies_to": STATUTORY_CONTENT["list_of_approvals"]["applies_to"],
         "do_this": "List these, at least: " + ", ".join(approval_names)
-                   + ". get_other_approvals returns them with the issuing authority for each.",
+                   + ". get_other_approvals returns them with the issuing authority for each. "
+                   + "If any of them is an approval from another agency that makes this "
+                   + "integrated development, say so — "
+                   + REJECTION_GROUNDS["approvals_not_identified"]["clause"]
+                   + " then makes an incomplete list a ground to reject outright.",
     })
 
     if p.contravenes_development_standard:
@@ -597,7 +652,7 @@ def assess(p: Proposal, has_parking_shortfall: bool | None = None) -> dict:
     findings.sort(key=lambda f: order.get(f["severity"], 9))
 
     blocking = [f for f in findings if f["severity"] == "stop"]
-    return {
+    result = {
         "development_type_used": checklist,
         "findings": findings,
         "documents": documents,
@@ -607,3 +662,14 @@ def assess(p: Proposal, has_parking_shortfall: bool | None = None) -> dict:
         "questions_for_council": open_questions(p, has_parking_shortfall),
         "blocking": bool(blocking),
     }
+
+    # Severity order is honest — "you may not need this application" is not a
+    # blocker and must not be dressed as one — but honest ordering buried it
+    # under fourteen documents, which is the finding a business would most want
+    # first. Lifting it to the top level says it without inflating its severity.
+    # SCENARIOS.md D12.
+    same_term = [f for f in findings if "may not need development consent" in f["finding"]]
+    if same_term:
+        result["before_you_read_any_of_this"] = same_term[0]["finding"] + " " + same_term[0]["do_this"]
+
+    return result
