@@ -222,7 +222,36 @@ Three reasons it comes first rather than last, and the first is the one that dec
 3. **It is the repo's own pattern.** Every data module has an audit; the matching layer has none,
    which is precisely why this survived 1,346 tests and ten audits.
 
-### S2 — Give `validate_arguments()` a domain check · **CRITICAL**
+### S2 — Give `validate_arguments()` a domain check · **DONE 2026-08-20**
+
+> **Landed.** All three measured defects are refused at the gate, and every numeric property in
+> every schema now declares a `minimum` — 35 of them, none of which had a bound before.
+>
+> - **Non-finite numbers** are rejected before a handler sees them. `inf` and `nan` were reachable
+>   because `json.loads` accepts both.
+> - **`minimum` and `maximum` are enforced** from the schema. `gross_floor_area_m2: -80` and
+>   `development_cost: -5000` are now errors rather than smaller numbers.
+> - **A test asserts every numeric property declares a `minimum`**, in the same shape as the
+>   existing `_JSON_TYPES` test.
+>
+> **One more found while doing it, and it generalises the item.** Writing the "every numeric
+> property is bounded" test suggested its own generalisation — *does any schema declare a keyword
+> the gate does not enforce?* — and that found `items`, declared on all five array arguments and
+> enforced on none. `documents_prepared: ["site plan", 5, None]` surfaced to the caller as an
+> uncaught `AttributeError`, the same shape as the raw `MCPError` this gate exists to prevent.
+> Array element types are now checked, and `_ENFORCED_KEYWORDS` plus a test pin the rule in both
+> directions: **to add a keyword to a schema, teach `validate_arguments` to honour it first.**
+>
+> That rule is the durable part of this item. A declared-but-unchecked constraint is worse than an
+> absent one, because it documents itself to the caller as enforced.
+>
+> **Left alone deliberately:** `fees.py`'s bracket loop is still partial in principle — nothing
+> assigns `fee` if no bracket matches. In practice the top bracket's upper bound is `inf`, so every
+> finite cost matches, and `nan` (the only value that fell through) is now refused at the gate.
+> Adding a second check inside the domain layer would contradict "validate_arguments is the only
+> gate", which is the architecture this repo has chosen and documented.
+
+### S2 — original entry · **CRITICAL**
 `CLAUDE.md` already records that `_JSON_TYPES` covers the type keyword only. The cost is now
 measured: `gross_floor_area_m2: -80` returns `contribution: None` and `budget_at_least: 420.0`
 where `+80` returns `16081.24` / `16501.24` — a sign flip silently deletes the largest charge in

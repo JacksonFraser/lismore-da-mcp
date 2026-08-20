@@ -23,12 +23,12 @@ from lismore_da_mcp.vocabulary import unresolved_error
     properties={
         'development_type': {'type': 'string', 'description': "Type of development (e.g., 'dwelling_house', 'restaurant', 'shop', 'office', 'warehouse')"},
         'location': {'type': 'string', 'description': "Optional but important. 'cbd' if the site is inside the Lismore CBD as defined on Map 1 of DCP Chapter 7, or 'outside_cbd'. Inside the CBD a fixed rate of 3.3 spaces/100m2 GFA replaces the Schedule 1 rate for non-residential uses, and it is usually far lower. Do not guess — the E2 zone is close to the CBD boundary but is not the same line."},
-        'floor_area_sqm': {'type': 'number', 'description': 'Optional. Floor area the rate applies to, in square metres.'},
-        'num_employees': {'type': 'integer', 'description': 'Optional. Number of employees, for rates with a staff component.'},
-        'seats': {'type': 'integer', 'description': 'Optional. Seats, for rates based on seating (restaurants, places of worship, function centres).'},
-        'spaces_provided': {'type': 'integer', 'description': 'Optional. Spaces provided on site, to calculate the shortfall.'},
-        'existing_gfa_sqm': {'type': 'number', 'description': 'Optional, CBD only. Gross floor area of the existing building on the site. A CBD site being redeveloped or changing use earns a deemed parking credit under DCP 7.7.3.4 which is often most of the requirement, and it is not applied unless this is supplied.'},
-        'existing_spaces_on_site': {'type': 'integer', 'description': 'Optional, CBD only. Parking spaces physically provided on the existing site. Subtracted from the deemed credit under the DCP 7.7.3.4 formula.'},
+        'floor_area_sqm': {'type': 'number', 'description': 'Optional. Floor area the rate applies to, in square metres.', 'minimum': 0},
+        'num_employees': {'type': 'integer', 'description': 'Optional. Number of employees, for rates with a staff component.', 'minimum': 0},
+        'seats': {'type': 'integer', 'description': 'Optional. Seats, for rates based on seating (restaurants, places of worship, function centres).', 'minimum': 0},
+        'spaces_provided': {'type': 'integer', 'description': 'Optional. Spaces provided on site, to calculate the shortfall.', 'minimum': 0},
+        'existing_gfa_sqm': {'type': 'number', 'description': 'Optional, CBD only. Gross floor area of the existing building on the site. A CBD site being redeveloped or changing use earns a deemed parking credit under DCP 7.7.3.4 which is often most of the requirement, and it is not applied unless this is supplied.', 'minimum': 0},
+        'existing_spaces_on_site': {'type': 'integer', 'description': 'Optional, CBD only. Parking spaces physically provided on the existing site. Subtracted from the deemed credit under the DCP 7.7.3.4 formula.', 'minimum': 0},
     },
     required=['development_type'],
 )

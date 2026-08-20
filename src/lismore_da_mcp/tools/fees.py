@@ -22,6 +22,7 @@ from lismore_da_mcp.registry import tool
     properties={
         'development_cost': {
             'type': 'number',
+            'minimum': 0,
             'description': 'Estimated cost of development works in dollars. Use 0 for a change of use with no works.',
         },
         'development_type': {
@@ -33,14 +34,17 @@ from lismore_da_mcp.registry import tool
         },
         'gross_floor_area_m2': {
             'type': 'number',
+            'minimum': 0,
             'description': 'Optional. Gross floor area, for uses charged per 100m2 (all commercial and industrial).',
         },
         'dwellings': {
             'type': 'integer',
+            'minimum': 0,
             'description': 'Optional. Number of dwellings, for residential development.',
         },
         'beds_or_sites': {
             'type': 'integer',
+            'minimum': 0,
             'description': 'Optional. Beds or sites, for tourist and visitor accommodation.',
         },
         'catchment': {

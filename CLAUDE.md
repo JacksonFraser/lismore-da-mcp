@@ -108,13 +108,28 @@ writing the decorated function and updating the tool table in `README.md` — no
 shape, a `TOOLS` list plus a 1,000-line `if/elif` chain in `call_tool`, is gone.)
 
 **`validate_arguments()` is the only gate on arguments.** It checks each call against that tool's
-own schema — rejecting unknown arguments, missing/empty required ones, and wrong types — rather
-than letting handlers `.get()` a default and answer confidently wrong. An empty `land_use` once
-returned "permitted without consent", and a string where a number belonged reached `float()` and
-surfaced as a raw `MCPError` reading "could not convert string to float". **The SDK does not
-validate arguments; nothing checks them but this function**, so anything the schema can express
-that it does not check is unenforced: `_JSON_TYPES` covers the type keyword only, and a test fails
-if a schema declares a type it does not know.
+own schema — rejecting unknown arguments, missing/empty required ones, wrong types (including array
+element types), non-finite numbers, and values outside `minimum`/`maximum` — rather than letting
+handlers `.get()` a default and answer confidently wrong. An empty `land_use` once returned
+"permitted without consent", and a string where a number belonged reached `float()` and surfaced as
+a raw `MCPError` reading "could not convert string to float". **The SDK does not validate
+arguments; nothing checks them but this function.**
+
+**A type check alone is not enough, because the dangerous values are the well-typed ones.**
+`gross_floor_area_m2: -80` is a perfectly good float, and it returned a budget of **$420** where
+`+80` returned **$16,501** — a sign flip silently deleting the largest charge in the answer while
+the total went on reading like a total. `development_cost: inf` raised an uncaught `OverflowError`
+and `nan` an uncaught `UnboundLocalError` (every bracket comparison against NaN is false, so the
+loop assigned nothing), and `json.loads` accepts both, so they were reachable over the wire. Every
+numeric property therefore declares a `minimum`, and a test fails if one does not.
+
+**The set of checks in that function is the set of constraints a schema may express.** Anything the
+schema can express that the gate does not check is unenforced, and a declared-but-unchecked keyword
+is worse than an absent one: it documents itself to the caller as a constraint and is worth
+nothing. That is exactly how `items` came to sit on all five array arguments enforcing nothing,
+until `documents_prepared: ["site plan", 5, None]` surfaced as an uncaught `AttributeError`.
+`_ENFORCED_KEYWORDS` pins this both ways — **to add a keyword to any schema, teach
+`validate_arguments` to honour it first.**
 
 **The SDK's shape is confined to one seam.** Handlers are registered by method name and take
 `(context, params)`, returning typed results. `server.py` keeps `call_tool(name, arguments)` and
