@@ -7,6 +7,7 @@ from mcp.types import TextContent
 from lismore_da_mcp.addresses import lookup_constraints
 from lismore_da_mcp.addresses import lookup_zone
 from lismore_da_mcp.data.definitions import DEFINITION_CATEGORIES, LAND_USE_DEFINITIONS
+from lismore_da_mcp.data.heritage import CONSERVATION_INCENTIVES
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.landuse import NOT_A_LAND_USE
 from lismore_da_mcp.landuse import canonical_use
@@ -277,6 +278,13 @@ def check_permissibility(arguments: dict):
             "conflict. A use shown here as prohibited may still have a SEPP pathway — "
             "secondary dwellings are the common example. Check with the Duty Planner "
             "before treating this as a refusal."
+        )
+        # The other pathway past a prohibited result, and nothing here cited it.
+        # cl 5.10(10) lets a heritage *building* be approved for a purpose the
+        # Plan would otherwise disallow, where the use funds its conservation —
+        # which is how a café opens in an old bank or church. ROADMAP.md S4.
+        result["if_the_building_is_heritage_listed"] = (
+            f"LEP cl 5.10(10) — {CONSERVATION_INCENTIVES['in_plain_words']}"
         )
 
     return [TextContent(type="text", text=json.dumps(result, indent=2))]

@@ -146,7 +146,11 @@ def generate_see_form_data(
         )
         if heritage_affected:
             required_documents.append(
-                "Heritage Impact Statement (DCP Chapter 12) — the impact on heritage significance must be assessed, not assumed"
+                "Heritage management document, if Council requires one (LEP cl 5.10(5)) — usually a "
+                "Heritage Impact Statement, but a conservation management plan or other guidance "
+                "document also satisfies the clause. Ask which is wanted before commissioning one. "
+                "Council must consider the heritage impact either way (cl 5.10(4)), so address it "
+                "in this SEE regardless"
             )
 
     if internal_works_only:
@@ -242,9 +246,17 @@ def generate_see_form_data(
 
     constraint_lines = []
     if is_heritage:
+        # Never assert that a document accompanies the application. This text
+        # goes to Council over the applicant's name, and it used to state as
+        # fact that a Heritage Impact Statement was attached — a document
+        # cl 5.10(5) only says Council *may* require, and which the applicant
+        # may well not have. ROADMAP.md S4.
         constraint_lines.append(
-            "The site is a heritage item under LEP 2012 Schedule 5. A Heritage Impact Statement accompanies "
-            "this application; the impact on heritage significance is assessed there."
+            "The site is a heritage item under LEP 2012 Schedule 5. [APPLICANT TO COMPLETE] "
+            "Council may require a heritage management document under LEP cl 5.10(5) — confirm "
+            "with Council whether one is required for this proposal and, if so, in what form. "
+            "State here how the impact on heritage significance has been assessed; cl 5.10(4) "
+            "requires the consent authority to consider it whether or not a document is required."
         )
     if in_heritage_conservation_area:
         constraint_lines.append("The site is within a heritage conservation area.")

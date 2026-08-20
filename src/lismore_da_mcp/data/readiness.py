@@ -341,9 +341,14 @@ DUTY_PLANNER_QUESTIONS = [
     {
         "key": "heritage_status",
         "question": "Is this site a heritage item, or in a heritage conservation area?",
-        "why_it_matters": "It brings in a Heritage Impact Statement, DCP Chapter 12, and for "
-                          "signage the §9.2 prohibition — under which only building and business "
-                          "identification signs remain available.",
+        "why_it_matters": "It brings in LEP cl 5.10, under which Council *may* require a "
+                          "heritage management document — ask which form, rather than "
+                          "commissioning a Heritage Impact Statement on spec. It also brings in "
+                          "DCP Chapter 12, and for signage the §9.2 prohibition, under which "
+                          "only building and business identification signs remain available. "
+                          "Ask about cl 5.10(10) too if the land use table prohibits your use: "
+                          "a heritage building can be approved for a purpose the Plan would "
+                          "otherwise disallow, where the use funds its conservation.",
         "cost_if_unresolved": "A document missing from the lodgement, and a signage proposal "
                               "designed against the wrong rules.",
         "why_we_cannot_answer_it": "lookup_site_constraints reads the state heritage layer, which "

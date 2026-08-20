@@ -429,23 +429,35 @@ def _site(p: Proposal) -> list[dict]:
 
     if p.heritage:
         findings.append({
-            "severity": "incomplete",
-            "finding": "The site is heritage affected. A Heritage Impact Statement is required.",
-            "why": "DCP Chapter 12 and LEP Schedule 5. It also changes what signage is "
-                   "available: DCP §9.2 prohibits advertising in a heritage area, excepting "
+            "severity": "confirm_before_lodging",
+            "finding": "The site is heritage affected. Council may require a heritage "
+                       "management document — ask which, before commissioning one.",
+            "why": "LEP cl 5.10(5): the consent authority *may* require a heritage management "
+                   "document, which is a conservation management plan, a Heritage Impact "
+                   "Statement, or any other document giving management guidelines. It is not "
+                   "automatic and it is not necessarily a HIS. What is not discretionary is "
+                   "cl 5.10(4) — Council must consider the effect on heritage significance "
+                   "whether or not a document is required. Heritage also changes what signage "
+                   "is available: DCP §9.2 prohibits advertising in a heritage area, excepting "
                    "building and business identification signs.",
-            "source": "DCP Chapter 12; DCP §9.2",
-            "do_this": "get_signage_requirements with is_heritage set, before designing a sign.",
+            "source": "LEP 2012 cl 5.10(4)–(5), Schedule 5; DCP §9.2",
+            "do_this": "Ask the Duty Planner what heritage document is wanted for this "
+                       "proposal — for minor external work it is often satisfied by far less "
+                       "than a consultant's report. Then get_signage_requirements with "
+                       "is_heritage set, before designing a sign.",
         })
     elif p.heritage is None:
         findings.append({
             "severity": "address_in_the_see",
             "finding": "Heritage status has not been established.",
-            "why": "Unestablished is not the same as clear, and a Heritage Impact Statement is "
-                   "not something to discover you need at lodgement.",
-            "source": "LEP 2012 Schedule 5",
+            "why": "Unestablished is not the same as clear, and a heritage document is not "
+                   "something to discover you need at lodgement. Note cl 5.10(5)(c) also "
+                   "reaches land *in the vicinity of* a heritage item or conservation area, so "
+                   "a site that is not itself listed can still be assessed for heritage impact.",
+            "source": "LEP 2012 cl 5.10(5)(c), Schedule 5",
             "do_this": "lookup_site_constraints reads the mapped heritage layer; conservation "
-                       "areas are Council's own mapping and are a Duty Planner question.",
+                       "areas are Council's own mapping and are a Duty Planner question. Ask "
+                       "about neighbouring items too, not only the site itself.",
         })
 
     if p.bushfire:

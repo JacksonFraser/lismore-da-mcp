@@ -106,8 +106,12 @@ def _heritage_section(is_heritage):
     if is_heritage:
         return (
             "The site is a heritage item or within a heritage conservation area.\n"
-            "    A Heritage Impact Statement is required (DCP Chapter 12). The impact on\n"
-            "    heritage significance must be assessed, not assumed.\n"
+            "    Council may require a heritage management document under LEP cl 5.10(5) — a\n"
+            "    Heritage Impact Statement is the usual form, but a conservation management\n"
+            "    plan or other guidance document also satisfies it. Ask which is wanted before\n"
+            "    commissioning one. What is not discretionary is cl 5.10(4): the consent\n"
+            "    authority must consider the effect on heritage significance whether or not a\n"
+            "    document is required, so this SEE addresses it either way.\n"
             "    • [APPLICANT] Address any external change — shopfront, awning, signage,\n"
             "      colours, materials — which is where heritage objections usually arise."
         )

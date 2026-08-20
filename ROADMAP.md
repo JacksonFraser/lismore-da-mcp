@@ -313,7 +313,43 @@ same floor area, with `existing_gross_floor_area_m2` rejected as an unknown argu
 that refuses to assume the catchment assumes this one, and puts $0 into the total rather than
 leaving it out.
 
-### S4 — Say "may" where the source says may · **HIGH**
+### S4 — Say "may" where the source says may · **DONE 2026-08-20**
+
+> **Landed, and it was wider than the two modules named below.** The claim was verified against both
+> sources first: DCP Chapter 12 mentions a heritage impact statement exactly twice, both in its
+> definitions, requires no document, and says of itself only that it applies "whenever development
+> consent is required under clause 5.10". cl 5.10(5) says the consent authority **may** require a
+> **heritage management document** — a conservation management plan, a heritage impact statement, or
+> any other guidance document.
+>
+> **Nine sites, not two.** `readiness.py` and `tools/see.py` were the assertions, but the same wrong
+> citation had reached `see/generate.py` twice, `data/checklists.py` three times, and
+> `data/readiness.py`. And the two modules this item held up as correct were only half right:
+> `addresses.py` and `signage.py` hedged the modality ("likely", "may") and then pointed at a chapter
+> that requires nothing. All nine now cite cl 5.10(5).
+>
+> **The worst one was in the SEE draft.** `see/generate.py` wrote *"A Heritage Impact Statement
+> accompanies this application"* into text going to Council over the applicant's name — a statement
+> of fact about a document cl 5.10(5) only says Council *may* ask for, and which the applicant may
+> not have. It is now an `[APPLICANT TO COMPLETE]`.
+>
+> **Both new clauses are cited.** cl 5.10(5)(c) — land *in the vicinity of* an item — is carried in
+> the readiness findings and the checklist condition, because a site that `lookup_site_constraints`
+> reports as unlisted can still be caught. cl 5.10(10) is offered by `check_permissibility` beside
+> the SEPP caveat, since both are reasons a prohibited result is not a settled refusal.
+>
+> **Guarded by an absence, and by a grep.** `data/heritage.py` quotes the clauses verbatim and
+> `scripts/audit_heritage.py` checks them against the LEP — but the load-bearing check is that
+> Chapter 12 still requires *nothing*, which a presence check cannot see. It also pins the modality:
+> if cl 5.10(5) stops saying "may", every hedge here is wrong in the other direction.
+> `tests/test_heritage.py` greps the whole package for the phrase rather than pinning nine call
+> sites, because propagation was the failure mode.
+>
+> One thing deliberately untouched: `data/referrals.py` lists a Heritage Impact Statement for a
+> **State Heritage Register** item. That is the Heritage Act s60 regime, not cl 5.10, and this repo
+> holds no document for it — changing it would be guessing in the other direction.
+
+### S4 — original entry · **HIGH**
 `readiness.py:431` and `tools/see.py:109` assert *"A Heritage Impact Statement is required (DCP
 Chapter 12)"*. Chapter 12 mentions a HIS twice, both in definitions, and requires nothing; LEP
 cl 5.10(5) says the consent authority **may** require a **heritage management document**, of which

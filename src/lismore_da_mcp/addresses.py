@@ -627,8 +627,10 @@ def _describe(label: str, features: list[dict]) -> dict:
                 for f in features
             ],
             "note": (
-                "A Heritage Impact Statement is likely to be required. See DCP "
-                "Chapter 12."
+                "Council may require a heritage management document under LEP "
+                "cl 5.10(5) — usually a Heritage Impact Statement, but not necessarily. "
+                "Ask which is wanted before commissioning one. DCP Chapter 12 sets the "
+                "design guidance; it does not itself require a document."
             ),
         }
 

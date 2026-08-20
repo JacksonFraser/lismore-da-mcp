@@ -40,9 +40,15 @@ CONDITIONAL_DOCUMENTS = [
     {"condition": "If flood-affected land", "document": "Flood Risk Assessment",
      "how_to_check": "Much of the Lismore LGA is flood affected — ask the Duty Planner. "
                      "lookup_site_constraints cannot rule flooding out."},
-    {"condition": "If a heritage item or in a conservation area",
-     "document": "Heritage Impact Statement",
-     "how_to_check": "lookup_site_constraints reads the heritage layer by address."},
+    # cl 5.10(5) says the consent authority *may* require a heritage management
+    # document, of which a HIS is one of three forms — and (c) reaches land in
+    # the *vicinity* of an item, not only the item itself. ROADMAP.md S4.
+    {"condition": "If a heritage item, in a conservation area, or in the vicinity of one",
+     "document": "Heritage management document, if Council requires one (LEP cl 5.10(5)) — "
+                 "usually a Heritage Impact Statement",
+     "how_to_check": "lookup_site_constraints reads the heritage layer by address. Ask Council "
+                     "whether a document is required and in what form before commissioning "
+                     "one; it is discretionary, not automatic."},
     {"condition": "If bushfire prone land", "document": "Bushfire assessment",
      "how_to_check": "lookup_site_constraints reads the bushfire layer by address."},
     {"condition": "If vegetation removal is required", "document": "Vegetation Management Plan"},
@@ -152,7 +158,8 @@ DA_CHECKLISTS = {
             "Elevation drawings showing sign dimensions, materials and illumination",
             "A photomontage or streetscape photo showing the sign in context",
             "Assessment against DCP Chapter 9",
-            "Heritage Impact Statement if on a heritage item or in a conservation area",
+            "Heritage management document if Council requires one (LEP cl 5.10(5)) — on or "
+            "near a heritage item or conservation area",
         ],
         "note": "Signage is frequently a separate application from the fit-out or change of "
                 "use, and is a common refusal point in the CBD and conservation areas.",
@@ -163,7 +170,8 @@ DA_CHECKLISTS = {
             "Demolition plan and staging",
             "Hazardous materials survey (asbestos)",
             "Waste management plan — DCP Chapter 15",
-            "Heritage Impact Statement if a heritage item or in a conservation area",
+            "Heritage management document if Council requires one (LEP cl 5.10(5)) — on or "
+            "near a heritage item or conservation area",
         ],
     },
 }
