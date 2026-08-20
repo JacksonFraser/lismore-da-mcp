@@ -108,6 +108,7 @@ def estimate_total_cost(
     counts: dict | None = None,
     catchment: str | None = None,
     existing_use: str | None = None,
+    existing_counts: dict | None = None,
     involves_building_work: bool = True,
     is_dwelling: bool = False,
 ) -> dict:
@@ -160,12 +161,29 @@ def estimate_total_cost(
             counts or {},
             catchment=catchment,
             existing_use=existing_use,
+            existing_counts=existing_counts,
         )
         parts["section_7_11_contributions"] = contribution
         payable = contribution.get("net_contribution") or contribution.get("contribution")
         if payable and catchment and catchment in payable:
             known_total += payable[catchment]
             included.append("section_7_11_contributions")
+            # When the net is what set the total and the previous use's size was
+            # assumed rather than stated, say so *here*, where the number is
+            # read. It used to sit three levels down under
+            # `existing_development_allowance.assumption`, so a restaurant
+            # expanding 100m² -> 140m² showed a $0 contribution in the budget
+            # with the assumption that produced it out of sight. ROADMAP.md S3.
+            if (existing_use and existing_counts is None
+                    and contribution.get("net_contribution")):
+                parts["section_7_11_contributions"]["what_this_total_assumes"] = (
+                    "The previous use is taken to occupy the same floor area, dwellings or "
+                    "beds as the proposal, so the figure in budget_at_least is the increase "
+                    "on that basis. If the proposal is larger than what it replaces, the "
+                    "contribution is higher — supply existing_gross_floor_area_m2 (or "
+                    "existing_dwellings / existing_beds_or_sites) to charge it on the real "
+                    "increase."
+                )
         elif payable:
             parts["section_7_11_contributions"]["not_added_to_total"] = (
                 "The contribution differs by catchment and no catchment was given, so it "

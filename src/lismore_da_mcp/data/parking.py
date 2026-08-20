@@ -54,6 +54,17 @@ Component forms:
 SCHEDULE = "DCP Chapter 7 Schedule 1"
 
 # What a spec may ask the caller to count, and the argument it arrives as.
+#
+# Ten of these twelve had no argument on `get_parking_rates` until 2026-08-20,
+# so the caller could not supply them however hard they tried. A medical centre
+# charged "4 per practitioner, plus 1 per employee" answered 5 spaces for 5
+# employees, with "not counted: practitioners" three levels down in
+# `calculation.basis` — against a real requirement of 17 for three
+# practitioners. ROADMAP.md S3.
+#
+# `tools/parking.py` now builds its schema from this dict, so a countable added
+# to a rate cannot fail to be askable. That is what this mapping was for; it was
+# imported and never read.
 COUNTABLE = {
     "seats": "seats",
     "employees": "num_employees",
@@ -67,6 +78,27 @@ COUNTABLE = {
     "bedrooms_1": "one_bedroom_units",
     "bedrooms_2": "two_bedroom_units",
     "bedrooms_3": "three_bedroom_units",
+}
+
+# What each argument means, in the caller's words. Keyed by argument name, so a
+# rate that starts counting something new needs a line here before it can be
+# asked for — `tests/test_parking.py` checks the two dicts agree exactly.
+COUNTABLE_DESCRIPTIONS = {
+    "seats": "Seats, for rates based on seating (restaurants, places of worship, function centres).",
+    "num_employees": "Number of employees, for rates with a staff component.",
+    "children": "Places for children, for a centre-based child care facility.",
+    "beds": "Beds, for a hospital, nursing home or similar.",
+    "rooms": "Guest rooms, for a motel or hotel.",
+    "practitioners": (
+        "Practitioners, for a medical centre — the dominant term in its rate "
+        "(4 spaces each, against 1 per employee). Without it no number is given."
+    ),
+    "dwellings": "Number of dwellings.",
+    "accommodation_units": "Self-contained accommodation units, for tourist and visitor accommodation.",
+    "work_bays": "Work bays, for a vehicle repair station or similar.",
+    "one_bedroom_units": "Number of one-bedroom units, where the rate varies by bedroom count.",
+    "two_bedroom_units": "Number of two-bedroom units.",
+    "three_bedroom_units": "Number of three-bedroom units.",
 }
 
 # The café rule is the one genuinely ambiguous entry in Schedule 1, and it is

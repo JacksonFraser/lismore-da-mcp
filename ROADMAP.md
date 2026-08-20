@@ -263,7 +263,41 @@ Minimum, at the one gate: reject non-finite numbers, and enforce `minimum` from 
 negatives cannot reach a handler. Then a test that every numeric property declares a `minimum`,
 in the same shape as the existing `_JSON_TYPES` test.
 
-### S3 — Never compute from an input the schema cannot express · **HIGH**
+### S3 — Never compute from an input the schema cannot express · **DONE 2026-08-20**
+
+> **Landed.** Both halves, plus a third case of the same defect found on the way.
+>
+> **Parking.** All twelve countables now have arguments, generated from `COUNTABLE` so a rate that
+> starts counting something new cannot fail to be askable — ten of them had none. And a rate whose
+> terms were not all supplied now returns **no number**, with `supply` naming the argument to send,
+> instead of a partial sum with `not counted: practitioners` in a list three levels down. The
+> medical centre goes from a confident **5** to a declined answer, and to the correct **17** once
+> practitioners are given.
+>
+> **Contributions.** `existing_gross_floor_area_m2` (and `existing_dwellings` /
+> `existing_beds_or_sites`) are now arguments. `estimate_contribution` had accepted `existing_counts`
+> all along and nothing ever passed it, so the answer's own advice — *"supply the previous floor area
+> if it differed"* — named an argument that did not exist. The restaurant expanding 100m² → 140m²
+> now returns **$8,040.62** where it returned $0. The same-area assumption is kept, because it is
+> right for the ordinary same-tenancy change of use and the shop → café nil is this repo's flagship
+> answer; what changed is that it is correctable, and that when an *assumed* net is what set
+> `budget_at_least` the answer says so where the number is rather than three levels down.
+>
+> **The third case: zero was not expressible either.** `estimate_spaces` filtered falsy counts, and
+> every caller passed `arguments.get(...) or 0`, so `num_employees: 0` and "nobody said" were the
+> same value. An owner-operated café with no staff could not say so, and a rate that should have
+> declined instead computed against a silent zero. Now `None` means not supplied and `0` means zero.
+> This is the same defect as the missing arguments — an input the caller cannot express — and it is
+> what made the parking fix land correctly rather than half-correctly.
+>
+> **Where this bites, and why it is still right.** `check_da_readiness` gained `num_employees` and
+> `seats`, because the café rate adds a staff component and without it there is now no figure at
+> all. Three of the twenty-seven rates decline on floor area alone — restaurant, café and gym — and
+> each is a use where the staff component is exactly what CLAUDE.md's cautionary tale turned on: an
+> 80m² café told its parking was adequate against a real requirement of 14 spaces. A declined answer
+> that names the missing argument is worth more than a number that is quietly 20% low.
+
+### S3 — original entry · **HIGH**
 `data/parking.py` recognises `practitioners, children, beds, rooms, dwellings,
 accommodation_units, work_bays`; `get_parking_rates` exposes `seats` and `num_employees`. A medical
 centre with 5 employees returns **5 spaces** against a rate of *"4 per practitioner, plus 1 per

@@ -176,6 +176,11 @@ def generate_see_form_data(
     rate_entry = PARKING_RATES.get(rate_match.key) if rate_match else None
     if rate_entry:
         parking = estimate_spaces(rate_entry, floor_area_sqm, {"employees": num_employees})
+        # A rate with an unsupplied term yields no count, and a shortfall cannot
+        # be computed from one. Dropping it here keeps the form's parking answer
+        # blank rather than derived from a partial sum. ROADMAP.md S3.
+        if parking and parking["spaces_required"] is None:
+            parking = None
         if parking:
             parking["spaces_provided"] = parking_spaces_provided
             if parking_spaces_provided is None:

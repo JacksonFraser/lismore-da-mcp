@@ -33,6 +33,12 @@ PROPOSAL_ARGUMENTS = {
     'development_type': {'type': 'string', 'description': "Optional. What you are doing, in plain words: 'change of use', 'fitout', 'new tenancy', 'commercial', 'industrial', 'signage', 'demolition', 'subdivision', 'dwelling'. Selects the document checklist."},
     'existing_use': {'type': 'string', 'description': "Optional. The existing or most recent approved use of the premises. It drives the Section 7.11 allowance and the contamination question, and it belongs in the description of development."},
     'floor_area_sqm': {'type': 'number', 'description': 'Optional. Gross floor area in square metres.', 'minimum': 0},
+    # Several Schedule 1 rates add a staff or seating component to the area
+    # component, and without these the parking requirement cannot be worked out
+    # at all — the café rate is the common case. They used to be absent, and the
+    # area-only figure was reported as the requirement anyway. ROADMAP.md S3.
+    'num_employees': {'type': 'integer', 'description': 'Optional. Number of employees. Several parking rates add a staff component, and without it no parking figure can be given for those uses.', 'minimum': 0},
+    'seats': {'type': 'integer', 'description': 'Optional. Seats, for a restaurant, café, place of worship or function centre.', 'minimum': 0},
     'spaces_provided': {'type': 'integer', 'description': 'Optional. Car parking spaces available on the site.', 'minimum': 0},
     'location': {'type': 'string', 'description': "Optional. 'cbd' if the site is inside the Lismore CBD as drawn on Map 1 of DCP Chapter 7, or 'outside_cbd'. Do not infer it from the zone — it changes the parking requirement several-fold."},
     'catchment': {'type': 'string', 'description': "Optional. The Section 7.11 contributions catchment, if Council has confirmed it: 'urban', 'rural' or 'rural_village'."},
@@ -82,6 +88,10 @@ def _proposal(arguments: dict) -> tuple[Proposal, dict]:
         zone_code=zone,
         existing_use=(arguments.get("existing_use") or "").strip(),
         floor_area_sqm=arguments.get("floor_area_sqm") or None,
+        # No `or None`: a supplied 0 has to survive, or the caller cannot say
+        # "no staff" — which is a different fact from not saying anything.
+        num_employees=arguments.get("num_employees"),
+        seats=arguments.get("seats"),
         contravenes_development_standard=arguments.get("contravenes_development_standard"),
         documents_prepared=list(arguments.get("documents_prepared") or []),
         development_characteristics=list(arguments.get("development_characteristics") or []),
@@ -109,8 +119,32 @@ def _parking(p: Proposal, spaces_provided) -> dict | None:
     if not match:
         return None
     entry = PARKING_RATES[match.key]
-    schedule_1 = estimate_spaces(entry, p.floor_area_sqm, {})
+    schedule_1 = estimate_spaces(entry, p.floor_area_sqm, {
+        "employees": p.num_employees,
+        "seats": p.seats,
+    })
     cbd = None if uses_schedule_1_in_cbd(match.key) else cbd_spaces(p.floor_area_sqm)
+
+    # A rate whose terms were not all supplied returns no number. Carrying that
+    # through rather than falling back on the area-only figure is the point of
+    # ROADMAP.md S3: the café rate adds a staff component, and reporting the
+    # area component alone as "the requirement" is how an 80m² café was told its
+    # parking was adequate against a real requirement of 14 spaces.
+    if schedule_1 and schedule_1["spaces_required"] is None:
+        return {
+            "rate_matched": match.key,
+            "spaces_required": None,
+            "cannot_calculate": schedule_1["cannot_calculate"],
+            "supply": schedule_1["supply"],
+            "counted_so_far": schedule_1["counted_so_far"],
+            "spaces_provided": spaces_provided,
+            "shortfall": None,
+            "note": (
+                "No parking figure is given because the rate has a term that was not "
+                "supplied. This is not a shortfall of zero — it is an unanswered question, "
+                "and Council will ask it."
+            ),
+        }
 
     if p.in_cbd is True and cbd:
         readings = [cbd["spaces_required"]]
@@ -123,12 +157,8 @@ def _parking(p: Proposal, spaces_provided) -> dict | None:
 
     result = {
         "rate_matched": match.key,
-        # Only the floor area is passed in — this tool takes no seat or staff
-        # count, and several Schedule 1 rules add a component for each. The
-        # basis says which were left out rather than presenting a partial
-        # figure as the requirement.
         "basis": (schedule_1 or {}).get("basis"),
-        "for_the_full_calculation": "get_parking_rates, with seats and num_employees.",
+        "for_the_full_calculation": "get_parking_rates, which takes every countable the rates use.",
         "spaces_required": readings[0] if len(readings) == 1 else
                            f"between {min(readings)} and {max(readings)} — the CBD and Schedule 1 "
                            "readings differ and the site has not been placed on Map 1",

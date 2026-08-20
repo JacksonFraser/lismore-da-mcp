@@ -272,30 +272,59 @@ class TestTheQuestionsFollowTheProposal:
 
 class TestParkingIsARangeUntilTheSiteIsPlaced:
     """Schedule 1 is the rate outside the CBD; inside it a fixed 3.3/100m²
-    replaces it. Picking either would be a number, and the wrong one."""
+    replaces it. Picking either would be a number, and the wrong one.
+
+    Every case here supplies `num_employees`, because the café rate adds a staff
+    component and without it no figure is given at all — see
+    `TestAPartialRateIsNotAnAnswer` below.
+    """
 
     def test_both_readings_are_given_when_the_location_is_unknown(self, call):
-        parking = check(call, floor_area_sqm=80)["parking"]
+        parking = check(call, floor_area_sqm=80, num_employees=0)["parking"]
         assert "between" in str(parking["spaces_required"])
 
     def test_one_reading_is_given_once_the_location_is_known(self, call):
-        parking = check(call, floor_area_sqm=80, location="cbd")["parking"]
+        parking = check(call, floor_area_sqm=80, num_employees=0, location="cbd")["parking"]
         assert parking["spaces_required"] == 3
 
     def test_a_shortfall_is_only_asserted_when_both_readings_agree(self, call):
         """With no spaces at all every reading is short; with enough for the
         CBD rate but not Schedule 1, neither answer is available yet."""
-        assert check(call, floor_area_sqm=80, spaces_provided=0)["parking"]["shortfall"] is True
-        assert check(call, floor_area_sqm=80, spaces_provided=99)["parking"]["shortfall"] is False
-        undecided = check(call, floor_area_sqm=80, spaces_provided=5)["parking"]
+        def parking(**kwargs):
+            return check(call, floor_area_sqm=80, num_employees=0, **kwargs)["parking"]
+
+        assert parking(spaces_provided=0)["shortfall"] is True
+        assert parking(spaces_provided=99)["shortfall"] is False
+        undecided = parking(spaces_provided=5)
         assert undecided["shortfall"] is None
         assert "which rate applies" in undecided["note"]
 
-    def test_the_missing_components_are_named(self, call):
-        """This tool takes no seat or staff count and the cafe rule adds one
-        for each. A partial figure presented as the requirement is the failure
-        `estimate_spaces` exists to avoid."""
+
+class TestAPartialRateIsNotAnAnswer:
+    """ROADMAP.md S3. The café rate adds a staff component to a floor-area one,
+    and reporting the area component alone as "the requirement" is how an 80m²
+    café was told its parking was adequate against a real requirement of 14."""
+
+    def test_no_figure_is_given_when_a_term_was_not_supplied(self, call):
         parking = check(call, floor_area_sqm=80)["parking"]
+        assert parking["spaces_required"] is None
+        assert "num_employees" in parking["supply"]
+
+    def test_the_absence_is_not_reported_as_a_shortfall_of_zero(self, call):
+        """An unanswered question and a satisfied requirement are opposite
+        facts, and only one of them lets a DA through."""
+        parking = check(call, floor_area_sqm=80, spaces_provided=0)["parking"]
+        assert parking["shortfall"] is None
+        assert "not a shortfall of zero" in parking["note"]
+
+    def test_a_supplied_zero_is_a_count_and_not_a_gap(self, call):
+        """Nobody-said and nobody-works-here are different, and an
+        owner-operated café is entitled to say the second."""
+        parking = check(call, floor_area_sqm=80, num_employees=0)["parking"]
+        assert parking["spaces_required"] is not None
+
+    def test_the_full_calculation_is_pointed_at(self, call):
+        parking = check(call, floor_area_sqm=80, num_employees=2)["parking"]
         assert "get_parking_rates" in parking["for_the_full_calculation"]
 
 

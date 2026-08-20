@@ -90,6 +90,34 @@ down, where it can be tested and reused. `generate_see_draft` is the cautionary 
 hand-rolled a parking calculation instead of calling `parking.estimate_spaces`, and told an 80m²
 café with no on-site parking that its parking was adequate against a real requirement of 14 spaces.
 
+**A schema that cannot express an input is a wrong answer waiting to happen, not a missing
+feature.** The handler still computes — from whatever it did get — and the shortfall goes in a
+caveat nobody reads. Three instances of this, all fixed under ROADMAP.md S3, and each was invisible
+because the tool answered rather than erroring:
+
+- **A countable with no argument.** `data/parking.py` recognises twelve; `get_parking_rates` offered
+  two. A medical centre charged *"4 per practitioner, plus 1 per employee"* answered **5** spaces
+  for 5 employees — against 17 for three practitioners — with `not counted: practitioners` three
+  levels down in `calculation.basis`. The schema's countables are now generated from `COUNTABLE`, so
+  a rate that starts counting something new cannot fail to be askable.
+- **A correction with no argument.** `estimate_contribution` accepted `existing_counts` from the
+  first commit and nothing ever passed it, so a change of use assumed the previous use occupied the
+  same floor area — and the answer's own advice, *"supply the previous floor area if it differed"*,
+  named an argument that did not exist. A restaurant expanding 100m² → 140m² netted to **$0**
+  against a real **$8,040**.
+- **Zero with no way to say it.** `estimate_spaces` filtered falsy counts and every caller passed
+  `arguments.get(...) or 0`, so `num_employees: 0` and "nobody said" were the same value. An
+  owner-operated café could not state that it has no staff. **`None` means not supplied; `0` means
+  zero** — keep that distinction when adding a countable.
+
+**And a partial sum is never reported as the answer.** Where a rate has a term that was not
+supplied, `estimate_spaces` returns `spaces_required: None` with `supply` naming the argument,
+because supplying it can *multiply* the requirement rather than add to it — a part of the sum is not
+a lower bound. Callers must branch on that: `readiness.py` reports it as an unanswered question
+rather than a shortfall of zero, and the SEE draft leaves the figure blank. This is the same
+discipline as the contributions catchment and `flood_area` — an input that changes the number is
+never assumed.
+
 **Two transports, one server object.** `main()` branches on `MCP_TRANSPORT`: unset/`stdio` →
 `stdio_server()` for local `.mcp.json` use; `http` → a Starlette app (`build_http_app()`) mounting
 `StreamableHTTPSessionManager(stateless=True)` at `/mcp`, with `/health` and an in-process per-IP
