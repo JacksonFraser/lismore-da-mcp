@@ -203,7 +203,14 @@ def check_permissibility(arguments: dict):
         ("hierarchy", False): "prohibited",
     }
     permissibility = "unknown"
-    if classification["match_type"] == "catchall":
+    if classification["match_type"] == "unrecognised":
+        # Never a verdict. The term matched nothing the LEP names, so the
+        # catch-all was not reached on the strength of the use being unlisted —
+        # it was reached because this server could not identify the proposal.
+        # Reporting that as "likely permitted with consent" is what shipped 120
+        # confident yeses against tables that prohibit the use. ROADMAP.md S1.
+        permissibility = "not_found"
+    elif classification["match_type"] == "catchall":
         permissibility = "likely_permitted_with_consent" if classification["permissible"] is None else "likely_prohibited"
     elif classification["match_type"] == "approximate":
         permissibility = "likely_prohibited" if classification["category"] == "prohibited" else "uncertain"
@@ -230,11 +237,18 @@ def check_permissibility(arguments: dict):
     }
     if redirect_note:
         result["redirect_note"] = redirect_note
-    if permissibility == "permitted_with_consent":
+    if classification["match_type"] == "unrecognised":
+        result["what_to_do_next"] = (
+            "Call get_definition on the proposal to find the Standard Instrument term it falls "
+            "under, then ask again with that term. The LEP's tables name 153 uses between them "
+            "and this matched none of them, so the term is very likely not the LEP's word for "
+            "the proposal rather than the proposal being unlisted."
+        )
+    elif permissibility == "permitted_with_consent":
         result["next_steps"] = "A Development Application is required for this use."
     elif permissibility == "prohibited":
         result["advice"] = "This use cannot be approved in this zone. Consider an alternative zone or use."
-    elif permissibility in ("uncertain", "not_found", "likely_permitted_with_consent", "likely_prohibited"):
+    elif permissibility in ("uncertain", "not_found", "likely_prohibited"):
         result["advice"] = "Confirm the exact land use term with the Council Duty Planner before relying on this."
         all_uses = zone.get("permitted_without_consent", []) + zone.get("permitted_with_consent", [])
         words = [w for w in canonical_use(land_use).split() if len(w) > 3]
@@ -248,7 +262,13 @@ def check_permissibility(arguments: dict):
     # dwellings ("granny flats"), which are absent from several Lismore
     # residential tables but are generally permissible with consent under the
     # Housing SEPP. Without this note, a catch-all miss reads as a settled "no".
-    if permissibility in ("likely_prohibited", "prohibited", "not_found"):
+    #
+    # Gated on *everything that is not a settled permission* rather than on the
+    # prohibited-shaped verdicts alone. The old list omitted "uncertain", and it
+    # omitted the catch-all's "likely permitted with consent" — which is how 120
+    # wrong "yes" answers shipped with no caveat at all (ROADMAP.md S1). A
+    # catch-all miss now reports as not_found and is covered here.
+    if permissibility not in ("permitted", "permitted_with_consent", "permitted_without_consent"):
         result["scope_of_this_answer"] = (
             "Based on the Lismore LEP 2012 land use table only. State Environmental "
             "Planning Policies (Housing, Exempt and Complying Development Codes, "

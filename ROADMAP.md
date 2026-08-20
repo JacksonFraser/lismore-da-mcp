@@ -116,7 +116,50 @@ available and is still not a coding task.
 > The Phase 0 lesson generalises: *the file nobody has looked at is not the file nobody needs to
 > look at.* The layer nobody has audited is `landuse.py`, `vocabulary.py` and the handlers.
 
-### S1 — Fix singularisation, and never answer a use question by falling through · **CRITICAL**
+### S1 — Fix singularisation, and never answer a use question by falling through · **DONE 2026-08-20**
+
+> **Landed.** The audit below is clean: all 991 land use rows across all 21 zone tables, asked in
+> both the table's spelling and the Dictionary's, now get the table's own answer. 287 → **0**.
+>
+> Three changes, matching the three parts named below:
+>
+> 1. **The pairing is data.** `LAND_USE_TABLE_SPELLINGS` in `data/definitions.py` carries the LEP's
+>    own 105 singular↔plural pairs, read off the Dictionary rather than computed. `canonical_use()`
+>    consults it before falling back to the suffix rule, which is now load-bearing for nothing the
+>    tables name. `audit_landuse_matching.py` checks the stored pairing against the document, checks
+>    every table spelling appears verbatim in `data/zones.py`, and checks it against the
+>    `land_use_table_term` some definitions already carried.
+> 2. **The hierarchy is keyed the way lookups arrive.** `LAND_USE_HIERARCHY` is written in the LEP's
+>    spelling and was being looked up with a canonicalised term, so `business premises` became
+>    `busines premise` and the whole `premises` family missed. `E4` + `business premises` now
+>    correctly returns prohibited, via `Commercial premises`.
+> 3. **The catch-all no longer answers for a term nobody recognised.** This needed a distinction the
+>    tool could not previously draw. A use the LEP names that this table omits *is* genuinely
+>    unlisted, and the catch-all is then the LEP's own answer — `industry` in R2 is prohibited and
+>    saying so is right. A term nothing here can place is a failure to identify the proposal, and it
+>    now reports `not_found` / `unrecognised` with `permissible` left None, so it no longer reaches
+>    `readiness.py` as a "stop" or `see.py` as "Prohibited". `KNOWN_LAND_USES` is what separates
+>    them. The SEPP caveat is now gated on *anything that is not a settled permission*, so it covers
+>    the wrong-yes shape the old prohibited-only gate missed.
+>
+> **Two things found while fixing it that the audit could not see.** The audit only asks about terms
+> the tables name, so neither would ever have failed it:
+>
+> - **Four zones' catch-all was invisible.** RU2, RU3, SP2 and C1 word the row *"Any development not
+>   specified in item 2 or 3"* — without the *"other"* that `CATCHALL_TERM` tests for as a substring.
+>   In those four an unlisted use came back `not_found` rather than prohibited. `_is_catchall()` now
+>   matches both wordings.
+> - **Better resolution made the fuzzy fallback dangerous.** Once `Home industries` canonicalised
+>   properly, a proposal for `industry` in R2 started matching it by word-boundary containment —
+>   *"appears to correspond to Home industries"*, which it does not. For a use the LEP names there is
+>   nothing to approximate towards, so `approximate` is now skipped for any recognised term.
+>
+> **Not done here, deliberately:** `hairdresser` still returns `not_found` rather than resolving to
+> `business premises`, though `vocabulary.py:264` already maps it and the LEP's own definition names
+> hairdressers. Wiring `DEFINITION_SYNONYMS` into `check_permissibility` is Phase A convenience work,
+> and the sequencing note above says not to remove the brake first. It is strictly better than the
+> `permitted` it used to return.
+
 `landuse.py:40` strips a trailing `-s` and cannot pair `-ies` with `-y`; 40 land use table terms end
 in `-ies`. `match_land_use(..., "hierarchy")` compounds it by looking the canonicalised term up
 against raw `LAND_USE_HIERARCHY` keys, making the whole `premises` family unreachable. Verified:
@@ -144,11 +187,36 @@ every term in all 21 tables, in both singular and plural, and assert the tool's 
 table. It is `audit_zone_tables.py` extended from *the data matches the source* to *the tool agrees
 with the data*.
 
+> **The guard exists and the blast radius is measured — `scripts/audit_landuse_matching.py`,
+> 2026-08-09.** It asks every one of the 991 land use rows across all 21 tables in two spellings:
+> the table's own, and the one the LEP Dictionary defines. The result splits cleanly:
+>
+> | | |
+> |---|---:|
+> | asked in the table's own spelling | **0 wrong** |
+> | asked in the Dictionary's spelling | **287 wrong** — now 0, see above |
+>
+> — 120 `wrong_yes` (the table prohibits it, the tool said yes), 91 `wrong_no`, and 76 `unfound`,
+> where the answer's shape happens to agree but the term was never actually found. **Every one of
+> the 120 wrong "yes" answers ships without the SEPP caveat**, confirming the gating defect at
+> `tools/zoning.py:251`, and **every one of the 287 resolves via `catchall` or `none`** — no failure
+> is a mismatch onto some other term.
+>
+> Against the sweep this replaces: wrong_yes was close (115 → 120), wrong_no was understated
+> (75 → 91), and the third class was not named at all. The pairing is read off the Dictionary in
+> the document rather than computed, which is what makes it data — 105 of the 153 distinct table
+> terms carry a second spelling, 47 are already spelled the Dictionary's way, and the single
+> genuinely unpaired term is explained in `UNPAIRED_TABLE_TERMS`.
+>
+> **The zero in the first row is the useful half of the finding.** Once a term is found, everything
+> downstream is right; the entire defect is resolution. That narrows the fix below to exactly what
+> items 1 and 2 describe and rules out a wider rewrite.
+
 Three reasons it comes first rather than last, and the first is the one that decides it:
 
-1. **The blast radius is not actually known.** The 115-wrong-yes / 75-wrong-no figure is an agent's
-   sweep that was never independently re-derived — six cases were verified by hand, the count was
-   not. If the real number is twelve, that changes how much surgery is justified.
+1. ~~**The blast radius is not actually known.**~~ **Now known — see above.** The 115-wrong-yes /
+   75-wrong-no figure was an agent's sweep never independently re-derived; the audit re-derives it
+   at 120 / 91 / 76. The surgery in items 1 and 2 is justified, and nothing wider is.
 2. **It is the oracle the fix is graded against.** Nothing else can say the fix is *complete*
    rather than working on the handful of examples already in hand.
 3. **It is the repo's own pattern.** Every data module has an audit; the matching layer has none,
