@@ -108,7 +108,7 @@ def get_flood_requirements(arguments: dict):
         'zone': {'type': 'string', 'description': "The LEP zone code, which determines the front setback: R1, R2, R3, RU5, RU1, R5 or E3. lookup_zone_by_address derives it from an address."},
         'lot_configuration': {'type': 'string', 'description': "Optional: 'standard' or 'corner'. A corner allotment has a 3m secondary road setback."},
         'fronts_rms_road': {'type': 'boolean', 'description': "Optional, and only relevant in RU1, R5 and E3: whether the site fronts an RMS road, which raises the setback from 15m to 28m."},
-        'storeys': {'type': 'integer', 'description': "Accepted but not used: Chapter 1 sets no setback by storey. Supply zone instead."},
+        'storeys': {'type': 'integer', 'description': "Accepted but not used: Chapter 1 sets no setback by storey. Supply zone instead.", 'minimum': 1},
         'development_type': {'type': 'string', 'description': "Accepted but not used: superseded by zone and lot_configuration."},
     },
     required=['setback_type'],

@@ -68,8 +68,8 @@ def search_dcp(arguments: dict):
     description='Read a section from any planning document — a DCP chapter, an LEP text extract, a form, a fee schedule, or an exempt-development fact sheet. Use list_documents for filenames.',
     properties={
         'chapter': {'type': 'string', 'description': "Document filename or a fragment of it (e.g., 'chapter-7-off-street-carparking.pdf', 'lep-2012-nsw-full.txt', 'fences')"},
-        'start_page': {'type': 'integer', 'description': 'Starting page number, or starting line number for .txt documents (default: 1)'},
-        'end_page': {'type': 'integer', 'description': 'Ending page number, or ending line number for .txt documents (optional; .txt defaults to a 200-line window)'},
+        'start_page': {'type': 'integer', 'description': 'Starting page number, or starting line number for .txt documents (default: 1)', 'minimum': 1},
+        'end_page': {'type': 'integer', 'description': 'Ending page number, or ending line number for .txt documents (optional; .txt defaults to a 200-line window)', 'minimum': 1},
     },
     required=['chapter'],
 )

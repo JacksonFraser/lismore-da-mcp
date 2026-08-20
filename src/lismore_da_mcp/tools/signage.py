@@ -26,8 +26,8 @@ from lismore_da_mcp.vocabulary import unresolved_error
         'sign_type': {'type': 'string', 'description': "Type of sign. Plain wording works — 'A-frame', 'sandwich board', 'shopfront sign', 'menu board', 'pylon' all resolve. Use list_signage_types to see the full set."},
         'zone_code': {'type': 'string', 'description': "Optional. Zone of the site, e.g. 'E2', 'R1', 'MU1'. Used to test the clause 9.2 prohibition, which applies in residential, open space, waterway and conservation areas."},
         'is_heritage': {'type': 'boolean', 'description': 'Optional. Whether the site is a heritage item or within a heritage conservation area. A heritage area is a prohibited area for advertising regardless of zone, so this is worth establishing — lookup_site_constraints reads it from the NSW heritage layer by address.'},
-        'area_sqm': {'type': 'number', 'description': 'Optional. Area of the proposed sign in square metres, to check it against the DCP standard.'},
-        'height_m': {'type': 'number', 'description': 'Optional. Height of the proposed sign in metres, for pylon and directory board signs.'},
+        'area_sqm': {'type': 'number', 'description': 'Optional. Area of the proposed sign in square metres, to check it against the DCP standard.', 'minimum': 0},
+        'height_m': {'type': 'number', 'description': 'Optional. Height of the proposed sign in metres, for pylon and directory board signs.', 'minimum': 0},
     },
     required=['sign_type'],
 )

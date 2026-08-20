@@ -180,6 +180,94 @@ class TestTypeValidation:
         }
         assert unknown == set()
 
+    def test_array_elements_are_checked_against_items(self):
+        """`items` was declared on all five array arguments and enforced on none,
+        so a list of the wrong thing read as validated. Each is a list of phrases
+        the handler calls string methods on, and a stray int surfaced as an
+        uncaught AttributeError."""
+        error = validate_arguments(
+            "check_da_readiness",
+            {"proposed_use": "cafe", "documents_prepared": ["site plan", 5, None]},
+        )
+        assert error and "documents_prepared[1] expects string, received int" in error["error"]
+
+
+class TestDomainValidation:
+    """ROADMAP.md S2. A type check alone accepts values with no meaning.
+
+    `gross_floor_area_m2: -80` returned a budget of $420 where `+80` returned
+    $16,501 — a sign flip silently deleting the largest charge in the answer,
+    while the total went on reading like a total. That is worse than a refused
+    call, because nothing about it looks wrong.
+    """
+
+    @pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan")])
+    def test_non_finite_numbers_are_refused(self, value):
+        """`json.loads` accepts Infinity and NaN, so these arrive over the wire.
+        `inf` raised an uncaught OverflowError out of fees.py and `nan` an
+        UnboundLocalError, since every bracket comparison against NaN is false."""
+        error = validate_arguments("calculate_da_fees", {"development_cost": value})
+        assert error and "not a finite number" in error["error"]
+
+    def test_a_negative_cost_is_refused(self):
+        error = validate_arguments("calculate_da_fees", {"development_cost": -5000})
+        assert error and "must be at least 0" in error["error"]
+
+    def test_the_sign_flip_that_deleted_a_contribution(self):
+        """The case S2 measured, at the gate rather than in the answer."""
+        error = validate_arguments("calculate_da_fees", {
+            "development_cost": 50000,
+            "development_type": "cafe",
+            "gross_floor_area_m2": -80,
+            "catchment": "urban",
+        })
+        assert error and "gross_floor_area_m2 must be at least 0" in error["error"]
+
+    def test_a_page_number_below_one_is_refused(self):
+        error = validate_arguments("read_dcp_section", {
+            "chapter": "chapter-7-off-street-carparking.pdf", "start_page": 0,
+        })
+        assert error and "start_page must be at least 1" in error["error"]
+
+    def test_zero_is_still_accepted_where_it_means_something(self):
+        """`development_cost: 0` is the documented way to say 'change of use, no
+        works', so the bound is 'at least 0' and not 'above 0'."""
+        assert validate_arguments("calculate_da_fees", {"development_cost": 0}) is None
+
+    def test_every_numeric_argument_declares_a_minimum(self):
+        """The same shape as the `_JSON_TYPES` test above, and for the same
+        reason: an unbounded number is one this gate cannot refuse, and every
+        one of them feeds a fee, an area or a count where a negative is
+        meaningless."""
+        unbounded = {
+            f"{name}.{argument}"
+            for name, tool in registered().items()
+            for argument, spec in tool.schema.get("properties", {}).items()
+            if spec.get("type") in ("number", "integer") and "minimum" not in spec
+        }
+        assert unbounded == set()
+
+    def test_no_schema_declares_a_constraint_that_is_not_enforced(self):
+        """The generalisation of the two tests above, and the one that matters
+        most going forward.
+
+        A declared-but-unchecked keyword is worse than an absent one: it
+        documents itself to the caller as a constraint and is worth nothing.
+        This is how `items` sat on five array arguments enforcing nothing. To
+        add a keyword to a schema, teach `validate_arguments` to honour it
+        first, then add it here.
+        """
+        from lismore_da_mcp.registry import _ENFORCED_KEYWORDS
+
+        unenforced = {
+            f"{name}.{argument}.{keyword}"
+            for name, tool in registered().items()
+            for argument, spec in tool.schema.get("properties", {}).items()
+            for keyword in spec
+            if keyword not in _ENFORCED_KEYWORDS
+        }
+        assert unenforced == set()
+
 
 class TestSmoke:
     @pytest.mark.parametrize("name", sorted(VALID_ARGS))
