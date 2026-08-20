@@ -67,6 +67,8 @@ class Proposal:
     zone_code: str = ""
     existing_use: str = ""
     floor_area_sqm: float | None = None
+    num_employees: int | None = None
+    seats: int | None = None
     contravenes_development_standard: bool | None = None
     documents_prepared: list[str] = field(default_factory=list)
     development_characteristics: list[str] = field(default_factory=list)

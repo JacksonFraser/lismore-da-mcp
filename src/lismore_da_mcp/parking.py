@@ -36,6 +36,19 @@ from lismore_da_mcp.data.parking import MERIT_CRITERIA
 from lismore_da_mcp.data.parking import ON_STREET_LOSS
 
 
+# `_needs` names the floor area in prose, since that is how it reads in `basis`.
+# Turning it back into the argument a caller sends keeps `supply` uniformly
+# actionable rather than mixing argument names with English.
+_ARGUMENT_FOR = {**COUNTABLE, "floor area": "floor_area_sqm"}
+
+
+def _and_list(items: list[str]) -> str:
+    """'a', 'a and b', 'a, b and c' — for a sentence rather than a field."""
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(items[:-1]) + " and " + items[-1]
+
+
 def _component(part: dict, floor_area_sqm: float | None, counts: dict) -> float | None:
     """One term of a requirement. None means it cannot be evaluated."""
     if "greater_of" in part:
@@ -51,12 +64,17 @@ def _component(part: dict, floor_area_sqm: float | None, counts: dict) -> float 
         if not floor_area_sqm:
             return None
         return part["rate"] * (floor_area_sqm / part["per_area"])
+    # `is None` rather than falsy: a supplied zero is an answer, not a gap.
+    # An owner-operated café with no staff genuinely has no staff component, and
+    # conflating that with "nobody said" meant the tool could not be told either
+    # one. Same defect as the missing arguments — an input the caller cannot
+    # express. ROADMAP.md S3.
     if "one_per" in part:
         value = counts.get(part["of"])
-        return None if not value else value / part["one_per"]
+        return None if value is None else value / part["one_per"]
     if "per" in part:
         value = counts.get(part["per"])
-        return None if not value else part["rate"] * value
+        return None if value is None else part["rate"] * value
     return None
 
 
@@ -111,7 +129,8 @@ def estimate_spaces(entry: dict, floor_area_sqm: float | None = None,
     spec = entry.get("spec")
     if not spec:
         return None
-    counts = {k: v for k, v in (counts or {}).items() if v}
+    # Drop only what was not supplied. A zero survives, and means zero.
+    counts = {k: v for k, v in (counts or {}).items() if v is not None}
     for key, value in (spec.get("defaults") or {}).items():
         counts.setdefault(key, value)
 
@@ -153,8 +172,36 @@ def estimate_spaces(entry: dict, floor_area_sqm: float | None = None,
 
         if not basis:
             return None
+
+        # A partial sum is not a smaller answer, it is a different one.
+        #
+        # This used to append "not counted: practitioners" to `basis` and return
+        # the total anyway, so a medical centre with 5 employees reported 5
+        # spaces against a rate of "4 per practitioner, plus 1 per employee".
+        # Three practitioners make it 17. The caveat was three levels down in a
+        # list, under a `spaces_required` that read like the answer.
+        #
+        # The rule this now follows is the one already applied when *no*
+        # countable is supplied, and the same one the contributions catchment
+        # follows: an input that changes the number is never assumed, and
+        # without it the number is declined rather than approximated. What is
+        # returned instead is exactly what to send to get an answer.
         if missing:
-            basis.append("not counted: " + ", ".join(sorted(set(m for m in missing if m))))
+            unmet = sorted({m for m in missing if m})
+            return {
+                "spaces_required": None,
+                "cannot_calculate": (
+                    "This rate has a term that was not supplied, and the missing term "
+                    "sets the size of the answer rather than adjusting it — "
+                    f"'{entry['rate']}' cannot be reduced to a number without "
+                    f"{_and_list(unmet)}. A part of the sum is not a lower bound: "
+                    "supplying it can multiply the requirement, not add to it."
+                ),
+                "supply": [_ARGUMENT_FOR.get(name, name) for name in unmet],
+                "counted_so_far": basis,
+                "rate": entry["rate"],
+                "source": entry.get("source"),
+            }
 
     spaces = math.ceil(total)
     minimum = spec.get("minimum")

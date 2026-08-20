@@ -62,6 +62,33 @@ from lismore_da_mcp.registry import tool
                 "'shop' becoming a cafe. Applies the section 2.7 allowance."
             ),
         },
+        # Without these the previous use was *assumed* to occupy the same floor
+        # area as the proposal, so a restaurant expanding 100m² -> 140m² netted
+        # to zero against a real increase of about $8,000. The assumption is
+        # right for the ordinary same-tenancy change of use and is kept, but it
+        # was previously uncorrectable: the answer said "supply the previous
+        # floor area if it differed" and there was no argument to supply it in.
+        # ROADMAP.md S3.
+        'existing_gross_floor_area_m2': {
+            'type': 'number',
+            'minimum': 0,
+            'description': (
+                'Optional, for a change of use. Gross floor area of the previous lawful use, '
+                'if it differed from the proposal. The contribution is charged on the increase '
+                'in demand, so an expansion is charged only on the extra area. Defaults to the '
+                "proposal's own floor area, which is the ordinary same-tenancy case."
+            ),
+        },
+        'existing_dwellings': {
+            'type': 'integer',
+            'minimum': 0,
+            'description': 'Optional, for a change of use. Dwellings in the previous lawful use, if it differed.',
+        },
+        'existing_beds_or_sites': {
+            'type': 'integer',
+            'minimum': 0,
+            'description': 'Optional, for a change of use. Beds or sites in the previous lawful use, if it differed.',
+        },
         'involves_building_work': {
             'type': 'boolean',
             'description': (
@@ -94,6 +121,14 @@ def calculate_da_fees(arguments: dict):
         for key in ("gross_floor_area_m2", "dwellings", "beds_or_sites")
         if arguments.get(key)
     }
+    # The previous use's own measures, where they differ from the proposal's.
+    # `estimate_contribution` has taken `existing_counts` all along and nothing
+    # ever passed it, so the same-floor-area assumption could not be corrected.
+    existing_counts = {
+        key: arguments[f"existing_{key}"]
+        for key in ("gross_floor_area_m2", "dwellings", "beds_or_sites")
+        if arguments.get(f"existing_{key}")
+    } or None
 
     result = estimate_total_cost(
         cost,
@@ -101,6 +136,7 @@ def calculate_da_fees(arguments: dict):
         counts=counts,
         catchment=catchment,
         existing_use=arguments.get("existing_use"),
+        existing_counts=existing_counts,
         involves_building_work=arguments.get("involves_building_work", True),
         is_dwelling=arguments.get("is_dwelling", False),
     )

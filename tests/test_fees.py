@@ -20,6 +20,7 @@ from lismore_da_mcp.data.fees import (
     financial_years_behind,
     schedule_status,
 )
+from lismore_da_mcp.fees import estimate_total_cost
 from lismore_da_mcp.server import calculate_da_fee
 
 
@@ -185,3 +186,49 @@ class TestScheduleCurrency:
         status = schedule_status(date(2027, 9, 1))
         assert status["schedule_used"] == DA_FEE_SCHEDULE_YEAR
         assert status["current_financial_year"] == "2027-28"
+
+
+class TestTheTotalSaysWhatItRestsOn:
+    """ROADMAP.md S3, at the surface where the number reaches a budget.
+
+    `estimate_total_cost` folds the Section 7.11 contribution into
+    `budget_at_least`, and for a change of use that figure is the *net* of the
+    section 2.7 allowance. Where the previous use's size was assumed rather than
+    stated, the total was a $0 that looked like a finding.
+    """
+
+    def test_an_expansion_reaches_the_budget(self):
+        """The restaurant going 100m² -> 140m². Worth about $8,000, and it used
+        to be $0 with no way for the caller to correct it."""
+        result = estimate_total_cost(
+            80_000, development_type="restaurant",
+            counts={"gross_floor_area_m2": 140}, catchment="urban",
+            existing_use="restaurant",
+            existing_counts={"gross_floor_area_m2": 100},
+        )
+        contribution = result["parts"]["section_7_11_contributions"]
+        assert contribution["net_contribution"]["urban"] == 8040.62
+        assert result["budget_at_least"] == 8717.82
+        assert "what_this_total_assumes" not in contribution
+
+    def test_an_assumed_net_says_so_where_the_number_is(self):
+        """Same proposal, previous area not stated. The default stands, but the
+        caveat is no longer three levels down under the allowance."""
+        result = estimate_total_cost(
+            80_000, development_type="restaurant",
+            counts={"gross_floor_area_m2": 140}, catchment="urban",
+            existing_use="restaurant",
+        )
+        contribution = result["parts"]["section_7_11_contributions"]
+        assert contribution["net_contribution"]["urban"] == 0.0
+        assert "existing_gross_floor_area_m2" in contribution["what_this_total_assumes"]
+
+    def test_the_shop_to_cafe_nil_is_unchanged(self):
+        """CLAUDE.md's flagship example. A same-tenancy change of use to a
+        lower-demand rate genuinely owes nothing, and S3 must not turn that into
+        a caveat-laden non-answer."""
+        result = estimate_total_cost(
+            0, development_type="cafe", counts={"gross_floor_area_m2": 80},
+            catchment="urban", existing_use="shop",
+        )
+        assert result["parts"]["section_7_11_contributions"]["net_contribution"]["urban"] == 0.0

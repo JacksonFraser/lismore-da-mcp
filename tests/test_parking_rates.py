@@ -117,13 +117,26 @@ class TestEstimator:
         assert ("per 100m²" in basis) == (carried_by == "area")
 
     def test_whichever_is_greater_falls_back_to_what_can_be_evaluated(self):
-        """With no seat or staff count only the area measure can be worked out,
-        so it carries the customer component alone — 15 per 100m² of 80m² = 12."""
-        result = estimate_spaces(PARKING_RATES["cafe"], 80)
+        """The `greater_of` still resolves to the area measure when no seat
+        count is given — that fallback is inside the customer component and is
+        not what S3 changed."""
+        result = estimate_spaces(PARKING_RATES["cafe"], 80, {"employees": 0})
         assert result["spaces_required"] == 12
         assert not any("greater" in b for b in result["basis"]), (
             "nothing was compared, so the basis should not claim a comparison"
         )
+
+    def test_the_80m2_cafe_is_not_told_12_when_staff_are_unknown(self):
+        """The case CLAUDE.md records: an 80m² café was told its parking was
+        adequate against a real requirement of 14. 12 is the customer component
+        alone, and the staff component is added to it — so without a staff count
+        there is no total, only a floor that reads like one. ROADMAP.md S3."""
+        result = estimate_spaces(PARKING_RATES["cafe"], 80)
+        assert result["spaces_required"] is None
+        assert result["supply"] == ["num_employees"]
+        # 6 staff take it from 12 to 15, which is the whole point.
+        assert estimate_spaces(
+            PARKING_RATES["cafe"], 80, {"employees": 6})["spaces_required"] == 15
 
     def test_a_whole_rule_alternation_still_alternates_wholesale(self):
         """`greater_of` sits inside a sum; `or_alt` replaces the sum entirely.
@@ -165,11 +178,30 @@ class TestEstimator:
         assert result["rate"] == PARKING_RATES["warehouse"]["rate"]
         assert "Schedule 1" in result["source"]
 
-    def test_uncounted_inputs_are_named_not_hidden(self):
-        """A gym rate has an employees component; without a count the figure is
-        an undercount, and the caller has to be told which part is missing."""
+    def test_an_uncounted_input_withholds_the_figure(self):
+        """A gym rate has an employees component. This used to return the
+        area-only total with "not counted: employees" appended to `basis` — an
+        undercount presented as the requirement, with the caveat three levels
+        down. ROADMAP.md S3: the number is declined and the missing argument
+        named, because a part of a sum is not a lower bound."""
         result = estimate_spaces(PARKING_RATES["gym"], 250)
-        assert any("not counted" in b for b in result["basis"])
+        assert result["spaces_required"] is None
+        assert result["supply"] == ["num_employees"]
+        assert "cannot be reduced to a number" in result["cannot_calculate"]
+
+    def test_what_was_counted_is_still_shown(self):
+        """Declining the total does not mean discarding the work — the caller
+        can see the rate was understood and exactly what is outstanding."""
+        result = estimate_spaces(PARKING_RATES["gym"], 250)
+        assert result["counted_so_far"]
+        assert result["rate"] == PARKING_RATES["gym"]["rate"]
+
+    def test_a_supplied_zero_counts_as_zero(self):
+        """`employees: 0` is an answer. It used to be filtered out as falsy and
+        become indistinguishable from "not supplied", so neither could be
+        expressed — the same defect as the arguments that did not exist."""
+        result = estimate_spaces(PARKING_RATES["gym"], 250, {"employees": 0})
+        assert result["spaces_required"] is not None
 
 
 class TestToolSurface:
@@ -503,3 +535,44 @@ class TestTheCashInLieuRateIsNotInvented:
         from lismore_da_mcp.data.parking import CBD_CASH_IN_LIEU_RATE
         assert "Section 94" in CBD_CASH_IN_LIEU_RATE["why"]
         assert "no car parking contribution category" in CBD_CASH_IN_LIEU_RATE["why"]
+
+
+class TestEveryCountableIsAskable:
+    """ROADMAP.md S3. Ten of the twelve countables had no argument on
+    `get_parking_rates`, so a rate that counted practitioners or children could
+    never be given them and answered from the terms it could reach."""
+
+    def test_the_schema_offers_every_countable(self):
+        """Generated from COUNTABLE rather than written out, so a rate that
+        starts counting something new cannot fail to be askable."""
+        from lismore_da_mcp.data.parking import COUNTABLE
+        from lismore_da_mcp.registry import registered
+
+        properties = set(registered()["get_parking_rates"].schema["properties"])
+        missing = sorted(set(COUNTABLE.values()) - properties)
+        assert missing == [], f"countables with no argument: {missing}"
+
+    def test_every_countable_has_a_description(self):
+        from lismore_da_mcp.data.parking import COUNTABLE, COUNTABLE_DESCRIPTIONS
+        assert set(COUNTABLE.values()) == set(COUNTABLE_DESCRIPTIONS)
+
+    def test_the_medical_centre_case_from_the_roadmap(self, call):
+        """5 employees answered 5 spaces against '4 per practitioner, plus 1 per
+        employee', with 'not counted: practitioners' three levels down. Three
+        practitioners make it 17."""
+        without = call("get_parking_rates",
+                       {"development_type": "medical centre", "num_employees": 5})
+        assert without["calculation"]["spaces_required"] is None
+        assert without["calculation"]["supply"] == ["practitioners"]
+
+        with_them = call("get_parking_rates", {
+            "development_type": "medical centre", "num_employees": 5, "practitioners": 3})
+        assert with_them["calculation"]["spaces_required"] == 17
+
+    def test_a_declined_figure_reports_no_shortfall(self, call):
+        """A shortfall computed against a number that does not exist is worse
+        than no shortfall — it is the reassuring one."""
+        result = call("get_parking_rates", {
+            "development_type": "medical centre", "num_employees": 5, "spaces_provided": 2})
+        assert "shortfall" not in result["calculation"]
+        assert "addressing_the_shortfall" not in result

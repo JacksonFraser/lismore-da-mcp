@@ -258,6 +258,30 @@ class TestChangeOfUseAllowance:
         result = estimate_contribution("cafe", {"gross_floor_area_m2": 80}, catchment="urban")
         assert "increase" in result["ask_about_the_allowance"]
 
+    def test_an_expansion_is_charged_on_the_increase_not_netted_to_nothing(self):
+        """ROADMAP.md S3. A restaurant going 100m² -> 140m² netted to $0, because
+        the previous use was assumed to occupy the same area as the proposal and
+        the caller had no argument to say otherwise. The increase is 40m²."""
+        result = estimate_contribution(
+            "restaurant", {"gross_floor_area_m2": 140}, catchment="urban",
+            existing_use="restaurant", existing_counts={"gross_floor_area_m2": 100},
+        )
+        assert result["net_contribution"]["urban"] == 8040.62
+        assert "assumption" not in result["existing_development_allowance"], (
+            "the previous area was stated, so nothing about it is assumed"
+        )
+
+    def test_the_assumption_still_applies_when_the_area_is_not_stated(self):
+        """The default is kept because it is right for the ordinary case — a
+        change of use in the same tenancy, which is the commonest business DA
+        there is. What changed is that it can now be corrected."""
+        result = estimate_contribution(
+            "restaurant", {"gross_floor_area_m2": 140}, catchment="urban",
+            existing_use="restaurant",
+        )
+        assert result["net_contribution"]["urban"] == 0.0
+        assert "same floor area" in result["existing_development_allowance"]["assumption"]
+
 
 class TestTheNoWorksFee:
     """Schedule 4 item 2.7. A pure change of use priced off the cost brackets

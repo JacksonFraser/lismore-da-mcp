@@ -5,6 +5,8 @@ import json
 from mcp.types import TextContent
 
 from lismore_da_mcp.data.parking import CBD_FIXED_RATE
+from lismore_da_mcp.data.parking import COUNTABLE
+from lismore_da_mcp.data.parking import COUNTABLE_DESCRIPTIONS
 from lismore_da_mcp.data.parking import DISABILITY_PARKING
 from lismore_da_mcp.data.parking import PARKING_RATES
 from lismore_da_mcp.registry import tool
@@ -17,15 +19,29 @@ from lismore_da_mcp.vocabulary import PARKING_SYNONYMS
 from lismore_da_mcp.vocabulary import resolve
 from lismore_da_mcp.vocabulary import unresolved_error
 
+# The countables, as schema properties, generated from the same dict the
+# estimator reads. Ten of the twelve had no argument at all, so a rate that
+# counted practitioners or children could never be given them — see the note on
+# COUNTABLE. Generating these means adding a countable to a rate cannot silently
+# fail to be askable. ROADMAP.md S3.
+_COUNTABLE_PROPERTIES = {
+    argument: {
+        'type': 'number' if argument.endswith('_sqm') else 'integer',
+        'description': 'Optional. ' + COUNTABLE_DESCRIPTIONS[argument],
+        'minimum': 0,
+    }
+    for argument in COUNTABLE.values()
+}
+
+
 @tool(
     name='get_parking_rates',
-    description='Get off-street parking requirements for a development type in Lismore, and what can be done about a shortfall. Supply floor_area_sqm, num_employees and spaces_provided for the number of spaces required and any shortfall. IMPORTANT: the Lismore CBD is assessed under a different rate from the rest of the LGA, so supply `location` — without it both readings are returned and neither is the answer.',
+    description='Get off-street parking requirements for a development type in Lismore, and what can be done about a shortfall. Supply floor_area_sqm, spaces_provided and whatever the rate counts (employees, seats, practitioners, children, beds, rooms) for the number of spaces required and any shortfall. A rate whose terms are not all supplied returns no number and says which argument to send — a part of the sum is not a lower bound. IMPORTANT: the Lismore CBD is assessed under a different rate from the rest of the LGA, so supply `location` — without it both readings are returned and neither is the answer.',
     properties={
         'development_type': {'type': 'string', 'description': "Type of development (e.g., 'dwelling_house', 'restaurant', 'shop', 'office', 'warehouse')"},
         'location': {'type': 'string', 'description': "Optional but important. 'cbd' if the site is inside the Lismore CBD as defined on Map 1 of DCP Chapter 7, or 'outside_cbd'. Inside the CBD a fixed rate of 3.3 spaces/100m2 GFA replaces the Schedule 1 rate for non-residential uses, and it is usually far lower. Do not guess — the E2 zone is close to the CBD boundary but is not the same line."},
         'floor_area_sqm': {'type': 'number', 'description': 'Optional. Floor area the rate applies to, in square metres.', 'minimum': 0},
-        'num_employees': {'type': 'integer', 'description': 'Optional. Number of employees, for rates with a staff component.', 'minimum': 0},
-        'seats': {'type': 'integer', 'description': 'Optional. Seats, for rates based on seating (restaurants, places of worship, function centres).', 'minimum': 0},
+        **_COUNTABLE_PROPERTIES,
         'spaces_provided': {'type': 'integer', 'description': 'Optional. Spaces provided on site, to calculate the shortfall.', 'minimum': 0},
         'existing_gfa_sqm': {'type': 'number', 'description': 'Optional, CBD only. Gross floor area of the existing building on the site. A CBD site being redeveloped or changing use earns a deemed parking credit under DCP 7.7.3.4 which is often most of the requirement, and it is not applied unless this is supplied.', 'minimum': 0},
         'existing_spaces_on_site': {'type': 'integer', 'description': 'Optional, CBD only. Parking spaces physically provided on the existing site. Subtracted from the deemed credit under the DCP 7.7.3.4 formula.', 'minimum': 0},
@@ -63,13 +79,13 @@ def get_parking_rates(arguments: dict):
         floor_area = arguments.get("floor_area_sqm") or None
         schedule_1_applies_anyway = uses_schedule_1_in_cbd(dev_type)
 
+        # Every countable the rates can ask for, not the two that had arguments.
         schedule_1 = estimate_spaces(
             result,
             floor_area,
-            {
-                "employees": arguments.get("num_employees") or 0,
-                "seats": arguments.get("seats") or 0,
-            },
+            # `.get()` without `or 0` — an absent argument stays None so the rate
+            # declines, and a supplied 0 stays 0 so it counts as zero.
+            {key: arguments.get(argument) for key, argument in COUNTABLE.items()},
         )
         cbd = None if schedule_1_applies_anyway else cbd_spaces(
             floor_area,
@@ -99,7 +115,8 @@ def get_parking_rates(arguments: dict):
         else:
             estimate = schedule_1
 
-        if in_cbd is None and cbd is not None and schedule_1 is not None:
+        if (in_cbd is None and cbd is not None and schedule_1 is not None
+                and schedule_1["spaces_required"] is not None):
             # Neither figure is the answer until the site is placed. Presenting
             # both, rather than defaulting, is the same discipline the
             # contributions catchment follows — a silent default here is a
@@ -129,7 +146,7 @@ def get_parking_rates(arguments: dict):
             )
             provided = arguments.get("spaces_provided")
             estimate["spaces_provided"] = provided
-            if provided is not None:
+            if provided is not None and estimate["spaces_required"] is not None:
                 gap = max(0, estimate["spaces_required"] - provided)
                 estimate["shortfall"] = gap
                 estimate["advice"] = (

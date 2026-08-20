@@ -164,16 +164,30 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
         )
 
     lines = [f"Parking Requirement: {entry['rate']}"]
-    estimate = estimate_spaces(entry, floor_area or None, {"employees": num_employees or 0})
+    estimate = estimate_spaces(entry, floor_area or None, {"employees": num_employees})
 
-    if not estimate:
+    # `estimate_spaces` returns None when the rate has no computable form at all,
+    # and a dict with `spaces_required: None` when it has one but a term of it was
+    # not supplied. Both mean no number may be claimed here — a draft that states
+    # a partial figure as the requirement is the failure this whole section
+    # guards against. The second case can say what is missing. ROADMAP.md S3.
+    if not estimate or estimate["spaces_required"] is None:
         lines.append("Required Spaces:     [APPLICANT TO CALCULATE — see the rate above]")
         lines.append(existing_line)
-        lines.append(
-            "[APPLICANT TO COMPLETE] The rate above cannot be turned into a space count from\n"
-            "    the details supplied, so no compliance is claimed here. Work it out against\n"
-            "    DCP Chapter 7 Schedule 1 and address any shortfall."
-        )
+        if estimate:
+            lines.append(
+                "[APPLICANT TO COMPLETE] The rate above adds a term that was not supplied "
+                f"({', '.join(estimate['supply'])}), so it\n"
+                "    cannot be reduced to a space count and no compliance is claimed here. "
+                "Supply it\n    and re-generate, or work the rate out against DCP Chapter 7 "
+                "Schedule 1 and address\n    any shortfall."
+            )
+        else:
+            lines.append(
+                "[APPLICANT TO COMPLETE] The rate above cannot be turned into a space count from\n"
+                "    the details supplied, so no compliance is claimed here. Work it out against\n"
+                "    DCP Chapter 7 Schedule 1 and address any shortfall."
+            )
         return "\n    ".join(lines)
 
     required = estimate["spaces_required"]
