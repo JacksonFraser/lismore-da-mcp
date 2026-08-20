@@ -144,11 +144,36 @@ every term in all 21 tables, in both singular and plural, and assert the tool's 
 table. It is `audit_zone_tables.py` extended from *the data matches the source* to *the tool agrees
 with the data*.
 
+> **The guard exists and the blast radius is measured — `scripts/audit_landuse_matching.py`,
+> 2026-08-09.** It asks every one of the 991 land use rows across all 21 tables in two spellings:
+> the table's own, and the one the LEP Dictionary defines. The result splits cleanly:
+>
+> | | |
+> |---|---:|
+> | asked in the table's own spelling | **0 wrong** |
+> | asked in the Dictionary's spelling | **287 wrong** |
+>
+> — 120 `wrong_yes` (the table prohibits it, the tool said yes), 91 `wrong_no`, and 76 `unfound`,
+> where the answer's shape happens to agree but the term was never actually found. **Every one of
+> the 120 wrong "yes" answers ships without the SEPP caveat**, confirming the gating defect at
+> `tools/zoning.py:251`, and **every one of the 287 resolves via `catchall` or `none`** — no failure
+> is a mismatch onto some other term.
+>
+> Against the sweep this replaces: wrong_yes was close (115 → 120), wrong_no was understated
+> (75 → 91), and the third class was not named at all. The pairing is read off the Dictionary in
+> the document rather than computed, which is what makes it data — 105 of the 153 distinct table
+> terms carry a second spelling, 47 are already spelled the Dictionary's way, and the single
+> genuinely unpaired term is explained in `UNPAIRED_TABLE_TERMS`.
+>
+> **The zero in the first row is the useful half of the finding.** Once a term is found, everything
+> downstream is right; the entire defect is resolution. That narrows the fix below to exactly what
+> items 1 and 2 describe and rules out a wider rewrite.
+
 Three reasons it comes first rather than last, and the first is the one that decides it:
 
-1. **The blast radius is not actually known.** The 115-wrong-yes / 75-wrong-no figure is an agent's
-   sweep that was never independently re-derived — six cases were verified by hand, the count was
-   not. If the real number is twelve, that changes how much surgery is justified.
+1. ~~**The blast radius is not actually known.**~~ **Now known — see above.** The 115-wrong-yes /
+   75-wrong-no figure was an agent's sweep never independently re-derived; the audit re-derives it
+   at 120 / 91 / 76. The surgery in items 1 and 2 is justified, and nothing wider is.
 2. **It is the oracle the fix is graded against.** Nothing else can say the fix is *complete*
    rather than working on the handful of examples already in hand.
 3. **It is the repo's own pattern.** Every data module has an audit; the matching layer has none,
