@@ -53,7 +53,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_standards.py` | Checks every DCP Chapter 1 quote in `data/standards.py` against the chapter, and reads the Acceptable Solution labels (A1.1, A26.3, …) off the document to report any the data does not carry. It also runs the check the others cannot: that the figures recorded in `NOT_SET_BY_THIS_CHAPTER` really are **absent**. A presence check only looks at what is stored, so it is structurally blind to invention — which is how this file came to assert a side setback, a site coverage maximum and a deep soil percentage that Chapter 1 does not contain. |
 | `scripts/audit_flood.py` | Checks all 40 flood controls in `data/flood.py` against DCP Chapter 8 and the LEP text. Two checks beyond presence: the derived constants must agree with the quotes they were read from (the freeboard was wrong by 200mm and nothing noticed), and every numbered control in §8.4–§8.8 is counted off the document, so a requirement nobody transcribed is reported rather than invisible. |
 | `scripts/audit_definitions.py` | Checks all 36 land use definitions in `data/definitions.py` against the LEP Dictionary, plus the clause 5.4 controls each carries. Beyond presence it checks each quote **opens with its own term** (verbatim LEP text lifted from the wrong entry passes a presence check), that `land_use_table_term` really is how `data/zones.py` spells the use, that `LAND_USE_HIERARCHY`'s first links agree with the LEP's own "X is a type of Y" notes — which caught `office premises` recorded as a type of business premises — and, like `audit_standards.py`, that the recorded inventions are still **absent**. |
-| `scripts/audit_landuse_matching.py` | The only audit that checks a **tool** rather than a data file: it asks `check_permissibility` about all 991 land use rows in both the table's spelling and the LEP Dictionary's, and grades the answer against the table. Every other audit here would pass with the matching layer completely broken, which is how ROADMAP.md S1's defect survived 1,346 tests. The singular↔plural pairing is read off the Dictionary in the document, never computed — a candidate spelling the document does not confirm is discarded, so the audit can never grade the tool against a word that is not a land use. |
+| `scripts/audit_landuse_matching.py` | The only audit that checks a **tool** rather than a data file: it asks `check_permissibility` about all 991 land use rows in both the table's spelling and the LEP Dictionary's, and grades the answer against the table. Every other audit here would pass with the matching layer completely broken, which is how ROADMAP.md S1's defect survived 1,346 tests. The singular↔plural pairing is read off the Dictionary in the document, never computed — a candidate spelling the document does not confirm is discarded, so the audit can never grade the tool against a word that is not a land use. It also audits `LAND_USE_TABLE_SPELLINGS` itself, since S1's fix turned that pairing into stored data: every pair must be one the document yields, every pair the document yields must be stored, and every table spelling must appear verbatim in `data/zones.py` — a pair whose right-hand side is not a real table entry resolves onto nothing and reads exactly like one that works. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 
@@ -320,6 +320,44 @@ THE_DEFINITION` records the four with the clause that really sets each. And **th
 is not always the land use table term** — the table says "Light industries" and "Attached
 dwellings" where the Dictionary defines the singular, so `land_use_table_term` carries the plural
 and the audit checks it against `data/zones.py`.
+
+**`landuse.py` decides which stored fact applies, and until 2026-08-20 nothing checked it.** Every
+audit above passes on data; all 21 zone tables match the LEP verbatim; and `check_permissibility`
+still answered the *opposite* of what they say depending on how the use was spelled — 287 of the
+991 land use rows, 120 of them a confident "permitted" against a table that prohibits the use.
+`audit_landuse_matching.py` is the guard, and ROADMAP.md S1 records the fix. Four rules hold it
+together now.
+
+**The singular↔plural pairing is data, not a rule.** `LAND_USE_TABLE_SPELLINGS` carries the LEP's
+own 105 pairs, read off the Dictionary in the document. No suffix rule reaches "Crematoria" →
+crematorium, "Jetties" → jetty, "Rural workers' dwellings" → rural worker's dwelling (the
+possessive moves rather than disappearing) or "Restaurants or cafes" → restaurant or cafe (both
+sides of the "or" have to move together) — the old `re.sub(r"\b(\w{3,}?)s\b", r"\1", text)`
+produced "facilitie" and "industrie" and met nothing. **Do not add a pair by inflecting a word**;
+if the Dictionary does not define the singular there is no pair, and the audit will say so.
+
+**Anything keyed in the LEP's spelling must be looked up in the LEP's spelling.**
+`LAND_USE_HIERARCHY` was being consulted with a canonicalised term, so `business premises` became
+`busines premise` and took the entire `premises` family with it — which is why E4 answered
+"permitted" for uses it prohibits via `Commercial premises`.
+
+**A term the LEP names is never approximated at.** `match_land_use`'s "approximate" strength is a
+word-boundary containment search, and once the spelling table let `Home industries` canonicalise
+properly, a proposal for `industry` in R2 began matching it. For a recognised use there is nothing
+to approximate towards: it is in this table under its own name, or reaches it through the
+hierarchy, or it is absent and the catch-all decides. Fuzzy matching is only for words this server
+cannot place at all.
+
+**The catch-all has two readings and only one of them is an answer.** Falling through to "any other
+development not specified" means either *this use is genuinely unlisted here*, which is the LEP's
+own answer and correct — `industry` in R2 is prohibited — or *this server could not identify the
+proposal*, which is not a fact about the LEP at all. `KNOWN_LAND_USES` separates them; an
+unrecognised term reports `not_found` / `unrecognised` with `permissible` left None, so it cannot
+reach `readiness.py` as a "stop" or `see.py` as "Prohibited". One bug producing both 120 wrong
+"yes" answers and 91 wrong "no" ones, purely by which catch-all a zone happened to carry, is what
+that distinction exists to prevent. Note the row is worded two ways — RU2, RU3, SP2 and C1 say "Any
+development not specified" without the "other", so test with `_is_catchall()` rather than against
+`CATCHALL_TERM` as a substring.
 
 ---
 

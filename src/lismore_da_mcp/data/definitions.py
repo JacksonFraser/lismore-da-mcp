@@ -804,6 +804,144 @@ LAND_USE_HIERARCHY = {
 CATCHALL_TERM = "any other development not specified"
 
 
+# The Dictionary's spelling of a land use -> the zone land use table's spelling.
+#
+# ROADMAP.md S1. The Dictionary defines "centre-based child care facility" and
+# the table lists "Centre-based child care facilities", so a tool that matches
+# the table cannot answer the word an applicant types or `get_definition` hands
+# back. `landuse.py` used to bridge the two with
+# `re.sub(r"\b(\w{3,}?)s\b", r"\1", text)`, which turns "facilities" into
+# "facilitie" and "Industries" into "industrie", meets nothing, and drops the
+# term through the table's catch-all — where it was reported as an answer.
+# 287 of the 991 land use rows were wrong that way, 120 of them a confident
+# "permitted" against a table that prohibits the use.
+#
+# **This is data, not a rule, and that is the whole point.** No suffix rule
+# reaches all of "Crematoria" -> crematorium, "Jetties" -> jetty,
+# "Rural workers' dwellings" -> rural worker's dwelling (the possessive moves
+# rather than disappearing) and "Restaurants or cafes" -> restaurant or cafe
+# (both sides of the "or" have to move together). Every pair below was read off
+# the LEP Dictionary in `documents/lep/lep-2012-nsw-full.txt`:
+# `audit_landuse_matching.py` generates the candidate spellings liberally and
+# keeps only those the document actually defines, then checks this dict against
+# that derivation and checks every value appears verbatim in `data/zones.py`.
+#
+# So do not add a pair here by inflecting a word. If the Dictionary does not
+# define the singular, there is no pair — see `UNPAIRED_TABLE_TERMS` in the
+# audit, which names the one term that genuinely has none and why.
+#
+# The 47 table terms absent from this dict need no entry: "Commercial premises",
+# "Agriculture" and the rest are already spelled the Dictionary's way, so the
+# two questions are the same question.
+LAND_USE_TABLE_SPELLINGS = {
+    'air transport facility': 'Air transport facilities',
+    'airport': 'Airports',
+    'airstrip': 'Airstrips',
+    'amusement centre': 'Amusement centres',
+    'animal boarding or training establishment': 'Animal boarding or training establishments',
+    'artisan food and drink industry': 'Artisan food and drink industries',
+    'attached dwelling': 'Attached dwellings',
+    'biosolids treatment facility': 'Biosolids treatment facilities',
+    'boarding house': 'Boarding houses',
+    'boat building and repair facility': 'Boat building and repair facilities',
+    'boat launching ramp': 'Boat launching ramps',
+    'boat shed': 'Boat sheds',
+    'building identification sign': 'Building identification signs',
+    'business identification sign': 'Business identification signs',
+    'camping ground': 'Camping grounds',
+    'car park': 'Car parks',
+    'caravan park': 'Caravan parks',
+    'cemetery': 'Cemeteries',
+    'centre-based child care facility': 'Centre-based child care facilities',
+    'charter and tourism boating facility': 'Charter and tourism boating facilities',
+    'community facility': 'Community facilities',
+    'correctional centre': 'Correctional centres',
+    'creative industry': 'Creative industries',
+    'crematorium': 'Crematoria',
+    'dairy (pasture-based)': 'Dairies (pasture-based)',
+    'depot': 'Depots',
+    'dual occupancy': 'Dual occupancies',
+    'dwelling house': 'Dwelling houses',
+    'eco-tourist facility': 'Eco-tourist facilities',
+    'educational establishment': 'Educational establishments',
+    'emergency services facility': 'Emergency services facilities',
+    'entertainment facility': 'Entertainment facilities',
+    'environmental facility': 'Environmental facilities',
+    'exhibition home': 'Exhibition homes',
+    'exhibition village': 'Exhibition villages',
+    'extractive industry': 'Extractive industries',
+    'farm building': 'Farm buildings',
+    'flood mitigation work': 'Flood mitigation works',
+    'freight transport facility': 'Freight transport facilities',
+    'function centre': 'Function centres',
+    'garden centre': 'Garden centres',
+    'general industry': 'General industries',
+    'group home': 'Group homes',
+    'health services facility': 'Health services facilities',
+    'heavy industrial storage establishment': 'Heavy industrial storage establishments',
+    'helipad': 'Helipads',
+    'highway service centre': 'Highway service centres',
+    'home business': 'Home businesses',
+    'home industry': 'Home industries',
+    'home occupation': 'Home occupations',
+    'home occupation (sex services)': 'Home occupations (sex services)',
+    'hostel': 'Hostels',
+    'industrial retail outlet': 'Industrial retail outlets',
+    'industrial training facility': 'Industrial training facilities',
+    'industry': 'Industries',
+    'information and education facility': 'Information and education facilities',
+    'jetty': 'Jetties',
+    'kiosk': 'Kiosks',
+    'light industry': 'Light industries',
+    'liquid fuel depot': 'Liquid fuel depots',
+    'marina': 'Marinas',
+    'market': 'Markets',
+    'medical centre': 'Medical centres',
+    'mooring': 'Moorings',
+    'mooring pen': 'Mooring pens',
+    'mortuary': 'Mortuaries',
+    'neighbourhood shop': 'Neighbourhood shops',
+    'passenger transport facility': 'Passenger transport facilities',
+    'place of public worship': 'Places of public worship',
+    'plant nursery': 'Plant nurseries',
+    'public administration building': 'Public administration buildings',
+    'recreation area': 'Recreation areas',
+    'recreation facility (indoor)': 'Recreation facilities (indoor)',
+    'recreation facility (major)': 'Recreation facilities (major)',
+    'recreation facility (outdoor)': 'Recreation facilities (outdoor)',
+    'registered club': 'Registered clubs',
+    'research station': 'Research stations',
+    'residential flat building': 'Residential flat buildings',
+    'resource recovery facility': 'Resource recovery facilities',
+    'respite day care centre': 'Respite day care centres',
+    'restaurant or cafe': 'Restaurants or cafes',
+    'road': 'Roads',
+    'roadside stall': 'Roadside stalls',
+    'rural industry': 'Rural industries',
+    "rural worker's dwelling": "Rural workers' dwellings",
+    'school': 'Schools',
+    'semi-detached dwelling': 'Semi-detached dwellings',
+    'service station': 'Service stations',
+    'serviced apartment': 'Serviced apartments',
+    'sewage treatment plant': 'Sewage treatment plants',
+    'sewerage system': 'Sewerage systems',
+    'timber yard': 'Timber yards',
+    'transport depot': 'Transport depots',
+    'truck depot': 'Truck depots',
+    'vehicle body repair workshop': 'Vehicle body repair workshops',
+    'vehicle repair station': 'Vehicle repair stations',
+    'veterinary hospital': 'Veterinary hospitals',
+    'warehouse or distribution centre': 'Warehouse or distribution centres',
+    'waste disposal facility': 'Waste disposal facilities',
+    'waste or resource management facility': 'Waste or resource management facilities',
+    'water recreation structure': 'Water recreation structures',
+    'water recycling facility': 'Water recycling facilities',
+    'water storage facility': 'Water storage facilities',
+    'water supply system': 'Water supply systems',
+    'water treatment facility': 'Water treatment facilities',
+}
+
+
 # Groupings for list_definitions. This lived in the handler as a literal, which
 # meant adding nine terms to this file left them out of the listing without
 # failing anything — the same shape as the hardcoded tool count in the

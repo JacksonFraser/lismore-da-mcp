@@ -138,27 +138,19 @@ UNPAIRED_TABLE_TERMS = {
 }
 
 
-# The state of the matching layer as measured on 2026-08-09, before any fix.
+# S1 is fixed and this audit is clean, so there is no baseline constant here.
 #
-# ROADMAP.md S1 records a figure of 115 wrong-yes and 75 wrong-no from an agent's
-# sweep, and notes it "was never independently re-derived". This is the
-# re-derivation, and it differs: wrong_yes is close, wrong_no was understated,
-# and a third class the sweep did not name is the largest single group after the
-# other two. The numbers matter because S1 argued the blast radius decides how
-# much surgery is justified — 287 across every zone justifies the data-driven
-# pairing rather than a patch to the regex.
+# There was one: 120 wrong_yes, 91 wrong_no, 76 unfound, measured on 2026-08-09
+# when this file was written and the fix deliberately deferred. It said of
+# itself that it would reach zero and then go away, and on 2026-08-20 it did —
+# `tests/test_landuse_matching.py` now asserts the audit finds nothing at all,
+# which is a stronger and simpler claim than any number.
 #
-# This is a baseline, not a tolerance. The test asserts the counts **exactly**,
-# so a fix fails until the number here comes down with it, and the shrinking of
-# this dict is the record of S1 landing. It reaches zero and then this constant
-# goes away.
-KNOWN_MATCHING_DEFECTS = {
-    "wrong_yes": 120,
-    "wrong_no": 91,
-    "unfound": 76,
-    "wrong_pathway": 0,
-    "hedged": 0,
-}
+# Recorded here rather than dropped because the shape of those numbers is the
+# argument for how the fix was built: one bug produced both a confident "yes"
+# and a confident "no" depending only on which catch-all a zone carried, and
+# that is why `landuse.py` now separates a use it recognises as unlisted from a
+# term it could not identify at all.
 
 
 def normalise(text: str) -> str:
@@ -357,6 +349,90 @@ def coverage(zones: list[str]) -> dict:
     }
 
 
+def spelling_table_findings() -> list[str]:
+    """Check `LAND_USE_TABLE_SPELLINGS` against the document it was read from.
+
+    S1's fix moved the singular/plural pairing out of a regex and into
+    `data/definitions.py`, which makes it transcribed data — and every other
+    transcribed thing in this repository has an audit standing behind it. This
+    is that audit, and it is the same shape as the rest: the stored pairing must
+    be exactly what the LEP Dictionary yields, not a superset somebody extended
+    by inflecting a word.
+
+    Four checks, and the third is the one a presence check would miss:
+
+    1.  every stored pair is one the document produces;
+    2.  every pair the document produces is stored — otherwise the fix silently
+        stops covering a term and `check_permissibility` goes back to guessing
+        at it, with nothing failing;
+    3.  every table spelling appears **verbatim in `data/zones.py`**, because a
+        pair whose right-hand side is not a real table entry resolves a term
+        onto nothing and reads exactly like a pair that works;
+    4.  `land_use_table_term` on individual definitions agrees with this dict
+        where both carry a term. `landuse.py` merges the two, so a disagreement
+        would be settled by dict ordering rather than by the LEP.
+    """
+    from lismore_da_mcp.data.definitions import (  # noqa: PLC0415
+        LAND_USE_DEFINITIONS,
+        LAND_USE_TABLE_SPELLINGS,
+    )
+
+    dictionary = dictionary_terms(lep_text())
+    current = [z for z in ZONES if "redirect_to" not in ZONES[z]]
+
+    derived = {}
+    for _, _, term in table_rows(current):
+        for form in counterpart_forms(term, dictionary):
+            derived[form] = term
+
+    problems = []
+    for dictionary_form, table_form in sorted(LAND_USE_TABLE_SPELLINGS.items()):
+        if dictionary_form not in derived:
+            problems.append(
+                f"{dictionary_form!r} -> {table_form!r} is stored, but the LEP Dictionary in "
+                "the document pairs nothing with that spelling. It was not read off the source."
+            )
+        elif derived[dictionary_form] != table_form:
+            problems.append(
+                f"{dictionary_form!r} is stored against {table_form!r}, but the document "
+                f"pairs it with {derived[dictionary_form]!r}."
+            )
+
+    for dictionary_form, table_form in sorted(derived.items()):
+        if dictionary_form not in LAND_USE_TABLE_SPELLINGS:
+            problems.append(
+                f"the document pairs {dictionary_form!r} with {table_form!r} and the data does "
+                "not carry it — that term is back to being matched by suffix rule."
+            )
+
+    table_entries = {
+        normalise(use)
+        for zone in current
+        for section in EXPECTED
+        for use in ZONES[zone].get(section) or []
+    }
+    for dictionary_form, table_form in sorted(LAND_USE_TABLE_SPELLINGS.items()):
+        if normalise(table_form) not in table_entries:
+            problems.append(
+                f"{table_form!r} (paired with {dictionary_form!r}) is not a land use named in "
+                "any zone table in data/zones.py — the pair resolves onto nothing."
+            )
+
+    for entry in LAND_USE_DEFINITIONS.values():
+        table_form = entry.get("land_use_table_term")
+        if not table_form:
+            continue
+        stored = LAND_USE_TABLE_SPELLINGS.get(entry["term"])
+        if stored is not None and normalise(stored) != normalise(table_form):
+            problems.append(
+                f"{entry['term']!r} is {stored!r} in LAND_USE_TABLE_SPELLINGS and "
+                f"{table_form!r} in its own definition. landuse.py merges both; which one "
+                "wins is currently decided by dict ordering."
+            )
+
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--business", action="store_true", help="only E1-E4, MU1, RU5")
@@ -395,6 +471,14 @@ def main() -> int:
                                                 "trusting this audit's coverage")
         print(f"      {term!r} — {reason}")
 
+    spelling_problems = spelling_table_findings()
+    if spelling_problems:
+        print(f"\nLAND_USE_TABLE_SPELLINGS DISAGREES WITH THE DOCUMENT — {len(spelling_problems)}")
+        for problem in spelling_problems:
+            print(f"  {problem}")
+    else:
+        print("\nLAND_USE_TABLE_SPELLINGS matches the Dictionary and data/zones.py exactly.")
+
     by_class = Counter(f["class"] for f in findings)
     order = ["wrong_yes", "wrong_no", "wrong_pathway", "unfound", "hedged"]
     headline = {
@@ -423,7 +507,7 @@ def main() -> int:
     if findings:
         print("\nThe tables are not in question here — audit_zone_tables.py checks those\n"
               "against the LEP and they match. A disagreement is the matching layer.")
-    return 1 if findings else 0
+    return 1 if findings or spelling_problems else 0
 
 
 if __name__ == "__main__":

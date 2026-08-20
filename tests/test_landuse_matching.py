@@ -5,18 +5,23 @@ source; `tests/test_zone_transcription.py` is the one for these tables and it
 passes — all 21 match the LEP exactly. This is the layer above: given a table
 that is right, does the tool report what it says?
 
-On 2026-08-09 it does for every one of the 991 rows asked in the table's own
-spelling, and for none of 287 asked in the spelling the LEP Dictionary defines.
-That split is the finding. The data is not in question and neither is the
-handler's logic once a term is found — what fails is resolving 'centre-based
-child care facility' to 'Centre-based child care facilities', and the failure is
-silent because an unresolved term falls through to the table's catch-all and is
-reported as an answer.
+On 2026-08-09 it did for every one of the 991 rows asked in the table's own
+spelling, and for none of the 287 asked in the spelling the LEP Dictionary
+defines. That split was the finding, and it is what made the fix small: the data
+was never in question and neither was the handler's logic once a term was found.
+The entire defect was resolving 'centre-based child care facility' to
+'Centre-based child care facilities', and it was silent because an unresolved
+term fell through to the table's catch-all and was reported as an answer.
 
-The counts are pinned rather than merely bounded. A fix that reduces them fails
-this file until `KNOWN_MATCHING_DEFECTS` comes down with it, so the baseline
-cannot quietly rot into a tolerance — the same discipline `TestScheduleCurrency`
-applies to the fee scale.
+S1 landed on 2026-08-20 and the counts are now zero, so this file asserts zero
+rather than a baseline. Two things it checks are worth keeping in view if a
+future change makes them fail:
+
+- `test_every_table_spelling_is_answered_correctly` has never failed and is the
+  unarguable half — the string is in the list, the list has a heading.
+- `TestTheAuditCanFail` is the check on the checker. An audit that reports zero
+  because it stopped asking looks exactly like one that reports zero because the
+  code is right.
 """
 
 import sys
@@ -28,13 +33,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from audit_landuse_matching import (  # noqa: E402
-    KNOWN_MATCHING_DEFECTS,
     audit,
     counterpart_forms,
     coverage,
     dictionary_terms,
     grade,
     lep_text,
+    spelling_table_findings,
     table_rows,
 )
 
@@ -64,20 +69,18 @@ class TestTheToolAgreesWithTheTable:
             for f in failures
         )
 
-    def test_defect_count_matches_the_recorded_baseline(self, findings):
-        """Exact, not an upper bound.
+    def test_the_dictionary_spelling_is_answered_correctly_too(self, findings):
+        """Zero, not a baseline.
 
-        Failing on a *decrease* is deliberate. A baseline that only catches
-        regressions becomes a tolerance nobody revisits, which is how the fee
-        scale sat two years stale behind a caveat that was always present.
+        This file was written against 287 known disagreements and carried their
+        counts as a constant. S1 landed, the constant went, and what replaces it
+        is the only assertion worth making: every land use row in every zone
+        table gets the table's own answer, asked either way the LEP spells it.
         """
-        counted = {cls: 0 for cls in KNOWN_MATCHING_DEFECTS}
-        for f in findings:
-            counted[f["class"]] = counted.get(f["class"], 0) + 1
-        assert counted == KNOWN_MATCHING_DEFECTS, (
-            f"\nmeasured {counted}, baseline {KNOWN_MATCHING_DEFECTS}.\n"
-            "If a fix landed, bring KNOWN_MATCHING_DEFECTS down to the measured "
-            "numbers in the same commit. If nothing was fixed, something regressed."
+        assert findings == [], "\n" + "\n".join(
+            f"{f['zone']} {f['asked']!r} ({f['class']}): table says {f['expected']}, "
+            f"tool says {f['got']} via {f['match_type']}"
+            for f in findings
         )
 
     def test_every_failure_is_a_resolution_miss(self, findings):
@@ -94,21 +97,11 @@ class TestTheToolAgreesWithTheTable:
         )
 
 
-XFAIL_UNTIL_FIXED = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ROADMAP.md S1, unfixed on this branch. This branch lands the guard only; "
-        "landuse.py is not touched. strict=True means these fail if they start "
-        "passing, so the fix cannot land without removing the marker."
-    ),
-)
-
-
 class TestTheCasesTheRoadmapNames:
-    """Named separately from the counts, because a count can be preserved by a
-    swap and these are the four verified by hand in ROADMAP.md S1."""
+    """Named separately from the sweep, because these four were verified by hand
+    against the LEP in ROADMAP.md S1 and should keep working for reasons a
+    reader can check without running anything."""
 
-    @XFAIL_UNTIL_FIXED
     @pytest.mark.parametrize("zone,term,expected", [
         ("E1", "industry", "prohibited"),                        # E1 item 4: Industries
         ("E4", "centre-based child care facility", "prohibited"),
@@ -123,7 +116,6 @@ class TestTheCasesTheRoadmapNames:
             "This is the S1 defect; see ROADMAP.md."
         )
 
-    @XFAIL_UNTIL_FIXED
     def test_singular_and_plural_do_not_disagree(self):
         """The sharpest form of the bug: the same tool, the same table, opposite
         answers, decided by whether the caller typed a plural."""
@@ -190,6 +182,93 @@ class TestThePairingComesFromTheDocument:
             f"only {len(stats['paired'])} terms paired to a Dictionary spelling. "
             "The audit is passing because it stopped asking."
         )
+
+
+class TestTheStoredPairingMatchesTheDocument:
+    """S1 moved the pairing from a regex into `data/definitions.py`, which makes
+    it transcribed data — and transcribed data in this repository has an audit
+    behind it or it drifts."""
+
+    def test_the_spelling_table_is_what_the_document_yields(self):
+        problems = spelling_table_findings()
+        assert problems == [], "\n" + "\n".join(problems)
+
+    def test_the_matcher_actually_uses_the_stored_pairing(self, monkeypatch):
+        """The check on the check.
+
+        Everything above would pass if `landuse.py` reverted to inflecting words
+        by rule and happened to get the same answers, so this empties the stored
+        pairing and requires the sweep to notice. It is the same argument as
+        `test_a_broken_matcher_is_detected`, aimed at the data rather than the
+        matcher: `-ies` and `-a` and the moving possessive are exactly what no
+        rule reaches, so removing the data must break them.
+        """
+        import lismore_da_mcp.landuse as landuse
+
+        monkeypatch.setattr(landuse, "_CANONICAL_SPELLING", {})
+        findings = audit(["E4"])
+        assert findings, (
+            "the Dictionary/table pairing was emptied and every question still "
+            "passed — the matcher is not reading it, so the audit above proves "
+            "nothing about the tool."
+        )
+
+
+class TestTheCatchAllIsNotAnAnswer:
+    """ROADMAP.md S1 item 3. Falling through to 'any other development not
+    specified' has two readings — a use the LEP names and this table omits, and
+    a term nothing here could identify — and they are not the same fact."""
+
+    def test_an_unrecognised_term_is_not_reported_as_permitted(self):
+        """The 120-wrong-yes shape. E2's catch-all permits unlisted development
+        with consent, so anything unresolved used to come back permitted."""
+        from audit_landuse_matching import ask
+        answer = ask("E2", "quantum widget emporium")
+        assert answer["permissibility"] == "not_found"
+        assert answer["match_type"] == "unrecognised"
+
+    def test_an_unrecognised_term_is_not_reported_as_prohibited_either(self):
+        """The mirror, and the reason `permissible` is None rather than False:
+        this is the field `readiness.py` raises a 'stop' on."""
+        from lismore_da_mcp.data.zones import ZONES
+        from lismore_da_mcp.landuse import classify_land_use
+        classified = classify_land_use("quantum widget emporium", ZONES["R2"], "R2")
+        assert classified["permissible"] is None
+        assert classified["match_type"] == "unrecognised"
+
+    @pytest.mark.parametrize("zone", ["RU2", "RU3", "SP2", "C1"])
+    def test_the_other_wording_of_the_catchall_is_recognised(self, zone):
+        """These four word the row 'Any development not specified in item 2 or
+        3', without the 'other' the substring test looked for, so their
+        prohibiting catch-all was invisible and a use they do not list came back
+        'not found' rather than prohibited."""
+        from audit_landuse_matching import ask
+        answer = ask(zone, "industry")
+        assert answer["permissibility"] == "likely_prohibited", (
+            f"{zone} prohibits anything its table does not list, and it does not "
+            f"list industry — got {answer['permissibility']}"
+        )
+
+    def test_a_recognised_use_the_table_omits_still_gets_the_catchall(self):
+        """The other side of the line. 'industry' is a use the LEP names, R2's
+        table does not list it, and R2 prohibits anything unlisted — so the
+        catch-all is the LEP's own answer and withholding it would be its own
+        kind of wrong."""
+        from audit_landuse_matching import ask
+        answer = ask("R2", "industry")
+        assert answer["permissibility"] == "likely_prohibited"
+        assert answer["match_type"] == "catchall"
+
+    def test_every_unsettled_answer_carries_the_sepp_caveat(self):
+        """The caveat was gated to prohibited-shaped verdicts, so the wrong
+        'yes' shipped bare. Anything that is not a settled permission needs it."""
+        from audit_landuse_matching import ask
+        for zone, term in [("E2", "quantum widget emporium"), ("R2", "industry"),
+                           ("E4", "centre-based child care facility"), ("C1", "pottery studio")]:
+            answer = ask(zone, term)
+            assert "scope_of_this_answer" in answer, (
+                f"{zone} + {term!r} came back {answer['permissibility']} with no SEPP caveat"
+            )
 
 
 class TestTheAuditCanFail:

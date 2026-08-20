@@ -116,7 +116,50 @@ available and is still not a coding task.
 > The Phase 0 lesson generalises: *the file nobody has looked at is not the file nobody needs to
 > look at.* The layer nobody has audited is `landuse.py`, `vocabulary.py` and the handlers.
 
-### S1 — Fix singularisation, and never answer a use question by falling through · **CRITICAL**
+### S1 — Fix singularisation, and never answer a use question by falling through · **DONE 2026-08-20**
+
+> **Landed.** The audit below is clean: all 991 land use rows across all 21 zone tables, asked in
+> both the table's spelling and the Dictionary's, now get the table's own answer. 287 → **0**.
+>
+> Three changes, matching the three parts named below:
+>
+> 1. **The pairing is data.** `LAND_USE_TABLE_SPELLINGS` in `data/definitions.py` carries the LEP's
+>    own 105 singular↔plural pairs, read off the Dictionary rather than computed. `canonical_use()`
+>    consults it before falling back to the suffix rule, which is now load-bearing for nothing the
+>    tables name. `audit_landuse_matching.py` checks the stored pairing against the document, checks
+>    every table spelling appears verbatim in `data/zones.py`, and checks it against the
+>    `land_use_table_term` some definitions already carried.
+> 2. **The hierarchy is keyed the way lookups arrive.** `LAND_USE_HIERARCHY` is written in the LEP's
+>    spelling and was being looked up with a canonicalised term, so `business premises` became
+>    `busines premise` and the whole `premises` family missed. `E4` + `business premises` now
+>    correctly returns prohibited, via `Commercial premises`.
+> 3. **The catch-all no longer answers for a term nobody recognised.** This needed a distinction the
+>    tool could not previously draw. A use the LEP names that this table omits *is* genuinely
+>    unlisted, and the catch-all is then the LEP's own answer — `industry` in R2 is prohibited and
+>    saying so is right. A term nothing here can place is a failure to identify the proposal, and it
+>    now reports `not_found` / `unrecognised` with `permissible` left None, so it no longer reaches
+>    `readiness.py` as a "stop" or `see.py` as "Prohibited". `KNOWN_LAND_USES` is what separates
+>    them. The SEPP caveat is now gated on *anything that is not a settled permission*, so it covers
+>    the wrong-yes shape the old prohibited-only gate missed.
+>
+> **Two things found while fixing it that the audit could not see.** The audit only asks about terms
+> the tables name, so neither would ever have failed it:
+>
+> - **Four zones' catch-all was invisible.** RU2, RU3, SP2 and C1 word the row *"Any development not
+>   specified in item 2 or 3"* — without the *"other"* that `CATCHALL_TERM` tests for as a substring.
+>   In those four an unlisted use came back `not_found` rather than prohibited. `_is_catchall()` now
+>   matches both wordings.
+> - **Better resolution made the fuzzy fallback dangerous.** Once `Home industries` canonicalised
+>   properly, a proposal for `industry` in R2 started matching it by word-boundary containment —
+>   *"appears to correspond to Home industries"*, which it does not. For a use the LEP names there is
+>   nothing to approximate towards, so `approximate` is now skipped for any recognised term.
+>
+> **Not done here, deliberately:** `hairdresser` still returns `not_found` rather than resolving to
+> `business premises`, though `vocabulary.py:264` already maps it and the LEP's own definition names
+> hairdressers. Wiring `DEFINITION_SYNONYMS` into `check_permissibility` is Phase A convenience work,
+> and the sequencing note above says not to remove the brake first. It is strictly better than the
+> `permitted` it used to return.
+
 `landuse.py:40` strips a trailing `-s` and cannot pair `-ies` with `-y`; 40 land use table terms end
 in `-ies`. `match_land_use(..., "hierarchy")` compounds it by looking the canonicalised term up
 against raw `LAND_USE_HIERARCHY` keys, making the whole `premises` family unreachable. Verified:
@@ -151,7 +194,7 @@ with the data*.
 > | | |
 > |---|---:|
 > | asked in the table's own spelling | **0 wrong** |
-> | asked in the Dictionary's spelling | **287 wrong** |
+> | asked in the Dictionary's spelling | **287 wrong** — now 0, see above |
 >
 > — 120 `wrong_yes` (the table prohibits it, the tool said yes), 91 `wrong_no`, and 76 `unfound`,
 > where the answer's shape happens to agree but the term was never actually found. **Every one of
