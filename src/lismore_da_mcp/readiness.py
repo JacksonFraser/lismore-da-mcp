@@ -42,6 +42,7 @@ from lismore_da_mcp.data.readiness import REJECTION_GROUNDS
 from lismore_da_mcp.data.readiness import STATUTORY_CONTENT
 from lismore_da_mcp.data.referrals import CHARACTERISTIC_TRIGGERS
 from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS
+from lismore_da_mcp.data.referrals import is_external
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.landuse import NOT_A_LAND_USE
 from lismore_da_mcp.landuse import canonical_use
@@ -548,27 +549,35 @@ def referral_triggers(p: Proposal) -> dict:
 
     Derived triggers are kept apart from stated ones. A site flagged on the
     heritage layer is not necessarily on the State Heritage Register, and only
-    the State Register brings Heritage Council concurrence — so a derived
-    trigger produces a question about integrated development, never an
-    assertion that the application is integrated.
+    the State Register brings in the Heritage Council — so a derived trigger
+    produces Council's own cl 5.10 assessment and a question about integrated
+    development, never an assertion that the application is integrated. Until
+    2026-09-25 it produced the Heritage Council referral itself, documents and
+    all, with the caveat in a string beside it (SCENARIOS.md run 2, R3).
+
+    Every matching trigger is collected, as check_referrals does. Taking the
+    first was harmless while each word reached one body, but 'state_heritage'
+    now reaches two — Council's assessment and the Heritage Council's — and the
+    first hit alone would drop the one that makes the DA integrated.
     """
     triggered: dict[str, str] = {}
     unrecognised = []
     for characteristic in p.development_characteristics or []:
         text = str(characteristic).lower().replace(" ", "_")
-        hit = next((r for key, r in CHARACTERISTIC_TRIGGERS.items() if key in text), None)
-        if hit:
-            triggered[hit] = f"stated: '{characteristic}'"
-        else:
+        hits = [r for key, r in CHARACTERISTIC_TRIGGERS.items() if key in text]
+        for hit in hits:
+            triggered.setdefault(hit, f"stated: '{characteristic}'")
+        if not hits:
             unrecognised.append(characteristic)
 
     if p.bushfire:
         triggered.setdefault("rural_fire_service", "site is on bushfire prone land")
     if p.heritage:
         triggered.setdefault(
-            "heritage_council",
-            "site is heritage affected — Heritage Council concurrence applies only to State "
-            "Heritage Register items, which the mapping here does not distinguish")
+            "council_heritage_assessment",
+            "site is heritage affected on the mapped layer. Whether it is also on the State "
+            "Heritage Register — the only case that brings in the Heritage Council — the "
+            "mapping here does not distinguish; ask Council, or pass 'state_heritage' if it is")
     if p.flood:
         triggered.setdefault("council_flood_assessment", "site is flood affected")
 
@@ -579,6 +588,15 @@ def referral_triggers(p: Proposal) -> dict:
             for key, why in triggered.items()
         },
         "not_recognised": unrecognised,
+        # Whether integrated development is even in question. An external referral
+        # raises it. So does a heritage item not known to be on the State Register,
+        # stated or mapped, because that is the one fact that would make it
+        # integrated and nothing here can settle it. Council's own flood assessment
+        # does not, and used to raise it anyway.
+        "integrated_in_question": (
+            any(is_external(key) for key in triggered)
+            or "council_heritage_assessment" in triggered
+        ),
     }
 
 
@@ -590,7 +608,7 @@ def open_questions(p: Proposal, has_parking_shortfall: bool | None = None) -> li
     caveat on one answer, and together they are the agenda for the fifteen free
     minutes that can settle them.
     """
-    triggered = bool(referral_triggers(p)["triggered"])
+    triggered = referral_triggers(p)["integrated_in_question"]
     applies = {
         "codes_sepp_or_existing_use_rights": p.is_change_of_use,
         "cbd_boundary": p.in_cbd is None,

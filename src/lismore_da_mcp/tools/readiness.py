@@ -244,12 +244,22 @@ def check_da_readiness(arguments: dict):
         response["parking"] = parking
     if result["referrals"]["triggered"]:
         response["referrals"] = result["referrals"]["triggered"]
+    if result["referrals"].get("integrated_in_question"):
         response["referrals_change_the_timeline"] = (
             "If any of these is an approval under EP&A Act s4.46, the application is integrated "
             "development: the assessment period becomes 60 days rather than 40, and every "
             "approval must be identified on the application or it can be rejected under "
             "s39(1)(d)."
         )
+        triggered = result["referrals"]["triggered"]
+        if "council_heritage_assessment" in triggered and "heritage_council" not in triggered:
+            # The heritage assessment itself is Council's and changes neither. What
+            # would is the item being on the State Heritage Register, which is open.
+            response["referrals_change_the_timeline"] += (
+                " Council's own heritage assessment is not such an approval. A State Heritage "
+                "Register item would need the Heritage Council's as well — whether this site "
+                "is on the Register has not been established."
+            )
     if result["referrals"]["not_recognised"]:
         response["characteristics_not_recognised"] = {
             "not_assessed": result["referrals"]["not_recognised"],

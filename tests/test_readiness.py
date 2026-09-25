@@ -420,6 +420,20 @@ class TestReferralsChangeMoreThanTheDocuments:
         assert "60 days" in result["referrals_change_the_timeline"]
         assert "s39(1)(d)" in result["referrals_change_the_timeline"]
 
+    def test_councils_own_flood_assessment_does_not_make_it_integrated(self, call):
+        """A flood characteristic reaches Council's internal assessment, which is
+        not an approval under s4.46 — it used to raise the integrated development
+        question and the 60-day warning all the same."""
+        result = check(call, development_characteristics=["flood_prone"])
+        assert "council_flood_assessment" in result["referrals"]
+        assert "referrals_change_the_timeline" not in result
+        assert not any("integrated" in q["question"] for q in result["questions_for_council"])
+
+    def test_a_heritage_item_keeps_the_register_question_open(self, call):
+        result = check(call, development_characteristics=["heritage_item"])
+        assert "State Heritage Register" in result["referrals_change_the_timeline"]
+        assert any("integrated" in q["question"] for q in result["questions_for_council"])
+
     def test_an_unrecognised_characteristic_is_not_silence(self, call):
         """Dropping it reads as 'no referral required' for a site that may well
         need one."""

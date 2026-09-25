@@ -182,6 +182,62 @@ class TestTheToolsSayIt:
         assert "Statement accompanies" not in draft
 
 
+class TestOnlyTheStateRegisterGoesToTheHeritageCouncil:
+    """SCENARIOS.md run 2, R3. check_referrals mapped every heritage word to the
+    Heritage Council, with a Heritage Impact Statement as a required document.
+    A locally listed item — which is what LEP Schedule 5 mostly holds — is
+    assessed by Council under cl 5.10; the Heritage Council's role is the State
+    Register and the cl 5.10(7) and (9) notifications. The claim this file
+    exists to correct had survived as a list item, which no grep for a sentence
+    could see."""
+
+    def test_a_heritage_item_is_councils_assessment(self, call):
+        referrals = call("check_referrals",
+                         {"development_characteristics": ["heritage_item"]})["triggered_referrals"]
+        assert list(referrals) == ["council_heritage_assessment"]
+        assert "internal" in referrals["council_heritage_assessment"]["approval"]
+
+    def test_a_state_listed_item_reaches_both(self, call):
+        """Council still assesses an SHR item under cl 5.10; the Heritage
+        Council's approval is needed as well."""
+        referrals = call("check_referrals",
+                         {"development_characteristics": ["state_heritage"]})["triggered_referrals"]
+        assert set(referrals) == {"council_heritage_assessment", "heritage_council"}
+
+    def test_no_referral_lists_a_heritage_document_as_required(self):
+        from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS
+
+        for key, entry in REFERRAL_REQUIREMENTS.items():
+            for document in entry.get("documents", []):
+                lowered = document.lower()
+                if "heritage" in lowered and ("statement" in lowered or "plan" in lowered
+                                              or "document" in lowered):
+                    assert "may" in lowered or "ask" in lowered, (
+                        f"{key}: {document!r} lists a heritage document without saying "
+                        "Council may require it (LEP cl 5.10(5)).")
+
+    def test_a_mapped_heritage_flag_is_not_sent_to_the_heritage_council(self):
+        """The layer cannot tell a local item from a State-listed one, so it gets
+        Council's assessment and the integrated development question, never the
+        Heritage Council referral as though the answer were known."""
+        from lismore_da_mcp.readiness import Proposal, referral_triggers
+
+        result = referral_triggers(Proposal(proposed_use="cafe", heritage=True))
+        assert "heritage_council" not in result["triggered"]
+        assert "council_heritage_assessment" in result["triggered"]
+        assert result["integrated_in_question"]
+
+    def test_readiness_collects_both_bodies_for_state_heritage(self):
+        """It took the first matching trigger only, which once 'heritage' and
+        'state_heritage' reached different bodies would have dropped the one that
+        makes the DA integrated."""
+        from lismore_da_mcp.readiness import Proposal, referral_triggers
+
+        result = referral_triggers(Proposal(
+            proposed_use="cafe", development_characteristics=["state_heritage"]))
+        assert {"council_heritage_assessment", "heritage_council"} <= set(result["triggered"])
+
+
 class TestTheAuditCanFail:
     """PLAN.md item 0.2 — a checker that cannot detect a fault manufactures
     confidence rather than providing it."""

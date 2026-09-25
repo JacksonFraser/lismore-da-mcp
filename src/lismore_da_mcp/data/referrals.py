@@ -1,5 +1,7 @@
 """External agency referral triggers (integrated development and concurrence)."""
 
+from lismore_da_mcp.data.heritage import WHAT_CHAPTER_12_DOES_NOT_SAY
+
 # The words a caller might use for a site characteristic, mapped to the referral
 # authority it points at. Matched as substrings, so "bushfire_prone_land" and
 # "bushfire" both reach the Rural Fire Service.
@@ -12,7 +14,16 @@ CHARACTERISTIC_TRIGGERS = {
     "bushfire": "rural_fire_service",
     "bushfire_prone": "rural_fire_service",
     "fire": "rural_fire_service",
-    "heritage": "heritage_council",
+    # A heritage item is not a State Heritage Register item. Schedule 5 of LEP
+    # 2012 lists the local items and conservation areas, and cl 5.10 gives
+    # Council the assessment of those; the Heritage Council's role is confined to
+    # the State Register and to the cl 5.10(7) and (9) notifications. This line
+    # sent every heritage item to the Heritage Council — with a Heritage Impact
+    # Statement listed as a required document — until 2026-09-25 (SCENARIOS.md
+    # run 2, R3). Matching is by substring and collects every hit, so
+    # 'state_heritage' reaches both: Council still assesses an SHR item under
+    # cl 5.10, and the Heritage Council's approval is needed as well.
+    "heritage": "council_heritage_assessment",
     "state_heritage": "heritage_council",
     "industrial": "epa",
     "waste": "epa",
@@ -42,7 +53,34 @@ REFERRAL_REQUIREMENTS = {
         "trigger": "Development affecting State Heritage Register item",
         "types": ["Works on State-listed heritage items", "Works within curtilage of State heritage"],
         "approval": "Heritage Council NSW concurrence",
-        "documents": ["Heritage Impact Statement", "Conservation Management Plan (if required)"],
+        # These read "Heritage Impact Statement" and "Conservation Management
+        # Plan (if required)" — the first as a flat requirement, the same claim
+        # data/heritage.py corrects, surviving here because a list item does not
+        # contain the sentence tests/test_heritage.py greps for. What the
+        # Heritage Council itself requires is not in any document in this
+        # repository, so this says who to ask rather than guessing.
+        "documents": [
+            "Whatever the Heritage Council asks for with its own application — ask it, or "
+            "Council, before commissioning anything. Council's cl 5.10 assessment runs "
+            "alongside this one and has its own document question (council_heritage_assessment).",
+        ],
+    },
+    "council_heritage_assessment": {
+        "trigger": "A heritage item or heritage conservation area in LEP 2012 Schedule 5, or "
+                   "land in the vicinity of one (cl 5.10(5)(c))",
+        "types": ["Works to a locally listed heritage item",
+                  "Development in a heritage conservation area",
+                  "Development near a heritage item that may affect its significance"],
+        "approval": "Council assessment under LEP 2012 clause 5.10 (internal, not an external "
+                    "referral). The Heritage Council is involved only for a State Heritage "
+                    "Register item — pass 'state_heritage' if the site is on it — an "
+                    "archaeological site (cl 5.10(7)) or the demolition of a nominated State "
+                    "heritage item (cl 5.10(9)).",
+        "documents": [
+            WHAT_CHAPTER_12_DOES_NOT_SAY["say_instead"],
+            "Council may require a heritage conservation management plan (LEP cl 5.10(6)).",
+        ],
+        "external": False,
     },
     "epa": {
         "trigger": "Scheduled activities under Protection of the Environment Operations Act",
@@ -78,6 +116,7 @@ REFERRAL_REQUIREMENTS = {
         # Area's controls and no exemption of any kind.
         "types": ["Any development below the Flood Planning Level", "Habitable floor space on flood prone land", "Development in the CBD Flood Liable area, which takes the Flood Fringe controls (DCP §8.3)"],
         "approval": "Council assessment against LEP 2012 clause 5.21 and DCP Chapter 8 (internal, not an external referral)",
+        "external": False,
         "documents": ["Flood Risk Assessment", "Survey showing floor levels relative to the Flood Planning Level", "Certificate of structural adequacy from a qualified structural/civil engineer (DCP §8.5.4/§8.6.4)", "Risk analysis report from a structural engineer, for commercial and industrial development"],
     },
     "mine_subsidence": {
@@ -91,3 +130,9 @@ REFERRAL_REQUIREMENTS = {
         "approval": "Not applicable",
     },
 }
+
+
+def is_external(referral: str) -> bool:
+    """Whether a referral goes to another body — the only kind that can make a DA
+    integrated development. Council's own flood and heritage assessments do not."""
+    return REFERRAL_REQUIREMENTS.get(referral, {}).get("external", True)
