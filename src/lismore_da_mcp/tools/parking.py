@@ -34,6 +34,28 @@ _COUNTABLE_PROPERTIES = {
 }
 
 
+def _outside_cbd_reading(schedule_1: dict | None, entry: dict) -> str:
+    """The Schedule 1 side of an unresolved location, whatever it could be told."""
+    if schedule_1 and schedule_1.get("spaces_required") is not None:
+        return f"{schedule_1['spaces_required']} space(s) — Schedule 1 (DCP 7.7.2)."
+    if schedule_1 and schedule_1.get("supply"):
+        return (f"No figure yet — Schedule 1 (DCP 7.7.2) is '{entry['rate']}', and needs "
+                f"{', '.join(schedule_1['supply'])} to be reduced to a number.")
+    return f"Schedule 1 (DCP 7.7.2): '{entry['rate']}'."
+
+
+def _inside_cbd_reading(cbd: dict | None, arguments: dict) -> str:
+    """The fixed-rate side of an unresolved location, whatever it could be told."""
+    if cbd is None:
+        return ("The fixed rate of 3.3 spaces/100m² GFA (DCP 7.7.3.1). Supply floor_area_sqm "
+                "for a figure — it is the only input this rate needs.")
+    return (f"{cbd['spaces_required']} space(s) — the fixed rate of 3.3 spaces/100m² GFA "
+            "(DCP 7.7.3.1)"
+            + ("." if arguments.get("existing_gfa_sqm")
+               else ", before any deemed parking credit for an existing building, which "
+                    "would reduce it further."))
+
+
 @tool(
     name='get_parking_rates',
     description='Get off-street parking requirements for a development type in Lismore, and what can be done about a shortfall. Supply floor_area_sqm, spaces_provided and whatever the rate counts (employees, seats, practitioners, children, beds, rooms) for the number of spaces required and any shortfall. A rate whose terms are not all supplied returns no number and says which argument to send — a part of the sum is not a lower bound. IMPORTANT: the Lismore CBD is assessed under a different rate from the rest of the LGA, so supply `location` — without it both readings are returned and neither is the answer.',
@@ -115,23 +137,26 @@ def get_parking_rates(arguments: dict):
         else:
             estimate = schedule_1
 
-        if (in_cbd is None and cbd is not None and schedule_1 is not None
-                and schedule_1["spaces_required"] is not None):
+        if in_cbd is None and not schedule_1_applies_anyway:
             # Neither figure is the answer until the site is placed. Presenting
             # both, rather than defaulting, is the same discipline the
             # contributions catchment follows — a silent default here is a
             # wrong number in a business's plans.
+            #
+            # Emitted whenever the location is open, whether or not either side
+            # can be calculated. It used to require both figures, so once S3 let
+            # Schedule 1 decline for want of a staff count, a café that had not
+            # said where it was got the Schedule 1 formula alone — the CBD rate,
+            # three spaces against Schedule 1's twelve-plus, was never mentioned,
+            # and `applies` pointed at this key while it was absent (SCENARIOS.md
+            # run 2, R2). The question that changes the answer most is the one
+            # that must not depend on the others being answered first.
             response["which_rate_applies"] = {
                 "unresolved": "You have not said whether the site is inside the Lismore CBD, "
                               "and the two rates give different answers. Neither figure below "
                               "is the answer until that is settled.",
-                "outside_the_cbd": f"{schedule_1['spaces_required']} space(s) — Schedule 1 "
-                                   f"(DCP 7.7.2).",
-                "inside_the_cbd": f"{cbd['spaces_required']} space(s) — the fixed rate of 3.3 "
-                                  f"spaces/100m² GFA (DCP 7.7.3.1)"
-                                  + ("." if arguments.get("existing_gfa_sqm")
-                                     else ", before any deemed parking credit for an existing "
-                                          "building, which would reduce it further."),
+                "outside_the_cbd": _outside_cbd_reading(schedule_1, result),
+                "inside_the_cbd": _inside_cbd_reading(cbd, arguments),
                 "how_to_settle_it": "The CBD is the area shown on Map 1 of DCP Chapter 7, which "
                                     "is a map image and cannot be read by this tool. Check it "
                                     "with Council or the Duty Planner, then call again with "

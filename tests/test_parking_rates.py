@@ -391,6 +391,45 @@ class TestTheCbdBoundaryIsNeverAssumed:
         assert "3 space(s)" in both["inside_the_cbd"]
         assert "Neither figure" in both["unresolved"]
 
+    def test_the_cbd_rate_survives_an_incomplete_schedule_1(self, call):
+        """SCENARIOS.md run 2, R2. The test above supplies num_employees, which is
+        why this went unseen: without it Schedule 1 declines, and the location
+        question used to vanish with it — a café that had not said where it was
+        got the Schedule 1 formula alone and never heard of the three-space CBD
+        rate."""
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "floor_area_sqm": 80})
+        both = result["which_rate_applies"]
+        assert "3 space(s)" in both["inside_the_cbd"]
+        assert "No figure yet" in both["outside_the_cbd"]
+        assert "num_employees" in both["outside_the_cbd"]
+
+    def test_the_question_is_asked_even_with_no_floor_area(self, call):
+        result = call("get_parking_rates", {"development_type": "cafe"})
+        both = result["which_rate_applies"]
+        assert "3.3 spaces/100m²" in both["inside_the_cbd"]
+        assert "floor_area_sqm" in both["inside_the_cbd"]
+
+    @pytest.mark.parametrize("arguments", [
+        {"development_type": "cafe", "floor_area_sqm": 80},
+        {"development_type": "cafe", "floor_area_sqm": 80, "num_employees": 4},
+        {"development_type": "gym", "floor_area_sqm": 200},
+        {"development_type": "medical centre", "floor_area_sqm": 150, "num_employees": 5},
+        {"development_type": "shop", "floor_area_sqm": 200},
+    ])
+    def test_applies_never_points_at_a_missing_key(self, call, arguments):
+        result = call("get_parking_rates", arguments)
+        applies = (result.get("calculation") or {}).get("applies") or ""
+        if "which_rate_applies" in applies:
+            assert "which_rate_applies" in result
+
+    def test_a_use_the_cbd_keeps_on_schedule_1_is_not_asked(self, call):
+        """A motel is on Schedule 1 inside the CBD too (§7.7.3.1 exception (i)), so
+        the location does not change its answer and the question would be noise."""
+        result = call("get_parking_rates", {
+            "development_type": "motel", "floor_area_sqm": 500})
+        assert "which_rate_applies" not in result
+
     def test_it_says_how_to_settle_the_question(self, call):
         result = call("get_parking_rates", {
             "development_type": "shop", "floor_area_sqm": 200})
