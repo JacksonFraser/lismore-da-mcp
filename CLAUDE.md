@@ -451,7 +451,9 @@ This agent has access to official planning documents stored in the `documents/` 
 3. **For residential setbacks/design**: Read `documents/dcp/chapter-1-residential-development.pdf`
 4. **For commercial development**: Read `documents/dcp/chapter-2-commercial-development.pdf`
 5. **For flood planning**: Read `documents/dcp/chapter-8-flood-prone-lands.pdf`
-6. **For fees**: Read `documents/fees/fees-and-charges-2025-26.pdf`
+6. **For fees**: Read `documents/fees/fees-and-charges-2026-27.pdf`, or better, call
+   `calculate_da_fees`. The 2025-26 schedule is still in `documents/fees/` but is superseded —
+   search labels it and ranks it last. Rows printing two figures give 2025-26 first, 2026-27 second
 7. **For heritage requirements**: Read `documents/dcp/chapter-12-heritage-conservation.pdf`
 8. **For subdivision requirements**: Read `documents/dcp/chapter-5a-urban-residential-subdivision.pdf`
 9. **For buffer requirements**: Read `documents/dcp/chapter-11-buffer-areas.pdf`
@@ -1011,9 +1013,11 @@ per-$1,000 increments are fixed dollar amounts and do not change.
 - North Lismore Plateau has separate Section 94 plan
 - Water/Wastewater: Section 64 charges under Development Servicing Plans
 
-## Lismore Council Fees 2025-26
+## Lismore Council Fees 2026-27
 Current fees and charges available at:
-https://www.lismore.nsw.gov.au/files/assets/public/v/5/1.-households/2.-rates-and-water/ed25-21941-fees_and_charges_2025_26.pdf
+https://www.lismore.nsw.gov.au/files/assets/public/v/1/1.-households/2.-rates-and-water/2026-2027-fees-and-charges.pdf
+(Council reissues this every July, at a new URL; the page that links the current one is
+https://www.lismore.nsw.gov.au/Households/Rates-and-water-information/Fees-and-charges)
 
 ---
 
@@ -1245,7 +1249,7 @@ Properties not connected to reticulated sewerage.
 - DA Tracker: https://www.lismore.nsw.gov.au/Building-and-planning/Development-Applications-in-Lismore/DA-Tracker
 - LEPs & DCPs: https://www.lismore.nsw.gov.au/Building-and-planning/Strategic-planning/Our-LEPs-and-DCPs
 - Pre-lodgement form: https://forms.lismore.nsw.gov.au/forms/7788
-- Fees 2025-26: https://www.lismore.nsw.gov.au/files/assets/public/v/5/1.-households/2.-rates-and-water/ed25-21941-fees_and_charges_2025_26.pdf
+- Fees 2026-27: https://www.lismore.nsw.gov.au/files/assets/public/v/1/1.-households/2.-rates-and-water/2026-2027-fees-and-charges.pdf
 
 ## NSW Government
 - NSW Planning Portal: https://www.planningportal.nsw.gov.au/

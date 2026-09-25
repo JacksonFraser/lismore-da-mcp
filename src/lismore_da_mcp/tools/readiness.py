@@ -317,12 +317,17 @@ def prepare_prelodgement_brief(arguments: dict):
     lines = [
         "PRE-LODGEMENT BRIEF",
         "=" * 78,
-        f"For: {CONTACT_INFO['council']} — {duty['service']}",
+        f"Take to: {CONTACT_INFO['council']} — {duty['service']}",
         f"     {duty['days']}, {duty['time']} — {duty['location']}",
         f"     {duty['appointment']}. Council: {CONTACT_INFO['phone']}",
         "",
-        _wrap("Prepared by the Lismore DA assistant. Guidance only — nothing in it is a "
-              "determination, and nothing said at a duty planner session binds Council.", ""),
+        # This is the output most likely to be read as official: it cites clause
+        # and page, and it ends up on a desk at Council. It used to open "For:
+        # Lismore City Council", which reads as a letterhead. (ROADMAP.md A4)
+        _wrap("Prepared by the Lismore DA assistant, an independent tool — not made, "
+              f"reviewed or endorsed by {CONTACT_INFO['council']}. Guidance only — nothing "
+              "in it is a determination, and nothing said at a duty planner session binds "
+              "Council.", ""),
         "",
         "-" * 78,
         "1. THE PROPOSAL",

@@ -502,6 +502,11 @@ compressing rather than growing, and that guard should hold here too.
 
 ### A4 — Put the identity statement where it is constant
 
+> **Half done 2026-09-25.** The statement is in the server `instructions` ("An independent tool,
+> not Lismore City Council's" — fitted inside the 4,200-character budget by compressing, not by
+> raising it) and in the brief, whose header no longer opens "For: Lismore City Council". Both are
+> pinned by tests. **Still open: the decision on the two PII tools.**
+
 **The evidence.** The only "guidance only, verify with Council" statement lives in `README.md:226`,
 which nobody reaching this through the public endpoint or a connector ever sees **[verified]**.
 Meanwhile every answer cites clause and page number and reads exactly like official advice. This

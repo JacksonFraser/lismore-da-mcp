@@ -398,6 +398,15 @@ class TestTheBrief:
         # The section text is wrapped for printing, so the phrase spans a line.
         assert "taken never to have been made" in " ".join(text.split())
 
+    def test_it_says_it_is_not_from_council(self, call):
+        """It cites clause and page and is carried to Council's own counter, so
+        it is the output most likely to be mistaken for Council's. Nothing but
+        this line says otherwise (ROADMAP.md A4)."""
+        head = " ".join(brief(call).split("1. THE PROPOSAL")[0].split())
+        assert "independent tool" in head
+        assert "not made, reviewed or endorsed by Lismore City Council" in head
+        assert "For: Lismore City Council" not in head, "reads as a letterhead"
+
     def test_it_fits_a_printed_page(self, call):
         over = [line for line in brief(call, existing_use="office").splitlines()
                 if len(line) > 78]

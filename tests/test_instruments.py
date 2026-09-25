@@ -7,9 +7,15 @@ as a current control. That is the one remaining way this server could give
 actively wrong planning advice, hence the coverage.
 """
 
+import re
+import sys
+from pathlib import Path
+
 import pytest
 
 from lismore_da_mcp.data.instruments import (
+    CURRENT_FEE_SCHEDULE,
+    FEE_SCHEDULE_COLUMNS_NOTE,
     GENERAL_DOCUMENTS,
     LEP_2000,
     LEP_2000_DOCUMENTS,
@@ -18,12 +24,22 @@ from lismore_da_mcp.data.instruments import (
     NO_COUNTERPART_NOTE,
     NOT_INSTRUMENT_SPECIFIC,
     STATE,
+    SUPERSEDED_FEE_SCHEDULES,
     SUPERSEDED_NOTE,
     instrument_for,
     is_superseded,
+    superseded_banner,
     superseded_note_for,
 )
-from lismore_da_mcp.search import list_available_documents, search_all, searchable_documents
+from lismore_da_mcp.search import (
+    _rank,
+    list_available_documents,
+    search_all,
+    searchable_documents,
+)
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
 
 
 class TestRegistryMatchesDisk:
@@ -145,4 +161,104 @@ class TestDocumentListing:
 
     def test_listing_flags_superseded(self):
         flagged = {d["filename"] for d in list_available_documents() if d.get("superseded")}
-        assert flagged == LEP_2000_DOCUMENTS
+        assert flagged == LEP_2000_DOCUMENTS | set(SUPERSEDED_FEE_SCHEDULES)
+
+
+class TestFeeSchedules:
+    """Old fee schedules match every fee query the current one does, and a
+    search for "footpath dining fee" once answered from the 2025-26 schedule
+    first with nothing marking it as old."""
+
+    def test_registry_names_files_on_disk(self):
+        on_disk = {p.name for p in searchable_documents()}
+        assert CURRENT_FEE_SCHEDULE in on_disk
+        missing = sorted(set(SUPERSEDED_FEE_SCHEDULES) - on_disk)
+        assert missing == [], f"registry names files not present: {missing}"
+
+    def test_every_dated_fee_schedule_is_current_or_superseded(self):
+        """The July check. Adding next year's schedule fails here until this
+        year's is registered as superseded and CURRENT_FEE_SCHEDULE moves on —
+        otherwise two schedules answer every fee query as equals."""
+        dated = {
+            p.name for p in searchable_documents()
+            if p.parent.name == "fees" and re.search(r"\d{4}-\d{2}\.pdf$", p.name)
+        }
+        unregistered = sorted(dated - {CURRENT_FEE_SCHEDULE} - set(SUPERSEDED_FEE_SCHEDULES))
+        assert unregistered == [], f"fee schedules with no status: {unregistered}"
+
+    def test_current_schedule_is_the_one_the_figures_cite(self):
+        from audit_approvals import SCHEDULE
+
+        from lismore_da_mcp.data import fees
+
+        assert SCHEDULE.name == CURRENT_FEE_SCHEDULE
+        assert CURRENT_FEE_SCHEDULE in fees.__doc__
+
+    def test_the_current_schedule_is_not_superseded(self):
+        assert not is_superseded(CURRENT_FEE_SCHEDULE)
+
+    @pytest.mark.parametrize("name", sorted(SUPERSEDED_FEE_SCHEDULES))
+    def test_note_names_the_year_and_the_replacement(self, name):
+        note = superseded_note_for(name)
+        assert SUPERSEDED_FEE_SCHEDULES[name] in note
+        assert CURRENT_FEE_SCHEDULE in note
+        assert "LEP" not in note, "a fee schedule is not superseded by an LEP"
+
+    def test_banner_is_worded_for_the_kind_of_document(self):
+        assert superseded_banner("fees-and-charges-2025-26.pdf").startswith(
+            "⚠️ SUPERSEDED FEE SCHEDULE")
+        assert superseded_banner("chapter-12-heritage-lep2000.pdf").startswith(
+            "⚠️ SUPERSEDED FOR MOST LAND")
+
+    def test_rank_puts_old_schedules_after_every_current_hit(self):
+        hits = [
+            {"file": "fees-and-charges-2025-26.pdf", "score": 9},
+            {"file": CURRENT_FEE_SCHEDULE, "score": 2},
+            {"file": "chapter-7-off-street-carparking.pdf", "score": 2},
+            {"file": "chapter-1-residential-lep2000.pdf", "score": 5},
+        ]
+        assert [h["file"] for h in _rank(hits)] == [
+            "chapter-1-residential-lep2000.pdf",  # LEP 2000 is labelled, not demoted
+            CURRENT_FEE_SCHEDULE,  # ties keep their order
+            "chapter-7-off-street-carparking.pdf",
+            "fees-and-charges-2025-26.pdf",
+        ]
+
+    def test_a_fee_query_answers_from_the_current_schedule(self):
+        hits = search_all("footpath dining fee")
+        assert hits[0]["file"] == CURRENT_FEE_SCHEDULE
+        seen_old = False
+        for hit in hits:
+            if hit["file"] in SUPERSEDED_FEE_SCHEDULES:
+                seen_old = True
+                assert CURRENT_FEE_SCHEDULE in hit["superseded"]
+            else:
+                assert not seen_old, "a current hit ranked below a superseded schedule"
+
+    def test_current_schedule_hits_say_how_to_read_the_columns(self):
+        hits = [h for h in search_all("footpath dining fee") if h["file"] == CURRENT_FEE_SCHEDULE]
+        assert hits and all(h["reading_the_columns"] == FEE_SCHEDULE_COLUMNS_NOTE for h in hits)
+
+    def test_the_column_note_matches_the_document(self):
+        """FEE_SCHEDULE_COLUMNS_NOTE names two years and an order. Both change
+        when next July's schedule replaces this one, and a note that names the
+        wrong year sends a business to last year's fee."""
+        import fitz
+
+        years = re.findall(r"(\d{4})-(\d{2})", FEE_SCHEDULE_COLUMNS_NOTE)
+        expected = [f"{a[2:]}/{b}" for a, b in years]  # 2025-26 -> 25/26
+        assert len(expected) == 2
+
+        with fitz.open(ROOT / "documents" / "fees" / CURRENT_FEE_SCHEDULE) as doc:
+            headed = 0
+            for page in doc:
+                # The year headers sit in a band at the top of each page (y≈31);
+                # body text below it has its own n/n figures ("50/60").
+                headers = sorted(
+                    (w[0], w[4]) for w in page.get_text("words")
+                    if w[1] < 60 and re.fullmatch(r"\d{2}/\d{2}", w[4])
+                )
+                if headers:
+                    headed += 1
+                    assert [h for _, h in headers] == expected, f"page {page.number + 1}"
+        assert headed, "no year headers found — has the schedule's layout changed?"
