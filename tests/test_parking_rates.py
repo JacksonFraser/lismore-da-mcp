@@ -479,6 +479,39 @@ class TestTheCbdBoundaryIsNeverAssumed:
 class TestTheParkingCredit:
     """§7.7.3.4. Usually most of a change-of-use requirement, and never automatic."""
 
+    def test_outside_the_cbd_the_credit_arguments_say_they_were_not_applied(self, call):
+        """SCENARIOS.md run 2, R6. Chapter 7 has no credit for an existing
+        building outside the CBD, so these did nothing there — and said nothing."""
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "floor_area_sqm": 80, "location": "outside_cbd",
+            "num_employees": 4, "existing_gfa_sqm": 80, "existing_spaces_on_site": 4})
+        not_applied = result["arguments_not_applied"]
+        assert set(not_applied) == {"existing_gfa_sqm", "existing_spaces_on_site"}
+        assert "spaces_provided" in not_applied["existing_spaces_on_site"]
+        assert result["calculation"]["spaces_required"] == 14  # unchanged by them
+
+    def test_spaces_without_floor_area_are_flagged_in_the_cbd(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "floor_area_sqm": 80, "location": "cbd",
+            "existing_spaces_on_site": 4})
+        assert "existing_gfa_sqm" in result["arguments_not_applied"]["existing_spaces_on_site"]
+
+    def test_a_use_kept_on_schedule_1_is_flagged(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "motel", "floor_area_sqm": 500, "location": "cbd",
+            "existing_gfa_sqm": 300})
+        assert "exception (i)" in result["arguments_not_applied"]["existing_gfa_sqm"]
+
+    @pytest.mark.parametrize("arguments", [
+        {"development_type": "cafe", "floor_area_sqm": 80, "location": "cbd",
+         "existing_gfa_sqm": 80, "existing_spaces_on_site": 1},
+        {"development_type": "cafe", "floor_area_sqm": 80, "existing_gfa_sqm": 80},
+    ])
+    def test_nothing_is_flagged_where_the_credit_runs(self, call, arguments):
+        """Including an unstated location, where the credit feeds the inside-the-CBD
+        reading of which_rate_applies."""
+        assert "arguments_not_applied" not in call("get_parking_rates", arguments)
+
     def test_existing_floor_area_earns_a_deemed_credit(self, call):
         result = call("get_parking_rates", {
             "development_type": "cafe", "location": "cbd",
