@@ -57,6 +57,14 @@ class TestCaveatsSurvive:
     def test_states_it_is_not_a_determination(self):
         assert "Council decides" in INSTRUCTIONS
 
+    def test_states_it_is_not_council(self):
+        """Every answer cites clause and page and reads like official advice,
+        and this is the only text every connecting session receives. Constant
+        by nature, so it lives here once rather than on every answer — a
+        caveat on every answer carries no information (PLAN.md 0.1,
+        ROADMAP.md A4)."""
+        assert "not Lismore City Council's" in INSTRUCTIONS
+
     def test_warns_that_the_lep_table_is_not_the_whole_story(self):
         """The single most common question is granny flats, and the LEP table
         alone answers it wrongly."""

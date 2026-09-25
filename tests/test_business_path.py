@@ -140,6 +140,16 @@ class TestDraftParkingMatchesTheDCP:
         text = call("generate_see_draft", args)
         return text[text.find("4.2.2"):text.find("4.3")]
 
+    def test_an_incomplete_rate_states_its_floor_and_a_certain_shortfall(self, call):
+        """SCENARIOS.md run 2, R5. With no staff count the draft still claims no
+        requirement — but 80m² already fixes at least 12, so with 5 spaces a
+        shortfall of at least 7 is certain, and the draft says so rather than
+        leaving the reader to discover it from Council."""
+        section = self.parking(call, zone_code="E3", num_employees=None,
+                               existing_parking_spaces=5)
+        assert "at least 12" in section
+        assert "Parking Shortfall: at least 7" in section
+
     def test_the_space_count_is_the_one_the_parking_tool_gives(self, call):
         """The draft, get_parking_rates and the Council form all run the same
         estimator. Three answers to one question is the thing to prevent."""

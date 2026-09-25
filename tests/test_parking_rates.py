@@ -189,6 +189,39 @@ class TestEstimator:
         assert result["supply"] == ["num_employees"]
         assert "cannot be reduced to a number" in result["cannot_calculate"]
 
+    def test_the_floor_is_given_beside_the_missing_argument(self):
+        """SCENARIOS.md run 2, R5. The refusal said "a part of the sum is not a
+        lower bound". Every term here is positive and combined by adding or
+        taking the greater, so it is one — and it is the number a business can
+        plan from while it works out the rest."""
+        gym = estimate_spaces(PARKING_RATES["gym"], 250)
+        assert gym["spaces_required"] is None
+        assert gym["at_least"] == 10
+        assert "not a lower bound" not in gym["cannot_calculate"]
+        assert "floor" in gym["cannot_calculate"]
+        cafe = estimate_spaces(PARKING_RATES["cafe"], 80)
+        assert cafe["at_least"] == 12
+
+    def test_the_floor_is_below_every_completed_answer(self):
+        """The claim the floor rests on, checked rather than argued: for each
+        rate, supplying the missing input never takes the answer below it."""
+        cases = [
+            ("cafe", 80, {}, {"employees": [0, 1, 6, 20]}),
+            ("gym", 250, {}, {"employees": [0, 3, 12]}),
+            ("medical_centre", None, {"employees": 5}, {"practitioners": [0, 1, 3, 9]}),
+            ("childcare_centre", None, {"employees": 4}, {"children": [0, 10, 45]}),
+            ("hotel", None, {"accommodation_units": 20}, {"employees": [0, 2, 15]}),
+        ]
+        for key, area, given, missing in cases:
+            floor = estimate_spaces(PARKING_RATES[key], area, given)["at_least"]
+            (name, values), = missing.items()
+            for value in values:
+                full = estimate_spaces(PARKING_RATES[key], area, {**given, name: value})
+                assert full["spaces_required"] >= floor, (key, name, value)
+
+    def test_nothing_counted_gives_no_floor(self):
+        assert estimate_spaces(PARKING_RATES["medical_centre"], None, {}) is None
+
     def test_what_was_counted_is_still_shown(self):
         """Declining the total does not mean discarding the work — the caller
         can see the rate was understood and exactly what is outstanding."""
@@ -391,6 +424,45 @@ class TestTheCbdBoundaryIsNeverAssumed:
         assert "3 space(s)" in both["inside_the_cbd"]
         assert "Neither figure" in both["unresolved"]
 
+    def test_the_cbd_rate_survives_an_incomplete_schedule_1(self, call):
+        """SCENARIOS.md run 2, R2. The test above supplies num_employees, which is
+        why this went unseen: without it Schedule 1 declines, and the location
+        question used to vanish with it — a café that had not said where it was
+        got the Schedule 1 formula alone and never heard of the three-space CBD
+        rate."""
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "floor_area_sqm": 80})
+        both = result["which_rate_applies"]
+        assert "3 space(s)" in both["inside_the_cbd"]
+        assert "No figure yet" in both["outside_the_cbd"]
+        assert "num_employees" in both["outside_the_cbd"]
+
+    def test_the_question_is_asked_even_with_no_floor_area(self, call):
+        result = call("get_parking_rates", {"development_type": "cafe"})
+        both = result["which_rate_applies"]
+        assert "3.3 spaces/100m²" in both["inside_the_cbd"]
+        assert "floor_area_sqm" in both["inside_the_cbd"]
+
+    @pytest.mark.parametrize("arguments", [
+        {"development_type": "cafe", "floor_area_sqm": 80},
+        {"development_type": "cafe", "floor_area_sqm": 80, "num_employees": 4},
+        {"development_type": "gym", "floor_area_sqm": 200},
+        {"development_type": "medical centre", "floor_area_sqm": 150, "num_employees": 5},
+        {"development_type": "shop", "floor_area_sqm": 200},
+    ])
+    def test_applies_never_points_at_a_missing_key(self, call, arguments):
+        result = call("get_parking_rates", arguments)
+        applies = (result.get("calculation") or {}).get("applies") or ""
+        if "which_rate_applies" in applies:
+            assert "which_rate_applies" in result
+
+    def test_a_use_the_cbd_keeps_on_schedule_1_is_not_asked(self, call):
+        """A motel is on Schedule 1 inside the CBD too (§7.7.3.1 exception (i)), so
+        the location does not change its answer and the question would be noise."""
+        result = call("get_parking_rates", {
+            "development_type": "motel", "floor_area_sqm": 500})
+        assert "which_rate_applies" not in result
+
     def test_it_says_how_to_settle_the_question(self, call):
         result = call("get_parking_rates", {
             "development_type": "shop", "floor_area_sqm": 200})
@@ -406,6 +478,39 @@ class TestTheCbdBoundaryIsNeverAssumed:
 
 class TestTheParkingCredit:
     """§7.7.3.4. Usually most of a change-of-use requirement, and never automatic."""
+
+    def test_outside_the_cbd_the_credit_arguments_say_they_were_not_applied(self, call):
+        """SCENARIOS.md run 2, R6. Chapter 7 has no credit for an existing
+        building outside the CBD, so these did nothing there — and said nothing."""
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "floor_area_sqm": 80, "location": "outside_cbd",
+            "num_employees": 4, "existing_gfa_sqm": 80, "existing_spaces_on_site": 4})
+        not_applied = result["arguments_not_applied"]
+        assert set(not_applied) == {"existing_gfa_sqm", "existing_spaces_on_site"}
+        assert "spaces_provided" in not_applied["existing_spaces_on_site"]
+        assert result["calculation"]["spaces_required"] == 14  # unchanged by them
+
+    def test_spaces_without_floor_area_are_flagged_in_the_cbd(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "cafe", "floor_area_sqm": 80, "location": "cbd",
+            "existing_spaces_on_site": 4})
+        assert "existing_gfa_sqm" in result["arguments_not_applied"]["existing_spaces_on_site"]
+
+    def test_a_use_kept_on_schedule_1_is_flagged(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "motel", "floor_area_sqm": 500, "location": "cbd",
+            "existing_gfa_sqm": 300})
+        assert "exception (i)" in result["arguments_not_applied"]["existing_gfa_sqm"]
+
+    @pytest.mark.parametrize("arguments", [
+        {"development_type": "cafe", "floor_area_sqm": 80, "location": "cbd",
+         "existing_gfa_sqm": 80, "existing_spaces_on_site": 1},
+        {"development_type": "cafe", "floor_area_sqm": 80, "existing_gfa_sqm": 80},
+    ])
+    def test_nothing_is_flagged_where_the_credit_runs(self, call, arguments):
+        """Including an unstated location, where the credit feeds the inside-the-CBD
+        reading of which_rate_applies."""
+        assert "arguments_not_applied" not in call("get_parking_rates", arguments)
 
     def test_existing_floor_area_earns_a_deemed_credit(self, call):
         result = call("get_parking_rates", {
@@ -571,8 +676,19 @@ class TestEveryCountableIsAskable:
 
     def test_a_declined_figure_reports_no_shortfall(self, call):
         """A shortfall computed against a number that does not exist is worse
-        than no shortfall — it is the reassuring one."""
+        than no shortfall — it is the reassuring one. So there is no `shortfall`
+        figure. What there can be is a floor on it: 5 employees already need 5
+        spaces against 2 provided, and practitioners can only add to that, so a
+        shortfall of *at least* 3 is certain and is never the reassuring kind
+        (SCENARIOS.md run 2, R5)."""
         result = call("get_parking_rates", {
             "development_type": "medical centre", "num_employees": 5, "spaces_provided": 2})
         assert "shortfall" not in result["calculation"]
+        assert result["calculation"]["shortfall_at_least"] == 3
+        assert "at least" in result["calculation"]["advice"]
+
+    def test_no_floor_shortfall_when_the_floor_is_met(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "medical centre", "num_employees": 5, "spaces_provided": 10})
+        assert "shortfall_at_least" not in result["calculation"]
         assert "addressing_the_shortfall" not in result

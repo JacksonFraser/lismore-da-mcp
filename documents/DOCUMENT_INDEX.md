@@ -79,16 +79,19 @@ committing it.** The zone land use tables live in `lep-2012-nsw-full.txt` and, t
 
 ## Fees & Charges
 
-> ⚠️ `calculate_da_fees` computes from the **2024-25** statutory scale (`data/fees.py`). The
-> 2026-27 schedule below is newer than the code — see `PLAN.md` item 0.1.
+> `calculate_da_fees` computes from the **2026-27** statutory scale, transcribed from p30 of the
+> 2026-27 schedule below (`data/fees.py`, `PLAN.md` item 0.1). The two older schedules are kept as a
+> record but registered as superseded in `data/instruments.py`: search labels them and ranks them
+> below every current hit. **When next July's schedule is added**, register this year's there and
+> move `CURRENT_FEE_SCHEDULE` — `tests/test_instruments.py::TestFeeSchedules` fails until you do.
 
 | File | Description |
 |------|-------------|
-| `fees-and-charges-2026-27.pdf` | **Added 2026-08-01.** Lismore City Council Fees and Charges 2026-27 — the current year, and newer than the scale `calculate_da_fees` uses |
-| `fees-and-charges-2025-26.pdf` | Lismore City Council Fees and Charges 2025-26 |
+| `fees-and-charges-2026-27.pdf` | **Added 2026-08-01. Current.** Lismore City Council Fees and Charges 2026-27 — the source of every fee figure in the code. Its columns are 25/26 then 26/27; the second is the current fee |
+| `fees-and-charges-2025-26.pdf` | **Superseded.** Lismore City Council Fees and Charges 2025-26. Its columns are 24/25 and 25/26, so both are a year or more behind |
 | `section-7.11-contributions-plan-2024-2041.pdf` | **Added 2026-08-01.** Lismore City Section 7.11 Infrastructure Contributions Plan 2024-2041 (33MB). For a commercial development these contributions can exceed the DA lodgement fee |
 | `development-servicing-plans-water-wastewater.pdf` | **Added 2026-08-01.** Development Servicing Plans for Water Supply and Wastewater — the Section 64 headworks charges, significant for food premises |
-| `nsw-planning-fees-2024-25.pdf` | NSW Planning Development Fees Schedule 2024-25 |
+| `nsw-planning-fees-2024-25.pdf` | **Superseded.** NSW Planning Development Fees Schedule 2024-25 (DPHI fact sheet). Statutory fees are indexed each July; the current ones are in the 2026-27 Council schedule |
 
 ## Forms & Guidelines
 

@@ -47,6 +47,7 @@ from lismore_da_mcp.data.definitions import (  # noqa: E402
     FIGURES_NOT_IN_THE_DEFINITION,
     LAND_USE_DEFINITIONS,
     LAND_USE_HIERARCHY,
+    LEP_TYPE_OF,
 )
 from lismore_da_mcp.data.zones import ZONES  # noqa: E402
 
@@ -69,11 +70,17 @@ def lep_text() -> str:
 
 
 def dictionary_parents(raw: str) -> dict[str, str]:
-    """Read the LEP's own 'X are a type of Y' notes off the document."""
+    """Read the LEP's own 'X are a type of Y' notes off the document.
+
+    The document writes its apostrophes curly ("Backpackers’ accommodation"), and
+    until 2026-09-25 this pattern accepted only the straight one, so two of the
+    108 notes were silently not read. Both forms are accepted now, and the
+    result is returned with the straight one, which is how `data/` spells them.
+    """
     return {
-        m.group(1).strip(): m.group(2).strip()
+        m.group(1).strip().replace("’", "'"): m.group(2).strip().replace("’", "'")
         for m in re.finditer(
-            r"([A-Z][A-Za-z '()\-]+?) (?:are|is) a type of ([a-z][a-z '()\-]+?)"
+            r"([A-Z][A-Za-z '’()\-]+?) (?:are|is) a type of ([a-z][a-z '’()\-]+?)"
             r"—see the definition of that term in this Dictionary",
             raw,
         )
@@ -141,6 +148,18 @@ def check_hierarchy(lep: str) -> list[str]:
                 f"LAND_USE_HIERARCHY[{term!r}] starts at {chain[0]!r}, but the LEP Dictionary "
                 f"says {term} is a type of {parent!r}."
             )
+    # Every later link too, not just the first. `contributions.py` walks these
+    # chains to reach a contribution category, and a wrong third link charges the
+    # wrong rate just as surely as a wrong first one. The notes are keyed by the
+    # Dictionary's singular in LEP_TYPE_OF, which is where a link is looked up.
+    notes = {term: parent for term, (_, parent) in LEP_TYPE_OF.items()}
+    for term, chain in LAND_USE_HIERARCHY.items():
+        for link, following in zip(chain, chain[1:]):
+            if link in notes and following != notes[link]:
+                failures.append(
+                    f"LAND_USE_HIERARCHY[{term!r}] goes {link!r} -> {following!r}, but the LEP "
+                    f"Dictionary says {link} is a type of {notes[link]!r}."
+                )
     return failures
 
 

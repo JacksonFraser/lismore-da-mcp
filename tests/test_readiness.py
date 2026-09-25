@@ -138,6 +138,33 @@ class TestDocumentMatchingIsConservative:
         assert short_name("Access report — compliance with the Standards") == "Access report"
         assert short_name("Site plan (1:100 or 1:200 scale)") == "Site plan"
 
+    def test_a_document_named_exactly_as_the_requirement_matches(self):
+        """SCENARIOS.md run 2, R7. The synonym table rewrote "access report" into
+        the change-of-use list's "access upgrade assessment", which then could
+        not match the commercial list's "Access report" — the exact name."""
+        access = ("Access report — compliance with the Disability (Access to Premises) "
+                  "Standards (commonly required)")
+        assert document_gap([access], ["access report"])["missing"] == []
+        upgrade = "Access upgrade assessment — Disability (Access to Premises) Standards"
+        assert document_gap([upgrade], ["access report"])["missing"] == []
+
+    @pytest.mark.parametrize("claim", ["operating hours", "details of operating hours"])
+    def test_a_leading_details_of_does_not_hide_the_subject(self, claim):
+        requirement = "Details of operating hours, staff numbers and deliveries"
+        assert document_gap([requirement], [claim])["missing"] == []
+
+    @pytest.mark.parametrize("claim,requirement", [
+        ("management plan", "Waste management plan (construction and operational waste)"),
+        ("management plan", "Stormwater management plan"),
+        ("hours", "Details of operating hours, staff numbers and deliveries"),
+        ("details", "Details of operating hours, staff numbers and deliveries"),
+        ("report", "Access report — compliance with the Standards"),
+    ])
+    def test_the_loosening_did_not_reach_the_ambiguous_claims(self, claim, requirement):
+        """Trying the claim as typed, and skipping a leading 'Details of', must
+        add only real matches — a bare generic word still names nothing."""
+        assert document_gap([requirement], [claim])["missing"] == [requirement]
+
 
 class TestWhatStopsAnApplication:
     """A blocker is not a missing document. These are the three ways a proposal
@@ -317,6 +344,13 @@ class TestAPartialRateIsNotAnAnswer:
         assert parking["shortfall"] is None
         assert "not a shortfall of zero" in parking["note"]
 
+    def test_the_floor_travels_with_the_unanswered_question(self, call):
+        """SCENARIOS.md run 2, R5. Still no requirement and no shortfall — but the
+        floor the supplied terms already fix is carried, not discarded."""
+        parking = check(call, floor_area_sqm=80, location="outside_cbd")["parking"]
+        assert parking["spaces_required"] is None
+        assert parking["at_least"] == 12
+
     def test_a_supplied_zero_is_a_count_and_not_a_gap(self, call):
         """Nobody-said and nobody-works-here are different, and an
         owner-operated café is entitled to say the second."""
@@ -398,6 +432,15 @@ class TestTheBrief:
         # The section text is wrapped for printing, so the phrase spans a line.
         assert "taken never to have been made" in " ".join(text.split())
 
+    def test_it_says_it_is_not_from_council(self, call):
+        """It cites clause and page and is carried to Council's own counter, so
+        it is the output most likely to be mistaken for Council's. Nothing but
+        this line says otherwise (ROADMAP.md A4)."""
+        head = " ".join(brief(call).split("1. THE PROPOSAL")[0].split())
+        assert "independent tool" in head
+        assert "not made, reviewed or endorsed by Lismore City Council" in head
+        assert "For: Lismore City Council" not in head, "reads as a letterhead"
+
     def test_it_fits_a_printed_page(self, call):
         over = [line for line in brief(call, existing_use="office").splitlines()
                 if len(line) > 78]
@@ -410,6 +453,20 @@ class TestReferralsChangeMoreThanTheDocuments:
         assert "rural_fire_service" in result["referrals"]
         assert "60 days" in result["referrals_change_the_timeline"]
         assert "s39(1)(d)" in result["referrals_change_the_timeline"]
+
+    def test_councils_own_flood_assessment_does_not_make_it_integrated(self, call):
+        """A flood characteristic reaches Council's internal assessment, which is
+        not an approval under s4.46 — it used to raise the integrated development
+        question and the 60-day warning all the same."""
+        result = check(call, development_characteristics=["flood_prone"])
+        assert "council_flood_assessment" in result["referrals"]
+        assert "referrals_change_the_timeline" not in result
+        assert not any("integrated" in q["question"] for q in result["questions_for_council"])
+
+    def test_a_heritage_item_keeps_the_register_question_open(self, call):
+        result = check(call, development_characteristics=["heritage_item"])
+        assert "State Heritage Register" in result["referrals_change_the_timeline"]
+        assert any("integrated" in q["question"] for q in result["questions_for_council"])
 
     def test_an_unrecognised_characteristic_is_not_silence(self, call):
         """Dropping it reads as 'no referral required' for a site that may well

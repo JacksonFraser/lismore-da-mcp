@@ -173,35 +173,46 @@ def estimate_spaces(entry: dict, floor_area_sqm: float | None = None,
         if not basis:
             return None
 
-        # A partial sum is not a smaller answer, it is a different one.
+        # A partial sum is a floor, never the answer.
         #
-        # This used to append "not counted: practitioners" to `basis` and return
-        # the total anyway, so a medical centre with 5 employees reported 5
-        # spaces against a rate of "4 per practitioner, plus 1 per employee".
-        # Three practitioners make it 17. The caveat was three levels down in a
-        # list, under a `spaces_required` that read like the answer.
+        # Every Schedule 1 rate here is built from positive terms combined by
+        # adding and by taking the greater — so supplying a missing input can only
+        # raise the requirement. What was counted is therefore a true lower bound,
+        # and saying so is information a business can plan from: an 80m² café
+        # outside the CBD owes at least 12 spaces before its staff are counted.
+        # Until 2026-09-25 this declined with "a part of the sum is not a lower
+        # bound", which was false, and returned nothing (SCENARIOS.md run 2, R5).
         #
-        # The rule this now follows is the one already applied when *no*
-        # countable is supplied, and the same one the contributions catchment
-        # follows: an input that changes the number is never assumed, and
-        # without it the number is declined rather than approximated. What is
-        # returned instead is exactly what to send to get an answer.
+        # What has not changed is the rule it was protecting. S3 stopped a partial
+        # sum being reported as `spaces_required` — a medical centre with 5
+        # employees read "5" against a real 17 — and the floor stays out of that
+        # field. It is `at_least`, beside the arguments that would settle it,
+        # because 5 is a floor and 17 is the answer and they are not the same kind
+        # of number.
         if missing:
             unmet = sorted({m for m in missing if m})
-            return {
+            floor = math.ceil(total)
+            minimum = spec.get("minimum")
+            if minimum and floor < minimum:
+                floor = minimum
+            result = {
                 "spaces_required": None,
                 "cannot_calculate": (
-                    "This rate has a term that was not supplied, and the missing term "
-                    "sets the size of the answer rather than adjusting it — "
                     f"'{entry['rate']}' cannot be reduced to a number without "
-                    f"{_and_list(unmet)}. A part of the sum is not a lower bound: "
-                    "supplying it can multiply the requirement, not add to it."
+                    f"{_and_list(unmet)}. What was supplied gives a floor, not the answer: "
+                    "supplying the rest can only raise the requirement, and by how much "
+                    "depends on what is supplied."
                 ),
                 "supply": [_ARGUMENT_FOR.get(name, name) for name in unmet],
                 "counted_so_far": basis,
                 "rate": entry["rate"],
                 "source": entry.get("source"),
             }
+            if floor > 0:
+                result["at_least"] = floor
+            if entry.get("note"):
+                result["caveat"] = entry["note"]
+            return result
 
     spaces = math.ceil(total)
     minimum = spec.get("minimum")

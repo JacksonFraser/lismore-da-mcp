@@ -615,3 +615,170 @@ true (D9, D8, D6) but it is the smaller half. It also **answers when it should r
 The re-rank: **D1 and D2 precede everything currently in Phase A**, D3/D4 join them, and the
 content phases (C, D) move down — transcribing DCP Chapter 12 matters less than not asserting a
 requirement Chapter 12 does not contain.
+
+---
+
+# Results — run 2, 2026-09-25
+
+Run against `main` at `317af01` (Phase S complete), all 100 scenarios, **100 discrete verdicts**
+(ZO-07 and ZO-08 judged separately this time). Executed inline, not by agents: a harness called the
+real handlers with the calls below and stored every output verbatim, and each verdict was judged
+against those outputs. Address scenarios hit the live NSW services, as in run 1. Every new defect
+below was re-checked by hand against the source document before being recorded.
+
+**Tally: 73 PASS · 21 PARTIAL · 6 FAIL** (run 1: 56 · 28 · 15)
+
+## The one-line summary
+
+**Phase S fixed what it set out to fix, and the same failure is still there one level down.** Every
+D1–D10 defect that was tested again is gone. But `check_permissibility` still answers "permitted"
+for uses the LEP prohibits, whenever the use reaches the table through the Dictionary's
+*"X is a type of Y"* notes instead of by its own name. `audit_landuse_matching.py` grades only the
+991 terms the tables list, so it cannot see this, and it reports 0 disagreements.
+
+## Verdicts
+
+| Section | PASS | PARTIAL | FAIL |
+|---|---|---|---|
+| A. Change of use | CU-01 02 04 05 06 08 11 13 14 15 | CU-07 09 10 12 | **CU-03** |
+| B. Fitout | FO-01 03 05 07 08 | FO-02 06 | **FO-04** |
+| C. Signage | SG-01 02 03 05 06 07 | SG-04 08 | — |
+| D. Parking | PK-01 04 05 06 09 10 | PK-02 07 | **PK-03** **PK-08** |
+| E. Flood | all 10 | — | — |
+| F. Heritage | HE-03 04 | HE-01 02 05 06 | — |
+| G. Cost | all 10 | — | — |
+| H. Zoning | ZO-01 02 03 05 06 10 | ZO-07 08 09 | **ZO-04** |
+| I. Timing | TM-01 02 03 05 06 07 08 | TM-04 | — |
+| J. Other approvals | all 6 | — | — |
+| K. Robustness | RB-02 03 04 05 09 | RB-06 07 08 | **RB-01** |
+
+Of the six failures, three are known and scheduled: **CU-03** and **PK-08** are Phase A2 (see the
+hairdresser regression below), **RB-01** is A1, and **FO-04** is Phase C. **ZO-04** and **PK-03**
+are new.
+
+Notes on judging calls:
+- **CO-05**: the scenario expected the $250,001+ bracket, but $250,000 exactly sits in the lower
+  bracket. The tool's $1,216 is right, and the scenario text is off by the boundary.
+- **HE-03, HE-04** pass through `search_dcp` alone (Ch 12 p2 note, p9), not a structured answer.
+  That is the Phase C gap, but the question does get answered.
+
+## Confirmed fixed since run 1
+
+D1 (table terms: `home business` in R2 now matches exactly), D2 (negative and non-finite values
+refused), D3 (100m² → 140m² restaurant now charged **$8,040.62**), D4 (the SEE says *may* and
+cites cl 5.10(5)), D5 (Byron Bay refused by both address tools), D6 (above-awning → consent,
+2.5m²), D7 (medical centre with 3 practitioners → **17**, and it refuses without them), D8 (shop
+top housing, CBD: none), D10 (no-works change of use → Item 2.7, **$395**), and the "do I need a
+DA at all?" question for a same-term change.
+
+## New defects, ranked
+
+### R1 — The LEP hierarchy is 25 entries of commercial premises, so the D1 wrong "yes" survives for everything else · **CRITICAL**
+`LAND_USE_HIERARCHY` covers the retail / food and drink / business premises family only; only 10 of the LEP's 106 *"is a type of"* notes have a matching entry. Any use that
+reaches a table through one of the others falls through to the catch-all and gets its answer from
+that.
+
+Verified by hand against `lep-2012-nsw-full.txt` line 747 and the Dictionary notes:
+
+| asked | tool answers | LEP says |
+|---|---|---|
+| `medical centre` in E4 | `likely_permitted_with_consent` | prohibited: *Health services facilities* (note, line 5026) |
+| `dwelling house` in E4 | `likely_permitted_with_consent` | prohibited: *Residential accommodation* |
+| `shop top housing` in E4 | `likely_permitted_with_consent` | prohibited: *Residential accommodation* (line 5288) |
+| `bed and breakfast accommodation` in E3 | `likely_permitted_with_consent` | prohibited: *Tourist and visitor accommodation* (line 4447) |
+| `garden centre` in R1 | `likely_permitted_with_consent` | prohibited: *Commercial premises* via retail premises (line 4750) |
+
+Each one also says *"'X' is not listed in the Zone … land use table"*, which is literally true and
+misleading in effect.
+
+**Sweep, all 106 Dictionary children × 21 zones (2,226 calls): 161 wrong "yes" across 43 uses,**
+all through the catch-all and all in the zones a business uses (E4 30, E3 26, R3 25, R1 24, E1 22,
+E2 22, MU1 12). The biggest groups are agriculture (69), residential accommodation (41) and
+commercial premises (22). There are **88 further disagreements, mostly wrong "likely prohibited"**:
+B&B in R2/RU1/RU5, dual occupancy in RU5, and business identification signs in RU5, which permits
+*Signage*. *The sweep reads the hierarchy off the notes and applies the rule that a separately
+listed type wins. Treat the counts as indicative and the mechanism as confirmed, as run 1 did for
+D1.*
+
+The fix is data the repo already reads. `audit_definitions.py`'s `dictionary_parents()` parses all
+106 notes, but only uses them to check the first link of the 25 entries that exist. Build the
+hierarchy from the notes rather than by hand, and extend `audit_landuse_matching.py` to grade every
+Dictionary child in every zone, not only the table rows.
+
+### R2 — With no location and an incomplete rate, the CBD rate disappears (regression) · **HIGH**
+`get_parking_rates(cafe, 80m²)` with no `location` and no `num_employees` returns only the Schedule
+1 formula. `which_rate_applies` is emitted only when the Schedule 1 figure is not `None`
+(`tools/parking.py:118`), so since S3 made it `None` the CBD alternative (3 spaces) is never
+mentioned. `calculation.applies` still says *"see which_rate_applies"*, pointing at a key that is
+not in the response. This is the interaction of S3 with item 2.2, on the most common input there
+is: a café that has not said where it is or how many staff it has.
+
+### R3 — `check_referrals` sends every heritage item to the Heritage Council · **HIGH**
+`data/referrals.py:15` maps the generic `"heritage"` trigger (so `heritage_item` too) to
+`heritage_council`: *"Heritage Council NSW concurrence"*, with **"Heritage Impact Statement"** as a
+required document. That concurrence is for State Heritage Register items. A locally listed
+(Schedule 5) item is told it needs a state approval, which is integrated development with its
+60-day period and $194 + $1,100 in fees, plus a HIS. This is D4's claim surviving as data:
+`test_heritage.py` greps for the sentence, and a list item does not contain it.
+
+### R4 — The heritage flag does not reach the exempt-development headline · **HIGH**
+`get_signage_requirements(business identification sign, is_heritage=True)` correctly applies the
+§9.2 exception. It still leads with *"Exempt Development — no application needed"*, identical to the
+non-heritage answer. `documents/exempt-development/understanding-exempt-development.pdf` says
+exempt development cannot be carried out on a State Heritage Register item, and that development
+types carry their own local-heritage exclusions. CLAUDE.md item 16 says to always flag this. The
+tool is told the site is heritage and does not.
+
+### R5 — A partial parking sum is withheld as "not a lower bound", and it is one · **MED**
+The refusal text says *"A part of the sum is not a lower bound: supplying it can multiply the
+requirement, not add to it."* Under the tool's own reading, every term is additive and
+non-negative, so the counted part *is* a floor. An 80m² café outside the CBD needs at least 12
+spaces before staff, and 14 with 4 staff (verified by calling with `num_employees`). The discipline
+is right: never report the part as the answer. The stated reason is wrong, and a business planning
+a fitout loses a correct floor. Report `at_least` next to `supply` and keep `spaces_required: None`.
+
+### R6 — `existing_spaces_on_site` is silently ignored outside the CBD · **MED**
+The schema says *"CBD only"*, but outside the CBD the argument is accepted and dropped with no word
+in the output (PK-07). This is the declared-but-unenforced pattern CLAUDE.md warns about, at the
+handler level. Refuse it, or say where the spaces belong (`spaces_provided`).
+
+### R7 — The document matcher cannot match a document named exactly as the requirement · **MED**
+`documents_prepared: ["access report", "operating hours", …]` reports both as unrecognised, while
+*"Access report — compliance with the Disability (Access to Premises) Standards"* and *"Details of
+operating hours, …"* are reported **missing** (TM-04). A well-prepared applicant is told they lack
+the document they named.
+
+### Smaller
+- **hairdresser now refuses in `check_permissibility` too** (CU-03). Run 1 had permissibility
+  answering and parking refusing. S1's rule that a recognised term is never approximated took out
+  the approximate match, and `hairdresser` is not in `KNOWN_LAND_USES`, although the LEP Dictionary
+  names hairdressers inside *business premises*. It is now a clean refusal rather than a
+  contradiction. A2 remains the fix. MED
+- **Unrecognised natural words**: `granny flat` (the instructions' own example of the SEPP case),
+  `craft brewery` (while `brewery` resolves), `co-working`, `manufacturing`, `car wash`,
+  `tattoo studio`. Each refuses cleanly; they are the gaps the roadmap's telemetry idea would
+  collect. LOW
+- **`get_parking_rates`' refusal note** says a hairdresser *"is generally 'shop' or 'business
+  premises'"*. The LEP settles it: business premises. LOW
+- **Zero treated as "not supplied"**: `gross_floor_area_m2: 0` returns *"Supply
+  gross_floor_area_m2 to get a figure"*, against the None-versus-0 rule in CLAUDE.md. LOW
+- **Implausible inputs are unflagged**: 500,000m² returns a **$100.5M** contribution and 22,000
+  spaces with no comment. LOW
+- **`get_da_checklist`** refuses `takeaway food premises` and `heritage`. LOW
+
+## Carried over from run 1, still present
+- **cl 5.22 never reaches `check_da_readiness`.** A childcare centre at a CBD address returns flood
+  "not established" and no mention of 5.22. `get_flood_requirements` raises it correctly (S5). MED
+- **Heritage hardens to "no" when an address is given**, dropping both the conservation-area
+  question and the cl 5.10(5)(c) vicinity caveat that the same tool gives without an address. MED
+- **`available_flood_areas` omits `cbd_flood_liable`** from the error menu. LOW
+- **RU4 and C4 return "Zone not found"**, which reads as a data gap rather than "this zone has no
+  table in Lismore". LOW
+- **A1 argument names**: 5 of 5 natural spellings refused (RB-01). Expected, since Phase A has not
+  started. HIGH (usability)
+
+## What this changes in ROADMAP.md
+The rule that put Phase S before Phase A still holds: **do not remove the brake first.** R1 is the
+same wrong "yes" D1 was, and A1/A2 would route more natural phrasings into it. R1, R2 and R3 are
+correctness items and belong ahead of Phase A. R1 in particular should land with its audit, since
+the audit's blind spot is how it survived Phase S.

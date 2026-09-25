@@ -185,8 +185,17 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
     # a partial figure as the requirement is the failure this whole section
     # guards against. The second case can say what is missing. ROADMAP.md S3.
     if not estimate or estimate["spaces_required"] is None:
-        lines.append("Required Spaces:     [APPLICANT TO CALCULATE — see the rate above]")
+        floor = (estimate or {}).get("at_least")
+        lines.append("Required Spaces:     "
+                     + (f"at least {floor} — [APPLICANT TO CALCULATE the full figure]" if floor
+                        else "[APPLICANT TO CALCULATE — see the rate above]"))
         lines.append(existing_line)
+        if floor and existing_parking is not None and existing_parking < floor:
+            # Certain even though its size is not: the missing terms only add.
+            lines.append(
+                f"Parking Shortfall: at least {floor - existing_parking} space(s).\n"
+                "    [APPLICANT TO ADDRESS] A shortfall has to be justified in the SEE. Raise it\n"
+                "    with the Duty Planner before lodging.")
         if estimate:
             lines.append(
                 "[APPLICANT TO COMPLETE] The rate above adds a term that was not supplied "

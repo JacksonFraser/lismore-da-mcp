@@ -209,6 +209,61 @@ class TestTheHeritageRefusalPoint:
         assert result["where_it_can_go"]["prohibited"] is False
 
 
+class TestHeritageReachesThePathway:
+    """SCENARIOS.md run 2, R4. Told the site was heritage, the tool applied the
+    §9.2 exception correctly and still led with "Exempt Development — no
+    application needed", identical to a non-heritage site. Exempt development is
+    not available on a State Heritage Register item at all."""
+
+    def test_a_heritage_site_is_not_told_no_application_is_needed(self, call):
+        result = call("get_signage_requirements", {
+            "sign_type": "business identification sign", "is_heritage": True})
+        answer = result["do_you_need_an_application"]
+        assert "no application needed" not in answer["label"]
+        assert answer["pathway"] == "exempt"
+        assert "State Heritage Register" in answer["heritage"]["state_heritage_register"]
+        assert "not been checked" in answer["heritage"]["local_items_and_conservation_areas"]
+
+    def test_complying_development_is_not_assumed_either(self, call):
+        answer = call("get_signage_requirements", {
+            "sign_type": "pylon", "is_heritage": True})["do_you_need_an_application"]
+        assert answer["label"].startswith("Complying Development only if")
+        assert "open_question" in answer["heritage"]
+
+    def test_an_unstated_status_is_flagged_not_assumed(self, call):
+        answer = call("get_signage_requirements",
+                      {"sign_type": "wall sign"})["do_you_need_an_application"]
+        assert "heritage_not_established" in answer
+
+    def test_a_site_known_not_to_be_heritage_is_unchanged(self, call):
+        answer = call("get_signage_requirements", {
+            "sign_type": "wall sign", "is_heritage": False})["do_you_need_an_application"]
+        assert answer["label"] == "Exempt Development — no application needed"
+        assert "heritage" not in answer and "heritage_not_established" not in answer
+
+    def test_a_da_pathway_is_not_touched(self, call):
+        answer = call("get_signage_requirements", {
+            "sign_type": "sign above the awning", "is_heritage": True})["do_you_need_an_application"]
+        assert answer["pathway"] == "consent"
+        assert "heritage" not in answer
+
+    def test_the_state_register_rule_is_in_both_sources(self):
+        """The one heritage rule stated as fact must be in the documents it cites."""
+        import fitz
+
+        from lismore_da_mcp.data.signage import HERITAGE_AND_THE_PATHWAY
+
+        fact_sheet = ROOT / "documents" / "exempt-development" / "understanding-exempt-development.pdf"
+        assert fact_sheet.name in HERITAGE_AND_THE_PATHWAY["exempt"]["source"]
+        with fitz.open(fact_sheet) as doc:
+            text = normalise(" ".join(page.get_text() for page in doc))
+        assert normalise("State heritage item listed on the State Heritage Register") in text
+
+        lep = normalise((ROOT / "documents" / "lep" / "lep-2012-nsw-full.txt").read_text(encoding="utf-8"))
+        assert normalise("must not be carried out on land that comprises, or on which there "
+                         "is, an item that is listed on the State Heritage Register") in lep
+
+
 class TestSizeIsCheckedNotAsserted:
     def test_an_oversize_sign_is_measured_against_the_standard(self, call):
         result = call("get_signage_requirements", {

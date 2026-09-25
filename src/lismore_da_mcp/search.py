@@ -147,8 +147,7 @@ def search_all(
         results = []
         for path in searchable_documents(chapter):
             results.extend(search_document(path, query))
-        results.sort(key=lambda r: r.get("score", 0), reverse=True)
-        return [annotate_instrument(r) for r in results[:max_results]]
+        return [annotate_instrument(r) for r in _rank(results)[:max_results]]
 
     # FTS5 returns matching segments in its own order. Scores tie constantly —
     # every hit on a single-token query scores 1 — so the order candidates are
@@ -184,8 +183,23 @@ def search_all(
         hits.sort(key=lambda r: r["score"], reverse=True)
         results.extend(hits[:per_document])
 
-    results.sort(key=lambda r: r.get("score", 0), reverse=True)
-    return [annotate_instrument(r) for r in results[:max_results]]
+    return [annotate_instrument(r) for r in _rank(results)[:max_results]]
+
+
+def _rank(results: list[dict]) -> list[dict]:
+    """Best score first, with superseded fee schedules after every current hit.
+
+    An old fee schedule is never what a new application pays, and it matches
+    exactly the queries the current one does — so on score alone it can take the
+    top slots, or all of them, for a question about a fee. The sort is stable, so
+    tied scores keep the document order both search paths agree on.
+    """
+    from lismore_da_mcp.data.instruments import SUPERSEDED_FEE_SCHEDULES
+
+    return sorted(
+        results,
+        key=lambda r: (r.get("file") in SUPERSEDED_FEE_SCHEDULES, -r.get("score", 0)),
+    )
 
 
 def annotate_instrument(result: dict) -> dict:
@@ -196,6 +210,8 @@ def annotate_instrument(result: dict) -> dict:
     quoted as a current control.
     """
     from lismore_da_mcp.data.instruments import (
+        CURRENT_FEE_SCHEDULE,
+        FEE_SCHEDULE_COLUMNS_NOTE,
         instrument_for,
         is_superseded,
         superseded_note_for,
@@ -211,6 +227,8 @@ def annotate_instrument(result: dict) -> dict:
     result["instrument"] = instrument_for(file_name, category)
     if is_superseded(file_name):
         result["superseded"] = superseded_note_for(file_name)
+    elif file_name == CURRENT_FEE_SCHEDULE:
+        result["reading_the_columns"] = FEE_SCHEDULE_COLUMNS_NOTE
     return result
 
 

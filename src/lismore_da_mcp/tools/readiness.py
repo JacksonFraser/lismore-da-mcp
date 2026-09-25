@@ -137,12 +137,14 @@ def _parking(p: Proposal, spaces_provided) -> dict | None:
             "cannot_calculate": schedule_1["cannot_calculate"],
             "supply": schedule_1["supply"],
             "counted_so_far": schedule_1["counted_so_far"],
+            "at_least": schedule_1.get("at_least"),
             "spaces_provided": spaces_provided,
             "shortfall": None,
             "note": (
-                "No parking figure is given because the rate has a term that was not "
+                "No parking requirement is given because the rate has a term that was not "
                 "supplied. This is not a shortfall of zero — it is an unanswered question, "
-                "and Council will ask it."
+                "and Council will ask it. at_least is the floor what was supplied already "
+                "fixes; the missing terms can only raise it."
             ),
         }
 
@@ -244,12 +246,22 @@ def check_da_readiness(arguments: dict):
         response["parking"] = parking
     if result["referrals"]["triggered"]:
         response["referrals"] = result["referrals"]["triggered"]
+    if result["referrals"].get("integrated_in_question"):
         response["referrals_change_the_timeline"] = (
             "If any of these is an approval under EP&A Act s4.46, the application is integrated "
             "development: the assessment period becomes 60 days rather than 40, and every "
             "approval must be identified on the application or it can be rejected under "
             "s39(1)(d)."
         )
+        triggered = result["referrals"]["triggered"]
+        if "council_heritage_assessment" in triggered and "heritage_council" not in triggered:
+            # The heritage assessment itself is Council's and changes neither. What
+            # would is the item being on the State Heritage Register, which is open.
+            response["referrals_change_the_timeline"] += (
+                " Council's own heritage assessment is not such an approval. A State Heritage "
+                "Register item would need the Heritage Council's as well — whether this site "
+                "is on the Register has not been established."
+            )
     if result["referrals"]["not_recognised"]:
         response["characteristics_not_recognised"] = {
             "not_assessed": result["referrals"]["not_recognised"],
@@ -317,12 +329,17 @@ def prepare_prelodgement_brief(arguments: dict):
     lines = [
         "PRE-LODGEMENT BRIEF",
         "=" * 78,
-        f"For: {CONTACT_INFO['council']} — {duty['service']}",
+        f"Take to: {CONTACT_INFO['council']} — {duty['service']}",
         f"     {duty['days']}, {duty['time']} — {duty['location']}",
         f"     {duty['appointment']}. Council: {CONTACT_INFO['phone']}",
         "",
-        _wrap("Prepared by the Lismore DA assistant. Guidance only — nothing in it is a "
-              "determination, and nothing said at a duty planner session binds Council.", ""),
+        # This is the output most likely to be read as official: it cites clause
+        # and page, and it ends up on a desk at Council. It used to open "For:
+        # Lismore City Council", which reads as a letterhead. (ROADMAP.md A4)
+        _wrap("Prepared by the Lismore DA assistant, an independent tool — not made, "
+              f"reviewed or endorsed by {CONTACT_INFO['council']}. Guidance only — nothing "
+              "in it is a determination, and nothing said at a duty planner session binds "
+              "Council.", ""),
         "",
         "-" * 78,
         "1. THE PROPOSAL",

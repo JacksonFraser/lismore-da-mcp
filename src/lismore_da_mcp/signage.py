@@ -13,6 +13,8 @@ the answer says so rather than clearing the sign.
 """
 
 from lismore_da_mcp.data.signage import DESIGN_GUIDELINES
+from lismore_da_mcp.data.signage import HERITAGE_AND_THE_PATHWAY
+from lismore_da_mcp.data.signage import HERITAGE_NOT_ESTABLISHED
 from lismore_da_mcp.data.signage import PATHWAYS
 from lismore_da_mcp.data.signage import ROAD_RESERVE
 from lismore_da_mcp.data.signage import SEPP_PROHIBITED_ZONES
@@ -47,11 +49,26 @@ MIXED_USE_EXCLUDED = ("MU1",)
 EXCEPTED_SIGN_TYPES = ("business_identification_sign", "building_identification_sign")
 
 
-def pathway(entry: dict) -> dict:
-    """What approval this sign needs, in the applicant's terms."""
+def pathway(entry: dict, is_heritage: bool | None = False) -> dict:
+    """What approval this sign needs, in the applicant's terms.
+
+    The two pathways that avoid a DA both depend on the SEPP, and the SEPP turns
+    on heritage. So a heritage site does not get the plain "no application
+    needed" headline — it gets the condition in the headline, where the reader
+    stops, with what is known and what is not beneath it. `pathway` keeps its
+    value: the sign still *is* exempt-type or complying-type, and what changed is
+    whether that is available on this site.
+    """
     key = entry.get("pathway", "consent")
     described = dict(PATHWAYS.get(key, PATHWAYS["consent"]))
     described["pathway"] = key
+    if key in HERITAGE_AND_THE_PATHWAY:
+        if is_heritage:
+            heritage = dict(HERITAGE_AND_THE_PATHWAY[key])
+            described["label"] = heritage.pop("label")
+            described["heritage"] = heritage
+        elif is_heritage is None:
+            described["heritage_not_established"] = HERITAGE_NOT_ESTABLISHED
     return described
 
 

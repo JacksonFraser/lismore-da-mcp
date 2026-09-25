@@ -53,7 +53,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_standards.py` | Checks every DCP Chapter 1 quote in `data/standards.py` against the chapter, and reads the Acceptable Solution labels (A1.1, A26.3, …) off the document to report any the data does not carry. It also runs the check the others cannot: that the figures recorded in `NOT_SET_BY_THIS_CHAPTER` really are **absent**. A presence check only looks at what is stored, so it is structurally blind to invention — which is how this file came to assert a side setback, a site coverage maximum and a deep soil percentage that Chapter 1 does not contain. |
 | `scripts/audit_flood.py` | Checks all 40 flood controls in `data/flood.py` against DCP Chapter 8 and the LEP text. Two checks beyond presence: the derived constants must agree with the quotes they were read from (the freeboard was wrong by 200mm and nothing noticed), and every numbered control in §8.4–§8.8 is counted off the document, so a requirement nobody transcribed is reported rather than invisible. |
 | `scripts/audit_definitions.py` | Checks all 36 land use definitions in `data/definitions.py` against the LEP Dictionary, plus the clause 5.4 controls each carries. Beyond presence it checks each quote **opens with its own term** (verbatim LEP text lifted from the wrong entry passes a presence check), that `land_use_table_term` really is how `data/zones.py` spells the use, that `LAND_USE_HIERARCHY`'s first links agree with the LEP's own "X is a type of Y" notes — which caught `office premises` recorded as a type of business premises — and, like `audit_standards.py`, that the recorded inventions are still **absent**. |
-| `scripts/audit_landuse_matching.py` | The only audit that checks a **tool** rather than a data file: it asks `check_permissibility` about all 991 land use rows in both the table's spelling and the LEP Dictionary's, and grades the answer against the table. Every other audit here would pass with the matching layer completely broken, which is how ROADMAP.md S1's defect survived 1,346 tests. The singular↔plural pairing is read off the Dictionary in the document, never computed — a candidate spelling the document does not confirm is discarded, so the audit can never grade the tool against a word that is not a land use. It also audits `LAND_USE_TABLE_SPELLINGS` itself, since S1's fix turned that pairing into stored data: every pair must be one the document yields, every pair the document yields must be stored, and every table spelling must appear verbatim in `data/zones.py` — a pair whose right-hand side is not a real table entry resolves onto nothing and reads exactly like one that works. |
+| `scripts/audit_landuse_matching.py` | The only audit that checks a **tool** rather than a data file: it asks `check_permissibility` about all 991 land use rows in both the table's spelling and the LEP Dictionary's, and grades the answer against the table. Every other audit here would pass with the matching layer completely broken, which is how ROADMAP.md S1's defect survived 1,346 tests. The singular↔plural pairing is read off the Dictionary in the document, never computed — a candidate spelling the document does not confirm is discarded, so the audit can never grade the tool against a word that is not a land use. It also audits `LAND_USE_TABLE_SPELLINGS` itself, since S1's fix turned that pairing into stored data: every pair must be one the document yields, every pair the document yields must be stored, and every table spelling must appear verbatim in `data/zones.py` — a pair whose right-hand side is not a real table entry resolves onto nothing and reads exactly like one that works. **Since 2026-09-25 it also asks about every use the Dictionary places under a parent** (108 "is a type of" notes × 21 zones), graded through the chain of parents read off the document — the first pass asked only about terms a table names, and passed clean while 161 answers like *medical centre in E4* were a wrong "yes" (SCENARIOS.md run 2, R1). It audits `LEP_TYPE_OF` against the notes both ways, too. |
 | `scripts/audit_parking_rates.py` **completeness** | Added 2026-08-20. The rates were only ever presence-checked, and the docstring claimed a completeness check that **did not exist** — so "27 entries checked, 0 not matching" printed while `Shop top housing` was absent from `data/parking.py` entirely. Schedule 1's land use column is now isolated from the PDF by x-position (the rate columns still cannot be diffed, which is why rates stay verbatim), every row is either carried or named in `UNCARRIED_SCHEDULE_1_USES`, and the hand-read list is itself checked against the document so it cannot drift into fiction. |
 | `scripts/audit_heritage.py` | Checks the LEP cl 5.10 provisions in `data/heritage.py` against the LEP text, and runs the check that matters more: that DCP **Chapter 12 still requires nothing**. Nine places asserted "a Heritage Impact Statement is required (DCP Chapter 12)" and both halves were wrong, so the correction rests on a negative — which a presence check is structurally blind to. It also pins the *modality*: if cl 5.10(5) ever stops saying "may", every hedge this repo now carries is wrong in the other direction. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
@@ -112,10 +112,14 @@ because the tool answered rather than erroring:
   owner-operated café could not state that it has no staff. **`None` means not supplied; `0` means
   zero** — keep that distinction when adding a countable.
 
-**And a partial sum is never reported as the answer.** Where a rate has a term that was not
-supplied, `estimate_spaces` returns `spaces_required: None` with `supply` naming the argument,
-because supplying it can *multiply* the requirement rather than add to it — a part of the sum is not
-a lower bound. Callers must branch on that: `readiness.py` reports it as an unanswered question
+**And a partial sum is never reported as the answer — but it is a floor, and it says so.** Where a
+rate has a term that was not supplied, `estimate_spaces` returns `spaces_required: None` with
+`supply` naming the argument, and `at_least` — the ceiling of what *was* counted. Every Schedule 1
+rate is positive terms combined by adding and taking the greater, so a missing term can only raise
+the requirement, and a test checks that against completed answers. (This paragraph used to say "a
+part of the sum is not a lower bound", which was false, and the floor was withheld — SCENARIOS.md
+run 2, R5.) The floor stays out of `spaces_required` because 5 is a floor and 17 is the answer, and
+a shortfall against it is `shortfall_at_least`, never `shortfall`. Callers must branch on that: `readiness.py` reports it as an unanswered question
 rather than a shortfall of zero, and the SEE draft leaves the figure blank. This is the same
 discipline as the contributions catchment and `flood_area` — an input that changes the number is
 never assumed.
@@ -417,6 +421,8 @@ to approximate towards: it is in this table under its own name, or reaches it th
 hierarchy, or it is absent and the catch-all decides. Fuzzy matching is only for words this server
 cannot place at all.
 
+**The hierarchy is the LEP's, read off the Dictionary — not a hand-written list.** `LEP_TYPE_OF` carries all 108 "X is a type of Y" notes, and `landuse.ancestors()` walks them as far as they go. Until 2026-09-25 the only chains were `LAND_USE_HIERARCHY`'s 25 hand-written ones, all in the commercial premises family, so every other use the LEP places under a parent — dwelling houses, medical centres, B&Bs, schools — fell through to the catch-all: 161 wrong "yes" answers that S1's audit could not see. `LAND_USE_HIERARCHY` stays for everyday words the Dictionary does not define (cafe, gym, takeaway) and for `contributions.py`; `audit_definitions.py` checks every link of it against the notes. **The nearest listed link decides** (LEP cl 2.3(3)(b)), so the matcher walks the chain before the table's sections — walking sections first let a distant ancestor under "permitted" beat a nearer one under "prohibited".
+
 **The catch-all has two readings and only one of them is an answer.** Falling through to "any other
 development not specified" means either *this use is genuinely unlisted here*, which is the LEP's
 own answer and correct — `industry` in R2 is prohibited — or *this server could not identify the
@@ -451,7 +457,9 @@ This agent has access to official planning documents stored in the `documents/` 
 3. **For residential setbacks/design**: Read `documents/dcp/chapter-1-residential-development.pdf`
 4. **For commercial development**: Read `documents/dcp/chapter-2-commercial-development.pdf`
 5. **For flood planning**: Read `documents/dcp/chapter-8-flood-prone-lands.pdf`
-6. **For fees**: Read `documents/fees/fees-and-charges-2025-26.pdf`
+6. **For fees**: Read `documents/fees/fees-and-charges-2026-27.pdf`, or better, call
+   `calculate_da_fees`. The 2025-26 schedule is still in `documents/fees/` but is superseded —
+   search labels it and ranks it last. Rows printing two figures give 2025-26 first, 2026-27 second
 7. **For heritage requirements**: Read `documents/dcp/chapter-12-heritage-conservation.pdf`
 8. **For subdivision requirements**: Read `documents/dcp/chapter-5a-urban-residential-subdivision.pdf`
 9. **For buffer requirements**: Read `documents/dcp/chapter-11-buffer-areas.pdf`
@@ -1011,9 +1019,11 @@ per-$1,000 increments are fixed dollar amounts and do not change.
 - North Lismore Plateau has separate Section 94 plan
 - Water/Wastewater: Section 64 charges under Development Servicing Plans
 
-## Lismore Council Fees 2025-26
+## Lismore Council Fees 2026-27
 Current fees and charges available at:
-https://www.lismore.nsw.gov.au/files/assets/public/v/5/1.-households/2.-rates-and-water/ed25-21941-fees_and_charges_2025_26.pdf
+https://www.lismore.nsw.gov.au/files/assets/public/v/1/1.-households/2.-rates-and-water/2026-2027-fees-and-charges.pdf
+(Council reissues this every July, at a new URL; the page that links the current one is
+https://www.lismore.nsw.gov.au/Households/Rates-and-water-information/Fees-and-charges)
 
 ---
 
@@ -1245,7 +1255,7 @@ Properties not connected to reticulated sewerage.
 - DA Tracker: https://www.lismore.nsw.gov.au/Building-and-planning/Development-Applications-in-Lismore/DA-Tracker
 - LEPs & DCPs: https://www.lismore.nsw.gov.au/Building-and-planning/Strategic-planning/Our-LEPs-and-DCPs
 - Pre-lodgement form: https://forms.lismore.nsw.gov.au/forms/7788
-- Fees 2025-26: https://www.lismore.nsw.gov.au/files/assets/public/v/5/1.-households/2.-rates-and-water/ed25-21941-fees_and_charges_2025_26.pdf
+- Fees 2026-27: https://www.lismore.nsw.gov.au/files/assets/public/v/1/1.-households/2.-rates-and-water/2026-2027-fees-and-charges.pdf
 
 ## NSW Government
 - NSW Planning Portal: https://www.planningportal.nsw.gov.au/
