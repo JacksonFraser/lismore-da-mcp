@@ -383,12 +383,17 @@ to the DA in time.
 
 ## Running a batch
 
+Since run 3 the calls are fixed in `scripts/run_scenarios.py`, so every run asks the same
+questions and a changed answer is a change in the server:
+
 ```bash
-.venv/bin/python -c "
-import asyncio
-from lismore_da_mcp.server import call_tool
-print(asyncio.run(call_tool('get_parking_rates', {'development_type':'cafe','floor_area_sqm':80,'location':'CBD'}))[0].text)"
+.venv/bin/python scripts/run_scenarios.py --out /tmp/run4 --compare /tmp/run3
 ```
+
+It stores each scenario's calls and verbatim answers, and `--compare` lists the scenarios whose
+answers moved since an earlier run — start the review there. It does not judge; the verdicts below
+need the source reading the pass criteria name. A scenario whose answer did not change keeps its
+previous verdict, which is what makes a run cheap.
 
 Record the **actual output**, not a summary of it. A scenario that passes on a reading of the code
 and fails when run is the exact failure this suite exists to catch — two shipped bugs were visible
@@ -782,3 +787,54 @@ The rule that put Phase S before Phase A still holds: **do not remove the brake 
 same wrong "yes" D1 was, and A1/A2 would route more natural phrasings into it. R1, R2 and R3 are
 correctness items and belong ahead of Phase A. R1 in particular should land with its audit, since
 the audit's blind spot is how it survived Phase S.
+
+---
+
+# Results — run 3, 2026-09-25
+
+Run against `main` at `2ad85a2`, after the nine PRs (#56–#64) that fixed R1–R7. The first run driven
+by `scripts/run_scenarios.py`, whose calls are the ones run 2 made — so `--compare` against run 2
+is exact: **80 scenarios returned byte-identical answers and keep their run-2 verdicts; 20 changed,
+and each of those was re-judged.** Nothing raised.
+
+**Tally: 82 PASS · 14 PARTIAL · 4 FAIL** (run 2: 73 · 21 · 6 · run 1: 56 · 28 · 15)
+
+## What moved
+
+| Scenario | run 2 → run 3 | Why |
+|---|---|---|
+| **ZO-04** | FAIL → PASS | dwelling house in E4 now `prohibited` via *Residential accommodation* (R1) |
+| **PK-03** | FAIL → PASS | location unstated: both readings returned, CBD 3 spaces (R2) |
+| PK-02 | PARTIAL → PASS | outside the CBD: `at_least: 12`, asks for staff, CBD difference explicable (R5) |
+| PK-07 | PARTIAL → PASS | `existing_spaces_on_site` outside the CBD says why it had no effect and where spaces belong (R6) |
+| FO-06 | PARTIAL → PASS | CBD credit applied on the increase; outside the CBD the tool now says the DCP gives no credit there, which is the DCP's answer rather than a gap (R6), and gives `at_least: 21` (R5) |
+| SG-04 | PARTIAL → PASS | heritage site no longer told "no application needed" (R4) |
+| HE-01 | PARTIAL → PASS | a heritage item is Council's cl 5.10 assessment, with *may*, not the Heritage Council (R3) |
+| HE-05 | PARTIAL → PASS | the signage and referral answers now agree: both say Council *may* require a document (R3, R4) |
+| TM-04 | PARTIAL → PASS | "access report" and "operating hours" recognised; 4 genuinely unlisted documents missing, not 6 (R7) |
+
+The other eleven that changed were PASS and still are: the floors now shown (CU-04, PK-04, PK-05,
+PK-09; the SEE drafts in CU-13 and RB-09 read *at least 23* / *at least 12*), the one-line
+`heritage_not_established` flag on exempt and complying signs (SG-01, SG-03, SG-05, SG-07), the
+brief's independence statement (TM-06), and both heritage bodies for a stated State Register item
+(CU-13).
+
+## Still not passing — all known
+
+| | Scenarios | Where it is scheduled |
+|---|---|---|
+| FAIL | **CU-03**, **PK-08** (hairdresser, barber) | ROADMAP A2 — now smaller, since the LEP hierarchy is data; it needs the Dictionary's "includes …" lists too |
+| FAIL | **RB-01** (natural argument names, 5 of 5 refused) | ROADMAP A1 |
+| FAIL | **FO-04** (conservation area changes nothing) | Phase C |
+| PARTIAL | CU-07, CU-09, CU-12, ZO-09 | vocabulary: `granny flat`, `craft brewery`, `co-working` unrecognised; exempt-first for home business |
+| PARTIAL | CU-10 | cl 5.22 still does not reach `check_da_readiness` (carried from run 1) |
+| PARTIAL | SG-08, HE-02, HE-06 | item vs conservation area not distinguished (Phase C) |
+| PARTIAL | ZO-07, ZO-08 | RU4 / C4 read as "not found" rather than "no table in Lismore" |
+| PARTIAL | FO-02, RB-06, RB-07, RB-08 | exempt path not raised on a tiny fitout; `cbd_flood_liable` missing from an error menu; implausible inputs unflagged; zero floor area read as not supplied |
+
+## What this changes
+
+**The correctness work is done for now.** No run-3 answer is a wrong "yes", and the only failures
+left are refusals and missing content. So the brake the roadmap put on Phase A can come off:
+A1 would route more natural phrasings into the matcher, and the matcher now answers them from the
+LEP's own hierarchy, audited in every zone. A1 first, then A2.
