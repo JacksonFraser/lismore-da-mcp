@@ -38,9 +38,12 @@ from audit_landuse_matching import (  # noqa: E402
     coverage,
     dictionary_terms,
     grade,
+    hierarchy_audit,
     lep_text,
     spelling_table_findings,
     table_rows,
+    type_of_findings,
+    type_of_notes,
 )
 
 from lismore_da_mcp.data.zones import ZONES  # noqa: E402
@@ -326,3 +329,78 @@ class TestTheAuditCanFail:
             "verbatim question still passed — the audit is not exercising the "
             "layer it claims to."
         )
+
+
+class TestUsesTheLEPPlacesUnderAParent:
+    """SCENARIOS.md run 2, R1. `audit()` asks only about the terms a table names,
+    and passed clean while 161 answers about uses the tables reach only through
+    the Dictionary's "X is a type of Y" notes were a wrong "yes" — a medical
+    centre in E4, a dwelling house in E4, a B&B in E3. The hand-written hierarchy
+    covered the commercial premises family and nothing else."""
+
+    @pytest.mark.parametrize("zone,term,expected", [
+        ("E4", "medical centre", "prohibited"),                   # Health services facilities
+        ("E4", "dwelling house", "prohibited"),                   # Residential accommodation
+        ("E4", "shop top housing", "prohibited"),
+        ("E3", "bed and breakfast accommodation", "prohibited"),  # Tourist and visitor accommodation
+        ("R1", "garden centre", "prohibited"),                    # retail -> Commercial premises
+        ("RU5", "business identification sign", "permitted_with_consent"),  # Signage
+        ("R1", "hazardous industry", "prohibited"),               # heavy industry -> Industries
+        ("E3", "Residential care facilities", "prohibited"),      # the note's own plural
+        ("E4", "backpackers' accommodation", "prohibited"),       # a curly apostrophe in the LEP
+    ])
+    def test_the_named_cases(self, zone, term, expected):
+        from lismore_da_mcp.tools.zoning import check_permissibility
+        import json
+
+        answer = json.loads(check_permissibility({"land_use": term, "zone_code": zone})[0].text)
+        assert answer["permissibility"] == expected, answer
+        assert answer["match_type"] == "hierarchy"
+
+    def test_every_zone_agrees_with_the_chain(self):
+        found = hierarchy_audit(CURRENT_ZONES)
+        assert found == [], "\n".join(
+            f"{f['zone']} {f['asked']!r}: {f['got']} ({f['class']}), table via "
+            f"{f['table_term']} says {f['expected']}" for f in found[:20])
+
+    def test_the_stored_notes_are_the_documents(self):
+        assert type_of_findings() == []
+
+    def test_every_note_is_read_including_the_curly_apostrophes(self, dictionary):
+        """The note pattern accepted only a straight apostrophe, and the document
+        writes them curly, so 'Backpackers' accommodation' and 'Rural workers'
+        dwellings' were silently not read — 106 of 108."""
+        notes = type_of_notes(lep_text(), dictionary)
+        assert len(notes) == 108
+        assert "backpackers' accommodation" in notes
+        assert "rural worker's dwelling" in notes
+
+    def test_the_nearest_listed_parent_decides(self):
+        """LEP cl 2.3(3)(b). Checking the table's sections before the chain let a
+        distant ancestor under 'permitted' beat a nearer one under 'prohibited'."""
+        from lismore_da_mcp.landuse import classify_land_use
+
+        zone = {
+            "permitted_without_consent": [],
+            "permitted_with_consent": ["Commercial premises"],
+            "prohibited": ["Food and drink premises"],
+        }
+        result = classify_land_use("cafe", zone, "TEST")
+        assert result["permissible"] is False
+        assert result["matched_use"] == "Food and drink premises"
+
+    def test_the_derivation_is_shown(self):
+        from lismore_da_mcp.landuse import classify_land_use
+
+        result = classify_land_use("medical centre", ZONES["E4"], "E4")
+        assert "medical centre -> health services facility" in result["basis"]
+        assert "cl 2.3(3)(b)" in result["basis"]
+
+    def test_the_audit_fails_when_the_chain_is_cut(self, monkeypatch):
+        """The check on the checker. With no ancestors the named cases fall back
+        to the catch-all, and E4's catch-all permits, so they read as a yes."""
+        import lismore_da_mcp.landuse as landuse
+
+        monkeypatch.setattr(landuse, "ancestors", lambda term: [])
+        found = hierarchy_audit(["E4"])
+        assert any(f["class"] == "wrong_yes" for f in found)

@@ -433,6 +433,171 @@ def spelling_table_findings() -> list[str]:
     return problems
 
 
+# The three note children whose Dictionary singular the `means` pattern cannot
+# read, with the singular the Dictionary uses. Each is checked to appear verbatim
+# in the LEP before it is used, so this cannot drift into a guess.
+#
+#   4777  group home (permanent) or permanent group home means ...
+#   4785  group home (transitional) or transitional group home means ...
+#         farm gate premises — spelled the same in the singular, and defined
+#         across a line break the pattern does not cross
+TYPE_OF_KEYS_READ_BY_HAND = {
+    "Farm gate premises": "farm gate premises",
+    "Permanent group homes": "permanent group home",
+    "Transitional group homes": "transitional group home",
+}
+
+
+def type_of_notes(raw: str, dictionary: set[str]) -> dict[str, tuple[str, str]]:
+    """Every 'X is a type of Y' note: Dictionary singular -> (note's own spelling, parent).
+
+    Read off the document with the same pattern `audit_definitions.py` uses, and
+    paired to the singular the same way the table spellings are — the Dictionary
+    confirms the form or it is not used.
+    """
+    from audit_definitions import dictionary_parents  # noqa: PLC0415
+
+    notes = {}
+    for child, parent in dictionary_parents(raw).items():
+        if child in TYPE_OF_KEYS_READ_BY_HAND:
+            singular = TYPE_OF_KEYS_READ_BY_HAND[child]
+            if singular not in raw.lower():
+                sys.exit(f"{singular!r} is not in the LEP text — TYPE_OF_KEYS_READ_BY_HAND has rotted")
+        else:
+            forms = set(counterpart_forms(child, dictionary))
+            if normalise(child).lower() in dictionary:
+                forms.add(normalise(child).lower())
+            if len(forms) != 1:
+                sys.exit(f"note child {child!r} pairs with {sorted(forms)} in the Dictionary, "
+                         "not exactly one — work out which before trusting this audit")
+            singular = forms.pop()
+        notes[singular] = (child, parent)
+    if len(notes) < 100:
+        sys.exit(f"read only {len(notes)} 'is a type of' notes — the layout has changed")
+    return notes
+
+
+def lep_chain(term: str, notes: dict[str, tuple[str, str]]) -> list[str]:
+    """`term` and every broader term above it, nearest first, from the notes alone."""
+    chain = [term]
+    while chain[-1] in notes and notes[chain[-1]][1] not in chain:
+        chain.append(notes[chain[-1]][1])
+    return chain
+
+
+def hierarchy_expectation(zone: str, chain: list[str], dictionary: set[str]) -> str | None:
+    """What the zone's table says about the first term of `chain`, read through it.
+
+    LEP cl 2.3(3)(b): a type the table names separately is not caught by its
+    parent's entry, so the nearest listed link decides. Where no link is listed,
+    the catch-all does, and the answer is only its *shape* — 'catchall_permits' or
+    'catchall_prohibits' — because that is all the table settles. None means the
+    zone has no catch-all and does not list the chain, so there is nothing to
+    grade against.
+    """
+    listed: dict[str, str] = {}
+    for section in EXPECTED:
+        for entry in ZONES[zone].get(section) or []:
+            if NOT_A_USE.match(normalise(entry)):
+                continue
+            listed[normalise(entry).lower()] = section
+            for form in counterpart_forms(entry, dictionary):
+                listed[form] = section
+    for link in chain:
+        if link in listed:
+            return EXPECTED[listed[link]]
+    for section in ("permitted_with_consent", "prohibited"):
+        if any(re.match(r"any (other )?development not specified", normalise(e), re.I)
+               for e in ZONES[zone].get(section) or []):
+            return "catchall_permits" if section == "permitted_with_consent" else "catchall_prohibits"
+    return None
+
+
+def hierarchy_audit(zones: list[str]) -> list[dict]:
+    """Grade the tool on every use the LEP places under a parent, in every zone.
+
+    `audit()` asks only about the terms a table names. That left the layer above
+    it unchecked: a medical centre is named in no Lismore table, reaches E4's
+    'Health services facilities' only through the Dictionary's note, and the
+    tool answered "likely permitted" against a table that prohibits it. 161 such
+    answers passed a clean run of `audit()` (SCENARIOS.md run 2, R1).
+
+    Both spellings are asked — the Dictionary's singular, which an applicant
+    types, and the note's own plural. The expectation is built from the
+    document's notes, not from `LEP_TYPE_OF`, so the data that fix added is
+    being checked rather than trusted.
+    """
+    raw = lep_text()
+    dictionary = dictionary_terms(raw)
+    notes = type_of_notes(raw, dictionary)
+    findings = []
+    for singular, (note_spelling, _parent) in sorted(notes.items()):
+        chain = lep_chain(singular, notes)
+        for zone in zones:
+            expected = hierarchy_expectation(zone, chain, dictionary)
+            if expected is None:
+                continue
+            for spelling in dict.fromkeys([singular, note_spelling]):
+                answer = ask(zone, spelling)
+                got = answer.get("permissibility")
+                if expected == "catchall_permits":
+                    failure = "wrong_no" if got in PROHIBITED_SHAPED else None
+                elif expected == "catchall_prohibits":
+                    failure = "wrong_yes" if got in PERMITTED_SHAPED else None
+                else:
+                    failure = grade(expected, answer)
+                if failure:
+                    findings.append({
+                        "zone": zone,
+                        "section": expected,
+                        "table_term": " -> ".join(chain),
+                        "asked": spelling,
+                        "spelling": "type_of",
+                        "expected": expected,
+                        "got": got,
+                        "matched_use": answer.get("matched_use"),
+                        "match_type": answer.get("match_type"),
+                        "class": failure,
+                        "hedged_by_sepp_caveat": "scope_of_this_answer" in answer,
+                    })
+    return findings
+
+
+def type_of_findings() -> list[str]:
+    """Check `LEP_TYPE_OF` against the notes in the document, both directions.
+
+    The same shape as `spelling_table_findings`: every stored note must be one the
+    Dictionary contains, with the same spelling and parent; every note the
+    Dictionary contains must be stored, or that use is back to falling through to
+    the catch-all with nothing failing; and where a table spelling exists for the
+    same term, the two spellings must agree, because `landuse.py` merges them.
+    """
+    from lismore_da_mcp.data.definitions import (  # noqa: PLC0415
+        LAND_USE_TABLE_SPELLINGS,
+        LEP_TYPE_OF,
+    )
+
+    raw = lep_text()
+    derived = type_of_notes(raw, dictionary_terms(raw))
+    problems = []
+    for term, stored in sorted(LEP_TYPE_OF.items()):
+        if term not in derived:
+            problems.append(f"{term!r} is stored as a type of {stored[1]!r}, but the LEP "
+                            "Dictionary has no such note. It was not read off the source.")
+        elif stored != derived[term]:
+            problems.append(f"{term!r} is stored as {stored}, but the document reads {derived[term]}.")
+    for term, note in sorted(derived.items()):
+        if term not in LEP_TYPE_OF:
+            problems.append(f"the Dictionary says {note[0]} are a type of {note[1]!r} and the "
+                            "data does not carry it — that use falls through to the catch-all.")
+    for term, (note_spelling, _) in sorted(LEP_TYPE_OF.items()):
+        table = LAND_USE_TABLE_SPELLINGS.get(term)
+        if table is not None and normalise(table) != normalise(note_spelling):
+            problems.append(f"{term!r} is {table!r} in the tables and {note_spelling!r} in its "
+                            "note — landuse.py merges both, and they should be one spelling.")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--business", action="store_true", help="only E1-E4, MU1, RU5")
@@ -453,6 +618,8 @@ def main() -> int:
         zones = current
 
     findings = audit(zones, verbatim_only=args.verbatim_only)
+    if not args.verbatim_only:
+        findings += hierarchy_audit(zones)
 
     if args.json:
         print(json.dumps(findings, indent=2))
@@ -466,6 +633,9 @@ def main() -> int:
     print(f"  {len(stats['table_spelling_is_the_dictionary_spelling'])} are already "
           "spelled the Dictionary's way, asked once")
     print(f"  {len(stats['unpaired'])} pair with nothing the Dictionary defines")
+    if not args.verbatim_only:
+        print("  plus every use the Dictionary places under a parent ('X is a type of Y'),\n"
+              "  asked in every zone and graded through its chain of parents")
     for term in stats["unpaired"]:
         reason = UNPAIRED_TABLE_TERMS.get(term, "NOT EXPLAINED — work out why before "
                                                 "trusting this audit's coverage")
@@ -478,6 +648,14 @@ def main() -> int:
             print(f"  {problem}")
     else:
         print("\nLAND_USE_TABLE_SPELLINGS matches the Dictionary and data/zones.py exactly.")
+
+    type_of_problems = type_of_findings()
+    if type_of_problems:
+        print(f"\nLEP_TYPE_OF DISAGREES WITH THE DOCUMENT — {len(type_of_problems)}")
+        for problem in type_of_problems:
+            print(f"  {problem}")
+    else:
+        print("LEP_TYPE_OF matches the Dictionary's 'is a type of' notes exactly.")
 
     by_class = Counter(f["class"] for f in findings)
     order = ["wrong_yes", "wrong_no", "wrong_pathway", "unfound", "hedged"]
@@ -507,7 +685,7 @@ def main() -> int:
     if findings:
         print("\nThe tables are not in question here — audit_zone_tables.py checks those\n"
               "against the LEP and they match. A disagreement is the matching layer.")
-    return 1 if findings or spelling_problems else 0
+    return 1 if findings or spelling_problems or type_of_problems else 0
 
 
 if __name__ == "__main__":

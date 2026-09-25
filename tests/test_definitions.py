@@ -252,6 +252,12 @@ class TestTheAuditCanFail:
         LAND_USE_HIERARCHY["office premises"] = ["business premises", "commercial premises"]
         assert check_hierarchy(lep)
 
+    def test_catches_a_wrong_link_after_the_first(self, restore, lep):
+        """The check used to read only chain[0], so a chain that skipped a level
+        further up passed. contributions.py walks the whole chain."""
+        LAND_USE_HIERARCHY["cafe"] = ["restaurant or cafe", "retail premises", "commercial premises"]
+        assert check_hierarchy(lep)
+
     def test_catches_a_dangling_related_term(self, restore):
         LAND_USE_DEFINITIONS["shop"]["related_terms"] = ["bulky_goods_premises"]
         assert check_related_terms()

@@ -801,6 +801,152 @@ LAND_USE_HIERARCHY = {
     "fitness centre": ["recreation facility (indoor)", "recreation facilities (indoor)"],
 }
 
+# Every "X is a type of Y" note in the LEP Dictionary, keyed by the term the
+# Dictionary defines: term -> (the note's own spelling, the parent it names).
+# 108 notes, read off `documents/lep/lep-2012-nsw-full.txt`.
+#
+# Found 2026-09-25 by run 2 of SCENARIOS.md (R1). `LAND_USE_HIERARCHY` above is
+# written by hand and covers the commercial premises family — 10 of these 108
+# notes. A use that reaches a table through any of the others fell through to
+# the catch-all instead, so a medical centre in E4 came back "likely permitted"
+# against a table that prohibits Health services facilities, and a dwelling house
+# the same against one that prohibits Residential accommodation. 161 wrong "yes"
+# answers across the zones businesses use. `audit_landuse_matching.py` graded only
+# the uses the tables name, which is why S1 closed with this still open.
+#
+# `landuse.py` walks these links, so a chain is as long as the LEP makes it:
+# garden centre -> retail premises -> commercial premises. LEP cl 2.3(3)(b)
+# decides which link answers — a type the table names separately is not caught
+# by its parent's entry — so the nearest link the table lists wins.
+#
+# The key is the Dictionary's singular, not the note's plural: "Hazardous
+# industries are a type of heavy industry" is stored as 'hazardous industry' ->
+# 'heavy industry', so that 'heavy industry' meets its own note ('heavy
+# industry' -> 'industry') and the chain continues. Keyed by the plural, the
+# two spellings never met and the chain stopped one link short. The pairing is
+# confirmed against the Dictionary the same way `LAND_USE_TABLE_SPELLINGS` is,
+# and `audit_landuse_matching.py` checks this dict against the document in both
+# directions. Three keys the Dictionary pattern cannot read are named in
+# `TYPE_OF_KEYS_READ_BY_HAND` there, with the line each comes from.
+#
+# The note's spelling is carried because it is usually the plural, and for 40 of
+# these uses no zone table lists them, so `LAND_USE_TABLE_SPELLINGS` has no pair
+# to reach the singular by. Without it "Residential care facilities" or "Pubs"
+# is not recognised at all.
+#
+# Do not add an entry by reasoning about what a use is. If the Dictionary has no
+# note, the LEP has not placed the use under a parent, and neither should this.
+LEP_TYPE_OF = {
+    'advertising structure': ('Advertising structures', 'signage'),
+    'agricultural produce industry': ('Agricultural produce industries', 'rural industry'),
+    'agritourism': ('Agritourism', 'agriculture'),
+    'airport': ('Airports', 'air transport facility'),
+    'aquaculture': ('Aquaculture', 'agriculture'),
+    'artisan food and drink industry': ('Artisan food and drink industries', 'light industry'),
+    'attached dwelling': ('Attached dwellings', 'residential accommodation'),
+    "backpackers' accommodation": ("Backpackers' accommodation", 'tourist and visitor accommodation'),
+    'bed and breakfast accommodation': ('Bed and breakfast accommodation', 'tourist and visitor accommodation'),
+    'bee keeping': ('Bee keeping', 'extensive agriculture'),
+    'biosolids treatment facility': ('Biosolids treatment facilities', 'sewerage system'),
+    'building identification sign': ('Building identification signs', 'signage'),
+    'business identification sign': ('Business identification signs', 'signage'),
+    'business premises': ('Business premises', 'commercial premises'),
+    'cellar door premises': ('Cellar door premises', 'farm gate premises'),
+    'centre-based child care facility': ('Centre-based child care facilities', 'early education and care facility'),
+    'co-living housing': ('Co-living housing', 'residential accommodation'),
+    'creative industry': ('Creative industries', 'light industry'),
+    'dairy (pasture-based)': ('Dairies (pasture-based)', 'extensive agriculture'),
+    'dairy (restricted)': ('Dairies (restricted)', 'intensive livestock agriculture'),
+    'data centre': ('Data centres', 'high technology industry'),
+    'dual occupancy': ('Dual occupancies', 'residential accommodation'),
+    'dual occupancy (attached)': ('Dual occupancies (attached)', 'dual occupancy'),
+    'dual occupancy (detached)': ('Dual occupancies (detached)', 'dual occupancy'),
+    'dwelling house': ('Dwelling houses', 'residential accommodation'),
+    'extensive agriculture': ('Extensive agriculture', 'agriculture'),
+    'farm experience premises': ('Farm experience premises', 'agritourism'),
+    'farm gate premises': ('Farm gate premises', 'agritourism'),
+    'farm stay accommodation': ('Farm stay accommodation', 'tourist and visitor accommodation'),
+    'food and drink premises': ('Food and drink premises', 'retail premises'),
+    'funeral home': ('Funeral homes', 'business premises'),
+    'garden centre': ('Garden centres', 'retail premises'),
+    'general industry': ('General industries', 'industry'),
+    'goods repair and reuse premises': ('Goods repair and reuse premises', 'business premises'),
+    'group home': ('Group homes', 'residential accommodation'),
+    'hardware and building supplies': ('Hardware and building supplies', 'retail premises'),
+    'hazardous industry': ('Hazardous industries', 'heavy industry'),
+    'hazardous storage establishment': ('Hazardous storage establishments', 'heavy industrial storage establishment'),
+    'health consulting rooms': ('Health consulting rooms', 'health services facility'),
+    'heavy industry': ('Heavy industries', 'industry'),
+    'heliport': ('Heliports', 'air transport facility'),
+    'high technology industry': ('High technology industries', 'light industry'),
+    'home industry': ('Home industries', 'light industry'),
+    'home-based child care': ('Home-based child care', 'early education and care facility'),
+    'horticulture': ('Horticulture', 'intensive plant agriculture'),
+    'hospital': ('Hospitals', 'health services facility'),
+    'hostel': ('Hostels', 'residential accommodation'),
+    'hotel or motel accommodation': ('Hotel or motel accommodation', 'tourist and visitor accommodation'),
+    'independent living unit': ('Independent living units', 'seniors housing'),
+    'intensive livestock agriculture': ('Intensive livestock agriculture', 'agriculture'),
+    'intensive plant agriculture': ('Intensive plant agriculture', 'agriculture'),
+    'kiosk': ('Kiosks', 'retail premises'),
+    'landscaping material supplies': ('Landscaping material supplies', 'retail premises'),
+    'light industry': ('Light industries', 'industry'),
+    'liquid fuel depot': ('Liquid fuel depots', 'heavy industrial storage establishment'),
+    'livestock processing industry': ('Livestock processing industries', 'rural industry'),
+    'market': ('Markets', 'retail premises'),
+    'medical centre': ('Medical centres', 'health services facility'),
+    'multi dwelling housing': ('Multi dwelling housing', 'residential accommodation'),
+    'neighbourhood shop': ('Neighbourhood shops', 'shop'),
+    'neighbourhood supermarket': ('Neighbourhood supermarkets', 'shop'),
+    'offensive industry': ('Offensive industries', 'heavy industry'),
+    'offensive storage establishment': ('Offensive storage establishments', 'heavy industrial storage establishment'),
+    'office premises': ('Office premises', 'commercial premises'),
+    'oyster aquaculture': ('Oyster aquaculture', 'aquaculture'),
+    'permanent group home': ('Permanent group homes', 'group home'),
+    'pig farm': ('Pig farms', 'intensive livestock agriculture'),
+    'plant nursery': ('Plant nurseries', 'retail premises'),
+    'pond-based aquaculture': ('Pond-based aquaculture', 'aquaculture'),
+    'poultry farm': ('Poultry farms', 'intensive livestock agriculture'),
+    'primitive camping ground': ('Primitive camping ground', 'camping ground'),
+    'pub': ('Pubs', 'food and drink premises'),
+    'residential care facility': ('Residential care facilities', 'seniors housing'),
+    'residential flat building': ('Residential flat buildings', 'residential accommodation'),
+    'resource recovery facility': ('Resource recovery facilities', 'waste or resource management facility'),
+    'restaurant or cafe': ('Restaurants or cafes', 'food and drink premises'),
+    'retail premises': ('Retail premises', 'commercial premises'),
+    'roadside stall': ('Roadside stalls', 'retail premises'),
+    'rural supplies': ('Rural supplies', 'retail premises'),
+    "rural worker's dwelling": ("Rural workers' dwellings", 'residential accommodation'),
+    'sawmill or log processing works': ('Sawmill or log processing works', 'rural industry'),
+    'school': ('Schools', 'educational establishment'),
+    'school-based child care': ('School-based child care', 'early education and care facility'),
+    'secondary dwelling': ('Secondary dwellings', 'residential accommodation'),
+    'self-storage units': ('Self-storage units', 'storage premises'),
+    'semi-detached dwelling': ('Semi-detached dwellings', 'residential accommodation'),
+    'seniors housing': ('Seniors housing', 'residential accommodation'),
+    'serviced apartment': ('Serviced apartments', 'tourist and visitor accommodation'),
+    'sewage reticulation system': ('Sewage reticulation systems', 'sewerage system'),
+    'sewage treatment plant': ('Sewage treatment plants', 'sewerage system'),
+    'shop': ('Shops', 'retail premises'),
+    'shop top housing': ('Shop top housing', 'residential accommodation'),
+    'small bar': ('Small bars', 'food and drink premises'),
+    'specialised retail premises': ('Specialised retail premises', 'retail premises'),
+    'stock and sale yard': ('Stock and sale yards', 'rural industry'),
+    'take away food and drink premises': ('Take away food and drink premises', 'food and drink premises'),
+    'tank-based aquaculture': ('Tank-based aquaculture', 'aquaculture'),
+    'timber yard': ('Timber yards', 'retail premises'),
+    'transitional group home': ('Transitional group homes', 'group home'),
+    'turf farming': ('Turf farming', 'intensive plant agriculture'),
+    'vehicle sales or hire premises': ('Vehicle sales or hire premises', 'retail premises'),
+    'viticulture': ('Viticulture', 'intensive plant agriculture'),
+    'waste disposal facility': ('Waste disposal facilities', 'waste or resource management facility'),
+    'waste or resource transfer station': ('Waste or resource transfer stations', 'waste or resource management facility'),
+    'water recycling facility': ('Water recycling facilities', 'sewerage system'),
+    'water reticulation system': ('Water reticulation systems', 'water supply system'),
+    'water storage facility': ('Water storage facilities', 'water supply system'),
+    'water treatment facility': ('Water treatment facilities', 'water supply system'),
+}
+
 CATCHALL_TERM = "any other development not specified"
 
 

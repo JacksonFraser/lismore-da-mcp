@@ -9,6 +9,7 @@ from lismore_da_mcp.data.definitions import (
     LAND_USE_DEFINITIONS,
     LAND_USE_HIERARCHY,
     LAND_USE_TABLE_SPELLINGS,
+    LEP_TYPE_OF,
 )
 
 # Words that describe *what you are doing* rather than *what will operate on
@@ -80,6 +81,12 @@ _SPELLING_PAIRS.update({
     for entry in LAND_USE_DEFINITIONS.values()
     if entry.get("land_use_table_term")
 })
+# The Dictionary's "is a type of" notes spell each use too, usually in the plural,
+# and 40 of those uses appear in no table — so this is the only pairing that
+# reaches their singular. Where a table pairing exists it wins; the audit checks
+# the two agree.
+for _dictionary_form, (_note_form, _parent) in LEP_TYPE_OF.items():
+    _SPELLING_PAIRS.setdefault(_dictionary_form, _note_form)
 
 _CANONICAL_SPELLING: dict[str, str] = {}
 for _dictionary_form, _table_form in _SPELLING_PAIRS.items():
@@ -119,6 +126,39 @@ _HIERARCHY_BY_CANONICAL = {
     canonical_use(term): parents for term, parents in LAND_USE_HIERARCHY.items()
 }
 
+# The LEP Dictionary's own "X is a type of Y" notes, one link each.
+_LEP_PARENT = {canonical_use(term): parent for term, (_, parent) in LEP_TYPE_OF.items()}
+
+
+def ancestors(term: str) -> list[str]:
+    """The broader terms that may carry `term` in a land use table, nearest first.
+
+    Where the LEP Dictionary places the term itself, its notes are the chain, walked
+    as far as they go — medical centre -> health services facility, garden centre ->
+    retail premises -> commercial premises. Where it does not (the everyday words in
+    `LAND_USE_HIERARCHY`: cafe, gym, takeaway), the hand-written chain comes first and
+    the notes continue it from its last link.
+
+    Until 2026-09-25 only the hand-written chains existed, and they cover the
+    commercial premises family alone, so every other use the LEP places under a
+    parent fell through to the catch-all — 161 wrong "yes" answers, the same defect
+    S1 fixed for the terms the tables name (SCENARIOS.md run 2, R1).
+    """
+    target = canonical_use(term)
+    if not target:
+        return []
+    chain = [] if target in _LEP_PARENT else list(_HIERARCHY_BY_CANONICAL.get(target, []))
+    seen = {target} | {canonical_use(link) for link in chain}
+    current = canonical_use(chain[-1]) if chain else target
+    while current in _LEP_PARENT:
+        parent = _LEP_PARENT[current]
+        current = canonical_use(parent)
+        if current in seen:
+            break
+        chain.append(parent)
+        seen.add(current)
+    return chain
+
 
 # Every land use this server can put a name to, canonicalised.
 #
@@ -147,6 +187,10 @@ def _known_land_uses() -> set[str]:
     for entry in LAND_USE_DEFINITIONS.values():
         known.add(canonical_use(entry["term"]))
     known.update(_HIERARCHY_BY_CANONICAL)
+    for term, (note_spelling, parent) in LEP_TYPE_OF.items():
+        known.add(canonical_use(term))
+        known.add(canonical_use(note_spelling))
+        known.add(canonical_use(parent))
     known.discard("")
     return known
 
@@ -170,7 +214,7 @@ def match_land_use(term: str, uses: list[str], strength: str) -> str | None:
         return next((use for use in uses if canonical_use(use) == target), None)
 
     if strength == "hierarchy":
-        for parent in _HIERARCHY_BY_CANONICAL.get(target, []):
+        for parent in ancestors(term):
             parent_canonical = canonical_use(parent)
             for use in uses:
                 if canonical_use(use) == parent_canonical:
@@ -181,6 +225,28 @@ def match_land_use(term: str, uses: list[str], strength: str) -> str | None:
         (use for use in uses if re.search(rf"\b{re.escape(target)}\b", canonical_use(use))),
         None,
     )
+
+def _candidates(proposed_use: str, categories, strength: str):
+    """The (category, uses, ...) rows to try, in the order that decides the answer.
+
+    For exact and approximate matching the table's own order is right: a term is
+    listed in at most one section. For the hierarchy it is not. LEP cl 2.3(3)(b)
+    says a type the table names separately is not caught by its parent's entry, so
+    the *nearest* ancestor the table lists decides — and walking the sections
+    first let a distant ancestor in "permitted" beat a nearer one in "prohibited"
+    just because permitted is checked first. Each row is narrowed to the one
+    ancestor being tried, nearest first, so `match_land_use` sees it alone.
+    """
+    if strength != "hierarchy":
+        yield from categories
+        return
+    for link in ancestors(proposed_use):
+        key = canonical_use(link)
+        for category, uses, permissible, phrase in categories:
+            listed = [use for use in uses if canonical_use(use) == key]
+            if listed:
+                yield category, listed, permissible, phrase
+
 
 def classify_land_use(proposed_use: str, zone_info: dict, zone_code: str = "") -> dict | None:
     """Classify a use against a zone's land use table.
@@ -214,7 +280,7 @@ def classify_land_use(proposed_use: str, zone_info: dict, zone_code: str = "") -
     strengths = ("exact", "hierarchy") if recognised else ("exact", "hierarchy", "approximate")
 
     for strength in strengths:
-        for category, uses, permissible, phrase in categories:
+        for category, uses, permissible, phrase in _candidates(proposed_use, categories, strength):
             matched = match_land_use(proposed_use, uses, strength)
             if not matched or _is_catchall(matched):
                 continue
@@ -230,13 +296,21 @@ def classify_land_use(proposed_use: str, zone_info: dict, zone_code: str = "") -
                     f"'{proposed_use}' appears to correspond to '{matched}', which is {phrase} {zone_label}. "
                     "Confirm the exact land use term with Council."
                 )
+            basis = f"LEP 2012 land use table for {zone_label} — matched '{matched}' ({strength})"
+            if strength == "hierarchy":
+                path = [proposed_use]
+                for link in ancestors(proposed_use):
+                    path.append(link)
+                    if canonical_use(link) == canonical_use(matched):
+                        break
+                basis += " via " + " -> ".join(path) + " (LEP Dictionary; cl 2.3(3)(b))"
             return {
                 "permissible": permissible if strength != "approximate" else None,
                 "matched_use": matched,
                 "match_type": strength,
                 "category": category,
                 "statement": statement,
-                "basis": f"LEP 2012 land use table for {zone_label} — matched '{matched}' ({strength})",
+                "basis": basis,
             }
 
     with_consent = zone_info.get("permitted_with_consent", [])
