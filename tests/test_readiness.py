@@ -138,6 +138,33 @@ class TestDocumentMatchingIsConservative:
         assert short_name("Access report — compliance with the Standards") == "Access report"
         assert short_name("Site plan (1:100 or 1:200 scale)") == "Site plan"
 
+    def test_a_document_named_exactly_as_the_requirement_matches(self):
+        """SCENARIOS.md run 2, R7. The synonym table rewrote "access report" into
+        the change-of-use list's "access upgrade assessment", which then could
+        not match the commercial list's "Access report" — the exact name."""
+        access = ("Access report — compliance with the Disability (Access to Premises) "
+                  "Standards (commonly required)")
+        assert document_gap([access], ["access report"])["missing"] == []
+        upgrade = "Access upgrade assessment — Disability (Access to Premises) Standards"
+        assert document_gap([upgrade], ["access report"])["missing"] == []
+
+    @pytest.mark.parametrize("claim", ["operating hours", "details of operating hours"])
+    def test_a_leading_details_of_does_not_hide_the_subject(self, claim):
+        requirement = "Details of operating hours, staff numbers and deliveries"
+        assert document_gap([requirement], [claim])["missing"] == []
+
+    @pytest.mark.parametrize("claim,requirement", [
+        ("management plan", "Waste management plan (construction and operational waste)"),
+        ("management plan", "Stormwater management plan"),
+        ("hours", "Details of operating hours, staff numbers and deliveries"),
+        ("details", "Details of operating hours, staff numbers and deliveries"),
+        ("report", "Access report — compliance with the Standards"),
+    ])
+    def test_the_loosening_did_not_reach_the_ambiguous_claims(self, claim, requirement):
+        """Trying the claim as typed, and skipping a leading 'Details of', must
+        add only real matches — a bare generic word still names nothing."""
+        assert document_gap([requirement], [claim])["missing"] == [requirement]
+
 
 class TestWhatStopsAnApplication:
     """A blocker is not a missing document. These are the three ways a proposal

@@ -204,7 +204,38 @@ def _expand(claim: str) -> str:
     return DOCUMENT_SYNONYMS.get(str(claim).strip().lower(), claim)
 
 
+# Words that open a requirement's name without saying what it is about — "Details
+# of operating hours, staff numbers and deliveries". The first-word rule below
+# compared an applicant's "operating hours" against "details" and reported the
+# document missing (SCENARIOS.md run 2, R7). Dropped from the front of either
+# side, and only from the front: in "Signage details" the subject comes first.
+_LEADING_FILLER = {"detail", "description"}
+
+
+def _subject_words(text: str) -> list[str]:
+    words = _words(text)
+    while len(words) > 1 and words[0] in _LEADING_FILLER:
+        words = words[1:]
+    return words
+
+
 def _claims(claim: str, requirement: str) -> bool:
+    """Does this claim refer to this requirement, as typed or as its synonym?
+
+    Both forms are tried. `DOCUMENT_SYNONYMS` maps a counter name onto one
+    checklist's wording, and the checklists do not agree: "access report"
+    became "access upgrade assessment" for the change-of-use list, and could
+    then no longer match the commercial list's "Access report" — so a document
+    named exactly as the requirement was reported missing (SCENARIOS.md run 2,
+    R7). The as-typed form goes through the same strict rules, so trying it
+    adds only real matches.
+    """
+    expanded = _expand(claim)
+    return any(_claims_one(form, requirement)
+               for form in dict.fromkeys([str(claim), expanded]))
+
+
+def _claims_one(claim: str, requirement: str) -> bool:
     """Does this claim plausibly refer to this requirement?
 
     Deliberately strict in one direction. Requiring the head noun to agree stops
@@ -214,7 +245,7 @@ def _claims(claim: str, requirement: str) -> bool:
     already has, which they will notice; the cost of being loose is a lodgement
     reported complete that Council rejects.
     """
-    claim_words, name_words = _words(_expand(claim)), _words(short_name(requirement))
+    claim_words, name_words = _subject_words(claim), _subject_words(short_name(requirement))
     claim_tokens, name_tokens = set(claim_words), set(name_words)
     if not claim_tokens or not name_tokens:
         return False
