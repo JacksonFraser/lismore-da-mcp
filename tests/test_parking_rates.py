@@ -189,6 +189,39 @@ class TestEstimator:
         assert result["supply"] == ["num_employees"]
         assert "cannot be reduced to a number" in result["cannot_calculate"]
 
+    def test_the_floor_is_given_beside_the_missing_argument(self):
+        """SCENARIOS.md run 2, R5. The refusal said "a part of the sum is not a
+        lower bound". Every term here is positive and combined by adding or
+        taking the greater, so it is one — and it is the number a business can
+        plan from while it works out the rest."""
+        gym = estimate_spaces(PARKING_RATES["gym"], 250)
+        assert gym["spaces_required"] is None
+        assert gym["at_least"] == 10
+        assert "not a lower bound" not in gym["cannot_calculate"]
+        assert "floor" in gym["cannot_calculate"]
+        cafe = estimate_spaces(PARKING_RATES["cafe"], 80)
+        assert cafe["at_least"] == 12
+
+    def test_the_floor_is_below_every_completed_answer(self):
+        """The claim the floor rests on, checked rather than argued: for each
+        rate, supplying the missing input never takes the answer below it."""
+        cases = [
+            ("cafe", 80, {}, {"employees": [0, 1, 6, 20]}),
+            ("gym", 250, {}, {"employees": [0, 3, 12]}),
+            ("medical_centre", None, {"employees": 5}, {"practitioners": [0, 1, 3, 9]}),
+            ("childcare_centre", None, {"employees": 4}, {"children": [0, 10, 45]}),
+            ("hotel", None, {"accommodation_units": 20}, {"employees": [0, 2, 15]}),
+        ]
+        for key, area, given, missing in cases:
+            floor = estimate_spaces(PARKING_RATES[key], area, given)["at_least"]
+            (name, values), = missing.items()
+            for value in values:
+                full = estimate_spaces(PARKING_RATES[key], area, {**given, name: value})
+                assert full["spaces_required"] >= floor, (key, name, value)
+
+    def test_nothing_counted_gives_no_floor(self):
+        assert estimate_spaces(PARKING_RATES["medical_centre"], None, {}) is None
+
     def test_what_was_counted_is_still_shown(self):
         """Declining the total does not mean discarding the work — the caller
         can see the rate was understood and exactly what is outstanding."""
@@ -610,8 +643,19 @@ class TestEveryCountableIsAskable:
 
     def test_a_declined_figure_reports_no_shortfall(self, call):
         """A shortfall computed against a number that does not exist is worse
-        than no shortfall — it is the reassuring one."""
+        than no shortfall — it is the reassuring one. So there is no `shortfall`
+        figure. What there can be is a floor on it: 5 employees already need 5
+        spaces against 2 provided, and practitioners can only add to that, so a
+        shortfall of *at least* 3 is certain and is never the reassuring kind
+        (SCENARIOS.md run 2, R5)."""
         result = call("get_parking_rates", {
             "development_type": "medical centre", "num_employees": 5, "spaces_provided": 2})
         assert "shortfall" not in result["calculation"]
+        assert result["calculation"]["shortfall_at_least"] == 3
+        assert "at least" in result["calculation"]["advice"]
+
+    def test_no_floor_shortfall_when_the_floor_is_met(self, call):
+        result = call("get_parking_rates", {
+            "development_type": "medical centre", "num_employees": 5, "spaces_provided": 10})
+        assert "shortfall_at_least" not in result["calculation"]
         assert "addressing_the_shortfall" not in result

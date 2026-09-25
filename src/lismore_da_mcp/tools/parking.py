@@ -58,7 +58,7 @@ def _inside_cbd_reading(cbd: dict | None, arguments: dict) -> str:
 
 @tool(
     name='get_parking_rates',
-    description='Get off-street parking requirements for a development type in Lismore, and what can be done about a shortfall. Supply floor_area_sqm, spaces_provided and whatever the rate counts (employees, seats, practitioners, children, beds, rooms) for the number of spaces required and any shortfall. A rate whose terms are not all supplied returns no number and says which argument to send — a part of the sum is not a lower bound. IMPORTANT: the Lismore CBD is assessed under a different rate from the rest of the LGA, so supply `location` — without it both readings are returned and neither is the answer.',
+    description='Get off-street parking requirements for a development type in Lismore, and what can be done about a shortfall. Supply floor_area_sqm, spaces_provided and whatever the rate counts (employees, seats, practitioners, children, beds, rooms) for the number of spaces required and any shortfall. A rate whose terms are not all supplied returns no requirement, says which argument to send, and gives `at_least` — the floor what was supplied already fixes, which the missing terms can only raise. IMPORTANT: the Lismore CBD is assessed under a different rate from the rest of the LGA, so supply `location` — without it both readings are returned and neither is the answer.',
     properties={
         'development_type': {'type': 'string', 'description': "Type of development (e.g., 'dwelling_house', 'restaurant', 'shop', 'office', 'warehouse')"},
         'location': {'type': 'string', 'description': "Optional but important. 'cbd' if the site is inside the Lismore CBD as defined on Map 1 of DCP Chapter 7, or 'outside_cbd'. Inside the CBD a fixed rate of 3.3 spaces/100m2 GFA replaces the Schedule 1 rate for non-residential uses, and it is usually far lower. Do not guess — the E2 zone is close to the CBD boundary but is not the same line."},
@@ -171,6 +171,18 @@ def get_parking_rates(arguments: dict):
             )
             provided = arguments.get("spaces_provided")
             estimate["spaces_provided"] = provided
+            if (provided is not None and estimate["spaces_required"] is None
+                    and estimate.get("at_least", 0) > provided):
+                # The floor alone already exceeds what is provided, so a shortfall
+                # is certain even though its size is not.
+                estimate["shortfall_at_least"] = estimate["at_least"] - provided
+                estimate["advice"] = (
+                    f"A shortfall of at least {estimate['shortfall_at_least']} space(s) is "
+                    "certain on what was supplied, and supplying the rest can only increase it. "
+                    "See addressing_the_shortfall."
+                )
+                response["addressing_the_shortfall"] = shortfall_options(
+                    estimate["shortfall_at_least"], bool(in_cbd), dev_type)
             if provided is not None and estimate["spaces_required"] is not None:
                 gap = max(0, estimate["spaces_required"] - provided)
                 estimate["shortfall"] = gap

@@ -317,6 +317,13 @@ class TestAPartialRateIsNotAnAnswer:
         assert parking["shortfall"] is None
         assert "not a shortfall of zero" in parking["note"]
 
+    def test_the_floor_travels_with_the_unanswered_question(self, call):
+        """SCENARIOS.md run 2, R5. Still no requirement and no shortfall — but the
+        floor the supplied terms already fix is carried, not discarded."""
+        parking = check(call, floor_area_sqm=80, location="outside_cbd")["parking"]
+        assert parking["spaces_required"] is None
+        assert parking["at_least"] == 12
+
     def test_a_supplied_zero_is_a_count_and_not_a_gap(self, call):
         """Nobody-said and nobody-works-here are different, and an
         owner-operated café is entitled to say the second."""

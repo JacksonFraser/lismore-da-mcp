@@ -112,10 +112,14 @@ because the tool answered rather than erroring:
   owner-operated café could not state that it has no staff. **`None` means not supplied; `0` means
   zero** — keep that distinction when adding a countable.
 
-**And a partial sum is never reported as the answer.** Where a rate has a term that was not
-supplied, `estimate_spaces` returns `spaces_required: None` with `supply` naming the argument,
-because supplying it can *multiply* the requirement rather than add to it — a part of the sum is not
-a lower bound. Callers must branch on that: `readiness.py` reports it as an unanswered question
+**And a partial sum is never reported as the answer — but it is a floor, and it says so.** Where a
+rate has a term that was not supplied, `estimate_spaces` returns `spaces_required: None` with
+`supply` naming the argument, and `at_least` — the ceiling of what *was* counted. Every Schedule 1
+rate is positive terms combined by adding and taking the greater, so a missing term can only raise
+the requirement, and a test checks that against completed answers. (This paragraph used to say "a
+part of the sum is not a lower bound", which was false, and the floor was withheld — SCENARIOS.md
+run 2, R5.) The floor stays out of `spaces_required` because 5 is a floor and 17 is the answer, and
+a shortfall against it is `shortfall_at_least`, never `shortfall`. Callers must branch on that: `readiness.py` reports it as an unanswered question
 rather than a shortfall of zero, and the SEE draft leaves the figure blank. This is the same
 discipline as the contributions catchment and `flood_area` — an input that changes the number is
 never assumed.

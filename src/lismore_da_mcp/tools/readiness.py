@@ -137,12 +137,14 @@ def _parking(p: Proposal, spaces_provided) -> dict | None:
             "cannot_calculate": schedule_1["cannot_calculate"],
             "supply": schedule_1["supply"],
             "counted_so_far": schedule_1["counted_so_far"],
+            "at_least": schedule_1.get("at_least"),
             "spaces_provided": spaces_provided,
             "shortfall": None,
             "note": (
-                "No parking figure is given because the rate has a term that was not "
+                "No parking requirement is given because the rate has a term that was not "
                 "supplied. This is not a shortfall of zero — it is an unanswered question, "
-                "and Council will ask it."
+                "and Council will ask it. at_least is the floor what was supplied already "
+                "fixes; the missing terms can only raise it."
             ),
         }
 
