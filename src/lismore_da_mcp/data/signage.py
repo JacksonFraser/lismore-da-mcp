@@ -71,6 +71,57 @@ PATHWAYS = {
     },
 }
 
+# What heritage does to the two pathways that skip a DA. Both are conditional
+# on the SEPP, and the SEPP's conditions include the site's heritage status —
+# so a heritage site told "no application needed" has been told something this
+# repository cannot establish. Until 2026-09-25 the pathway headline was
+# identical with and without `is_heritage`, while §9.2's exception, three fields
+# further down, was applied correctly (SCENARIOS.md run 2, R4).
+#
+# Only what a document here says is stated as fact. The State Heritage Register
+# rule is in the NSW fact sheet and, for the LEP's own exempt development, in
+# LEP cl 3.1(3)(d). The SEPP's signage standards are not in this repository,
+# and neither is anything on complying development and heritage — so those are
+# stated as open, not answered.
+HERITAGE_AND_THE_PATHWAY = {
+    "exempt": {
+        "label": "Exempt Development only if no heritage exclusion applies — check before "
+                 "installing",
+        "state_heritage_register": (
+            "Exempt development cannot be carried out on land that is, or has on it, an item "
+            "listed on the State Heritage Register or subject to an interim heritage order. On "
+            "such a site this sign needs development consent."
+        ),
+        "local_items_and_conservation_areas": (
+            "The SEPP's standards for each kind of development can carry their own exclusions "
+            "for local heritage items. This repository does not hold the SEPP's signage "
+            "standards, so whether one excludes this sign here has not been checked. Confirm "
+            "with Council before relying on the exempt pathway."
+        ),
+        "source": (
+            "NSW fact sheet 'Understanding exempt development' "
+            "(documents/exempt-development/understanding-exempt-development.pdf); LEP 2012 "
+            "cl 3.1(3)(d) states the same State Register rule for the LEP's own exempt "
+            "development."
+        ),
+    },
+    "complying": {
+        "label": "Complying Development only if the site's heritage status allows it — "
+                 "check before applying",
+        "open_question": (
+            "Nothing in this repository says whether a CDC is available for this sign on a "
+            "heritage item or in a conservation area. Confirm with Council or the certifier "
+            "before paying for one; if it is not available, the sign needs a DA."
+        ),
+    },
+}
+
+HERITAGE_NOT_ESTABLISHED = (
+    "Heritage status was not supplied. If the site is on the State Heritage Register, this "
+    "pathway is not available, and a local heritage listing can exclude it too — check with "
+    "lookup_site_constraints or Council, then call again with is_heritage."
+)
+
 SEPP_EXEMPT_NOTE = (
     "are Exempt Development if erected in accordance with SEPP (Exempt and Complying "
     "Development Codes) 2008"

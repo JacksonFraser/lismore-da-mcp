@@ -82,7 +82,7 @@ def get_signage_requirements(arguments: dict):
         # Pathway leads deliberately. Most businesses asking about a sign do not
         # need an application at all, and the size standard is the answer to a
         # question they only have if they do.
-        "do_you_need_an_application": pathway(entry),
+        "do_you_need_an_application": pathway(entry, is_heritage),
     }
     if match.how != "exact":
         response["interpreted_as"] = (
