@@ -238,6 +238,28 @@ DUTY_PLANNER_QUESTIONS = [
         "ask_it_as": "Is this address inside the CBD boundary on Map 1 of DCP Chapter 7?",
     },
     {
+        "key": "nimbin_precinct",
+        "question": "If this village site is in Nimbin: which precinct of DCP Part B Chapter 6 "
+                    "is it in, is it inside the Nimbin Heritage Conservation Area, and what "
+                    "flood hazard category applies?",
+        "why_it_matters": "The precinct decides whether the use is 'preferred'. A non-preferred "
+                          "use is considered only where there is no suitable land in the "
+                          "preferred precinct (§2), so a cafe away from Cullen Street has an "
+                          "argument to make before anything else. The conservation area brings "
+                          "the Cullen Street facade and mural controls, and the hazard category "
+                          "decides whether new building work needs a structural engineer's "
+                          "report.",
+        "cost_if_unresolved": "An application argued in the wrong precinct, or missing the "
+                              "evidence the non-preferred test asks for.",
+        "why_we_cannot_answer_it": "The chapter draws its boundary, precincts, conservation area "
+                                   "and flood hazard on Figures 1, 2, 3 and 5, which are images "
+                                   "with no extractable text. RU5 also covers villages the "
+                                   "chapter does not reach, so the zone cannot settle it.",
+        "applies": "Any proposal on land zoned RU5 Village.",
+        "ask_it_as": "Is this address inside Figure 1 of the Nimbin chapter, and if so which "
+                     "precinct, is it in the conservation area, and what flood hazard applies?",
+    },
+    {
         "key": "flood_planning_level",
         "question": "Is this site in the flood planning area, and what is the Flood Planning "
                     "Level for it?",

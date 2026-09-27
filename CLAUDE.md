@@ -56,6 +56,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_landuse_matching.py` | The only audit that checks a **tool** rather than a data file: it asks `check_permissibility` about all 991 land use rows in both the table's spelling and the LEP Dictionary's, and grades the answer against the table. Every other audit here would pass with the matching layer completely broken, which is how ROADMAP.md S1's defect survived 1,346 tests. The singular↔plural pairing is read off the Dictionary in the document, never computed — a candidate spelling the document does not confirm is discarded, so the audit can never grade the tool against a word that is not a land use. It also audits `LAND_USE_TABLE_SPELLINGS` itself, since S1's fix turned that pairing into stored data: every pair must be one the document yields, every pair the document yields must be stored, and every table spelling must appear verbatim in `data/zones.py` — a pair whose right-hand side is not a real table entry resolves onto nothing and reads exactly like one that works. **Since 2026-09-25 it also asks about every use the Dictionary places under a parent** (108 "is a type of" notes × 21 zones), graded through the chain of parents read off the document — the first pass asked only about terms a table names, and passed clean while 161 answers like *medical centre in E4* were a wrong "yes" (SCENARIOS.md run 2, R1). It audits `LEP_TYPE_OF` against the notes both ways, too. |
 | `scripts/audit_parking_rates.py` **completeness** | Added 2026-08-20. The rates were only ever presence-checked, and the docstring claimed a completeness check that **did not exist** — so "27 entries checked, 0 not matching" printed while `Shop top housing` was absent from `data/parking.py` entirely. Schedule 1's land use column is now isolated from the PDF by x-position (the rate columns still cannot be diffed, which is why rates stay verbatim), every row is either carried or named in `UNCARRIED_SCHEDULE_1_USES`, and the hand-read list is itself checked against the document so it cannot drift into fiction. |
 | `scripts/audit_heritage.py` | Checks the LEP cl 5.10 provisions in `data/heritage.py` against the LEP text, and runs the check that matters more: that DCP **Chapter 12 still requires nothing**. Nine places asserted "a Heritage Impact Statement is required (DCP Chapter 12)" and both halves were wrong, so the correction rests on a negative — which a presence check is structurally blind to. It also pins the *modality*: if cl 5.10(5) ever stops saying "may", every hedge this repo now carries is wrong in the other direction. |
+| `scripts/audit_nimbin.py` | Checks `data/nimbin.py` against DCP Part B Chapter 6 (Nimbin Village) in four directions, because it is a fresh transcription: every quote is present; every numbered section heading, every precinct's **Preferred land uses** list (item for item, both ways), every Live / Work criterion label and every figure the chapter prints with a unit is read **off the document** and must be carried or named with a reason; no figure in the data's guidance text is one the chapter does not print; and the recorded absences (no height in metres, no parking rate, no site coverage, no side or rear setback figure) are still absent. `tests/test_nimbin.py` shows each direction failing. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 
@@ -81,9 +82,9 @@ imports keep working. It is not where the code lives. Find things by module:
 
 | Layer | Where | What |
 |---|---|---|
-| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
-| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
+| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `nimbin`, `contacts`. No logic. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `villages.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `villages`, `documents`, `see`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
 
@@ -330,6 +331,20 @@ fitout is this repo's most likely flood-shaped mistake. And **the DCP never goes
 cl 5.21(2) is a bar on granting consent rather than a standard to design to, and cl 5.21(3)(a)
 requires climate change to be considered, which the DCP's 2001 modelling predates.
 
+**`villages.py` selects; `data/nimbin.py` is DCP Part B Chapter 6.** RU5 is a business zone
+(`PLAN.md`), and Nimbin is the only village with a chapter of its own — the DCP Introduction
+records that Dunoon's and Clunes' were repealed in July 2020 — so `get_village_requirements`
+asks for `village` and **never infers Nimbin from RU5**; any other village is told the Part A
+chapters apply. Inside Nimbin the chapter draws its boundary, precincts, heritage conservation
+area and flood hazard on Figures 1, 2, 3 and 5, all images, so each is an argument and an
+unknown one returns every option — the CBD-boundary discipline again, and the refusal is a
+Duty Planner question (`nimbin_precinct`). Two things the answer always carries: **"preferred"
+is not "permissible"** (§2 — permissibility is still `check_permissibility`'s, and a
+non-preferred use must show there is no suitable land in its preferred precinct), and **§1.3(b)
+makes this chapter prevail over the rest of the DCP**, so its recommended 1m freeboard sits over
+Chapter 8's. The chapter's own misprints (§3.1.4 cites Figure 4 for the flood map, which is
+Figure 5) are recorded in `SOURCE_TEXT_DEFECTS` and quoted as printed.
+
 **`standards.py` answers from DCP Chapter 1, and its hardest job is saying what the chapter does
 not contain.** Chapter 1 is Performance Criteria with Acceptable Solutions, so §1.3 makes every
 figure a deemed-to-comply safe harbour rather than a limit — reporting "you must have 6m" talks an
@@ -464,7 +479,9 @@ This agent has access to official planning documents stored in the `documents/` 
 8. **For subdivision requirements**: Read `documents/dcp/chapter-5a-urban-residential-subdivision.pdf`
 9. **For buffer requirements**: Read `documents/dcp/chapter-11-buffer-areas.pdf`
 10. **For vegetation/trees**: Read `documents/dcp/chapter-14-vegetation-protection.pdf`
-11. **For Nimbin-specific**: Read `documents/dcp/part-b-chapter-6-nimbin-village.pdf`
+11. **For Nimbin-specific**: call `get_village_requirements` (it quotes
+    `documents/dcp/part-b-chapter-6-nimbin-village.pdf`). Only Nimbin has a village chapter;
+    Dunoon's and Clunes' were repealed in 2020
 12. **For koala habitat**: Read `documents/dcp/koala-plan-of-management.pdf`
 13. **For SEE preparation**: Read `documents/forms/statement-of-environmental-effects-minor-development.pdf` — a genuine blank Lismore City Council SEE template (added 2026-07-26, verified empty of any applicant data). It only covers "Minor Development": single-storey dwellings, single-storey residential additions/alterations, ancillary residential structures (sheds, pools, carports), and strata subdivision of existing buildings. For anything outside that scope (commercial, change of use, multi-storey, etc.), this form doesn't apply — build the SEE from the standard EP&A Regulation Schedule 1 headings instead (site description, context/setting, access/traffic, environmental impacts, flora/fauna, natural hazards, waste disposal, social/economic impacts, operational details). (The previous file at this path, `see-template-nsw-planning-portal.pdf`, was removed — it was actually a different council's completed, signed application containing another person's private details; see `_quarantined/README.md`.)
 14. **For stormwater**: Read `documents/forms/stormwater-drainage-handbook.pdf`

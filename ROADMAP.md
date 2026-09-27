@@ -644,7 +644,19 @@ Ordered by how often a business hits it. Each is the same shape as C1 and none i
   no structured answer **[verified]**. A waste management plan is a standard request-for-information
   trigger on food premises, which makes it a delay, which is rent.
 - **D3 — The villages (RU5).** `PLAN.md` names RU5 as a business zone and Part B Chapter 6 (Nimbin)
-  sits unread in `documents/`. Least common, genuinely underserved.
+  sits unread in `documents/`. Least common, genuinely underserved. **DONE 2026-09-27** —
+  `data/nimbin.py` (the chapter, verbatim), `villages.py`, `get_village_requirements`, and
+  `scripts/audit_nimbin.py`, written against the document in four directions: presence;
+  completeness read off the document (28 headings, 7 preferred-use lists / 44 uses, 18 Live / Work
+  labels, all 12 unit figures); no invented figure in the guidance; and four recorded absences.
+  Reading it end to end changed the design twice. **Only Nimbin has a village chapter** — the DCP
+  Introduction records Dunoon's and Clunes' as repealed in 2020 — so the tool asks for the village
+  and never infers it from RU5. And **every boundary the chapter uses is an image** (Figures 1, 2,
+  3, 5), so precinct, heritage area and flood hazard are arguments, unknown returns every option,
+  and the refusal is a new Duty Planner question for RU5 proposals. Worth knowing for a business:
+  §1.3(b) makes the chapter prevail over the rest of the DCP, so its recommended **1m freeboard**
+  sits over Chapter 8's 300mm; and the Commercial Precinct's facades and murals cannot be removed
+  or altered without consent.
 
 **Before starting any of these, re-read the lesson from Phase 0**: *the file nobody has looked at is
 not the file nobody needs to look at.* Each of these is a fresh transcription, which is the activity
