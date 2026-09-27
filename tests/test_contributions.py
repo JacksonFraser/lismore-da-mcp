@@ -274,13 +274,110 @@ class TestChangeOfUseAllowance:
     def test_the_assumption_still_applies_when_the_area_is_not_stated(self):
         """The default is kept because it is right for the ordinary case — a
         change of use in the same tenancy, which is the commonest business DA
-        there is. What changed is that it can now be corrected."""
+        there is. What changed is that it can now be corrected.
+
+        This used restaurant -> restaurant until ROADMAP.md T1. That is not a
+        change of use, and the same-area default made it $0 by construction;
+        see TestTheSameUseIsNotAssumedToHaveBuiltNothing."""
         result = estimate_contribution(
-            "restaurant", {"gross_floor_area_m2": 140}, catchment="urban",
-            existing_use="restaurant",
+            "cafe", {"gross_floor_area_m2": 140}, catchment="urban",
+            existing_use="office",
         )
+        assert result["net_contribution"]["urban"] > 0
+        assert "same floor area" in result["existing_development_allowance"]["assumption"]
+
+
+class TestTheSameUseIsNotAssumedToHaveBuiltNothing:
+    """ROADMAP.md T1, found by grading against Council's real decisions.
+
+    DA 2024/198 converted 14m² of a pub's laundry into bar area and Council
+    charged **$2,805.67** at the retail rate. The tool's rate was right — 14m²
+    at $20,101.55 per 100m² is $2,814.22 — but it answered **$0** two ways:
+
+    - `existing_use="pub"` alone assumed the previous use occupied the same
+      area as the proposal. For the *same* use that means nothing was built, so
+      the answer was $0 by construction.
+    - `existing_gross_floor_area_m2: 0` — the caller saying "this area is new" —
+      was discarded as falsy, and the same assumption came back.
+
+    `None` means not supplied; `0` means zero (CLAUDE.md, S3). The same-area
+    default stays right for a *change* of use in a tenancy, and is kept there.
+    """
+
+    PUB = dict(catchment="urban", existing_use="pub")
+
+    def test_new_area_for_the_same_use_is_charged(self):
+        result = estimate_contribution(
+            "pub", {"gross_floor_area_m2": 14}, existing_counts={"gross_floor_area_m2": 0},
+            **self.PUB)
+        assert result["net_contribution"]["urban"] == 2814.22
+        assert "assumption" not in result["existing_development_allowance"]
+
+    def test_a_same_use_expansion_still_nets_the_old_area(self):
+        result = estimate_contribution(
+            "pub", {"gross_floor_area_m2": 14}, existing_counts={"gross_floor_area_m2": 10},
+            **self.PUB)
+        assert result["net_contribution"]["urban"] == 804.07
+
+    def test_the_same_use_without_its_old_area_is_not_answered(self):
+        """Not $0 and not the gross: the net is somewhere between, and only the
+        previous floor area says where."""
+        result = estimate_contribution("pub", {"gross_floor_area_m2": 14}, **self.PUB)
+        allowance = result["existing_development_allowance"]
+        assert result["net_contribution"] is None
+        assert allowance["supply"] == "existing_gross_floor_area_m2"
+        assert allowance["at_most"] == {"urban": 2814.22}
+        assert "assumption" not in allowance
+
+    def test_the_same_use_is_recognised_across_spellings(self):
+        """The LEP's plural and an everyday word the LEP maps (A2) are still the
+        same use."""
+        result = estimate_contribution(
+            "Restaurants or cafes", {"gross_floor_area_m2": 50}, catchment="urban",
+            existing_use="restaurant or cafe")
+        assert result["net_contribution"] is None
+
+    def test_a_change_of_use_keeps_the_same_area_default(self):
+        """Shop -> cafe is the commonest business DA there is, and nil is right."""
+        result = estimate_contribution(
+            "cafe", {"gross_floor_area_m2": 80}, catchment="urban", existing_use="shop")
         assert result["net_contribution"]["urban"] == 0.0
         assert "same floor area" in result["existing_development_allowance"]["assumption"]
+
+    def test_the_budget_does_not_fall_back_to_the_gross(self):
+        """`net or gross` would have put the full $2,814.22 into the budget as if
+        the whole bar were new — the opposite error, and just as unannounced."""
+        result = estimate_total_cost(
+            19_734, development_type="pub", counts={"gross_floor_area_m2": 14},
+            **self.PUB)
+        contribution = result["parts"]["section_7_11_contributions"]
+        assert "section_7_11_contributions" not in result["what_that_covers"]
+        assert "existing_gross_floor_area_m2" in contribution["not_added_to_total"]
+        assert result["budget_at_least"] == (
+            result["parts"]["da_lodgement_fee"]["amount"]
+            + result["parts"]["information_technology_service_charge"]["amount"])
+
+    def test_the_budget_includes_it_once_the_area_is_given(self):
+        result = estimate_total_cost(
+            19_734, development_type="pub", counts={"gross_floor_area_m2": 14},
+            existing_counts={"gross_floor_area_m2": 0}, **self.PUB)
+        assert "section_7_11_contributions" in result["what_that_covers"]
+        assert result["budget_at_least"] > 2814.22
+
+    def test_zero_survives_the_tool_boundary(self):
+        """Where the bug actually was: the handler dropped a supplied 0."""
+        import asyncio
+        import json
+
+        from lismore_da_mcp.server import call_tool
+
+        text = asyncio.run(call_tool("calculate_da_fees", {
+            "development_cost": 19_734, "development_type": "pub", "catchment": "urban",
+            "gross_floor_area_m2": 14, "existing_use": "pub",
+            "existing_gross_floor_area_m2": 0,
+        }))[0].text
+        contribution = json.loads(text)["parts"]["section_7_11_contributions"]
+        assert contribution["net_contribution"]["urban"] == 2814.22
 
 
 class TestTheNoWorksFee:

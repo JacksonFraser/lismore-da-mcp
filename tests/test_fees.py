@@ -212,15 +212,18 @@ class TestTheTotalSaysWhatItRestsOn:
         assert "what_this_total_assumes" not in contribution
 
     def test_an_assumed_net_says_so_where_the_number_is(self):
-        """Same proposal, previous area not stated. The default stands, but the
-        caveat is no longer three levels down under the allowance."""
+        """A change of use, previous area not stated. The default stands, but
+        the caveat is no longer three levels down under the allowance.
+
+        This used restaurant -> restaurant until ROADMAP.md T1, which no longer
+        assumes an area for the same use at all — see test_contributions.py."""
         result = estimate_total_cost(
-            80_000, development_type="restaurant",
+            80_000, development_type="cafe",
             counts={"gross_floor_area_m2": 140}, catchment="urban",
-            existing_use="restaurant",
+            existing_use="office",
         )
         contribution = result["parts"]["section_7_11_contributions"]
-        assert contribution["net_contribution"]["urban"] == 0.0
+        assert contribution["net_contribution"]["urban"] > 0
         assert "existing_gross_floor_area_m2" in contribution["what_this_total_assumes"]
 
     def test_the_shop_to_cafe_nil_is_unchanged(self):
