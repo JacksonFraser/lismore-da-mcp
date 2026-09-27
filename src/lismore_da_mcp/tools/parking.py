@@ -9,6 +9,7 @@ from lismore_da_mcp.data.parking import COUNTABLE
 from lismore_da_mcp.data.parking import COUNTABLE_DESCRIPTIONS
 from lismore_da_mcp.data.parking import DISABILITY_PARKING
 from lismore_da_mcp.data.parking import PARKING_RATES
+from lismore_da_mcp.interpretations import cite_all
 from lismore_da_mcp.registry import tool
 from lismore_da_mcp.parking import cbd_location as _location
 from lismore_da_mcp.parking import cbd_spaces
@@ -95,6 +96,29 @@ def _cbd_arguments_not_applied(arguments: dict, in_cbd: bool | None,
             "This only reduces the §7.7.3.4 credit, and the credit is worked out from the "
             "existing building's floor area — supply existing_gfa_sqm as well.")}
     return {}
+
+
+def _readings_relied_on(entry: dict, in_cbd: bool | None, schedule_1_applies_anyway: bool,
+                        cbd: dict | None, cbd_arguments_dropped: bool) -> list[str]:
+    """The registered interpretations the figures in this answer turn on.
+
+    Only the ones this answer actually depends on: the café reading when a
+    Schedule 1 figure is shown, the CBD readings when the fixed rate is, the
+    credit readings when a credit was applied. A reading cited on an answer it
+    does not affect is a standing caveat, and those stop being read. ROADMAP.md B1.
+    """
+    readings = []
+    fixed_rate_shown = not schedule_1_applies_anyway and in_cbd is not False
+    schedule_1_shown = schedule_1_applies_anyway or in_cbd is not True
+    if fixed_rate_shown:
+        readings.append("cbd_fixed_rate_replaces_schedule_1")
+        if cbd and cbd.get("parking_credit"):
+            readings += ["cbd_credit_on_change_of_use", "cbd_rounding"]
+    if schedule_1_shown and entry.get("interpretation"):
+        readings.append(entry["interpretation"])
+    if schedule_1_applies_anyway and in_cbd is not False and cbd_arguments_dropped:
+        readings.append("cbd_credit_not_for_schedule_1_uses")
+    return readings
 
 
 @tool(
@@ -251,6 +275,11 @@ def get_parking_rates(arguments: dict):
         not_applied = _cbd_arguments_not_applied(arguments, in_cbd, schedule_1_applies_anyway)
         if not_applied:
             response["arguments_not_applied"] = not_applied
+
+        readings = _readings_relied_on(result, in_cbd, schedule_1_applies_anyway, cbd,
+                                       bool(not_applied))
+        if readings:
+            response["readings_relied_on"] = cite_all(readings)
 
         return [TextContent(type="text", text=json.dumps(response, indent=2))]
     else:

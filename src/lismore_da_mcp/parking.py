@@ -34,6 +34,7 @@ from lismore_da_mcp.data.parking import COMBINED_USES
 from lismore_da_mcp.data.parking import COUNTABLE
 from lismore_da_mcp.data.parking import MERIT_CRITERIA
 from lismore_da_mcp.data.parking import ON_STREET_LOSS
+from lismore_da_mcp.interpretations import cite
 
 
 # `_needs` names the floor area in prose, since that is how it reads in `basis`.
@@ -396,6 +397,7 @@ def shortfall_options(gap: int, in_cbd: bool, dev_type: str = "") -> dict:
                 "rules": CBD_OUTDOOR_DINING["rules"],
                 "note": CBD_OUTDOOR_DINING["note"],
                 "source": CBD_OUTDOOR_DINING["source"],
+                "reading_relied_on": cite("unenclosed_dining_generates_no_parking"),
             })
 
     options.append({

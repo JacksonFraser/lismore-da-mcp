@@ -543,7 +543,55 @@ the two PII tools.
 it: the readings taken where a source is ambiguous. Those are where a business gets hurt now,
 because the data underneath them is right.
 
-### B1 — An interpretation register
+### B1 — An interpretation register · **DONE 2026-09-27**
+
+> **Landed — 22 readings, 35 quoted provisions, every one verified on its page.**
+> `data/interpretations.py` carries each with the provision verbatim (source, section, PDF page),
+> the reading taken, the alternative, why this one, what it costs the applicant if Council
+> disagrees, and which way the error falls. `scripts/audit_interpretations.py` checks every quote
+> against its document *on the stated page*, and that every `duty_planner_question` and
+> `relied_on_by` link resolves; `tests/test_interpretations.py` re-runs it and pins each stated
+> cost against what the tool actually computes, so the register cannot drift into describing a
+> different tool.
+>
+> **The entries.** *Parking (6):* the CBD fixed rate replacing Schedule 1 rather than flooring it;
+> the café "(whichever is greater)"; the §7.7.3.4 credit reaching a change of use, not only a
+> rebuild; rounding once after the credit; the credit not applied to uses kept on Schedule 1 in the
+> CBD; unenclosed outdoor dining generating no requirement. *Contributions (6):* the same-floor-area
+> default for the previous use; the s2.7 allowance netted as one total rather than per
+> infrastructure category; pro rata per 100m²; food and drink premises charged as retail;
+> warehouses charged as industry; the published rural tourist figure that does not rebuild from
+> Table E1. *Flood (4):* §8.3 reaching a change of use with a fitout; the exemption reaching CBD
+> Flood Liable land; the all-development controls surviving it; the controls applied despite §8.3's
+> stale LEP 2000 reference. *And one each:* the fees schedule's p30 column attribution; cl 5.10(5)
+> "may"; cl 2.3(3)(b) — the nearest listed ancestor decides; §9.2 "residential" mapped to R zones
+> and not RU5; the 40-day period as calendar days; Chapter 1's figures as safe harbours.
+>
+> **Cited where they bite, and only there.** `get_parking_rates`, `calculate_da_fees` (through the
+> contribution) and `get_flood_requirements` carry `readings_relied_on` — id, the reading in one
+> line, the cost if Council disagrees — inside the answer whose figure turns on it. A shop placed
+> outside the CBD cites nothing, and a test says so. Readings that are the stricter choice and cost
+> nothing if wrong (the LEP 2000 reference, the all-development flood controls) are registered for
+> B2 but not cited, and the fee column is not either: about 4% of a lodgement fee on every fee
+> answer is the standing caveat item 0.1 diagnosed.
+>
+> **Two found by doing it.** `warehouse or distribution centre` resolved to the Industry row
+> *exactly*, so nothing in the answer flagged a judgement the LEP's own definition of industry
+> argues against — it is the weakest entry in the register and now says so where it is used. And
+> the evidence paragraph below conflates two readings: the CBD café's 3-against-17 rests on
+> §7.7.3.1 replacing Schedule 1, not on "(whichever is greater)", which only governs the Schedule 1
+> side. Both are registered separately.
+>
+> **Found and not fixed here, because it is S3's defect rather than a reading:** where one side of a
+> "greater of" is missing, `estimate_spaces` takes the other side as the answer. An 80m² café
+> outside the CBD with 6 staff and no seat count reports `spaces_required: 15` — 40 seats makes it
+> 17 — and the function centre and boarding house `or_` / `or_alt` rules do the same. It should be
+> `at_least: 15` with `supply: ["seats"]`.
+>
+> **Not registered, deliberately:** the parking `at_least` floor, which is arithmetic on readings
+> already registered rather than a reading of its own; and the catchment, Section 64 and CBD
+> boundary, which are refusals and already in `DUTY_PLANNER_QUESTIONS`. `scripts/render_interpretations.py`
+> prints the register as B2's review packet, with a line per entry for the planner's mark.
 
 **The evidence.** An 80m² CBD café returns **3 parking spaces**; Schedule 1 would give ~17
 **[verified]**. The difference rests on a reading of "(whichever is greater)" that the tool itself

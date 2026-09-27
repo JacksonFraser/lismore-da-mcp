@@ -30,6 +30,7 @@ from lismore_da_mcp.data.contributions import (
     PLAN_NAME,
 )
 from lismore_da_mcp.data.definitions import LAND_USE_HIERARCHY
+from lismore_da_mcp.interpretations import cite_all
 from lismore_da_mcp.landuse import canonical_use
 
 # What each Table E2 base is counted in, and the argument that supplies it.
@@ -48,28 +49,48 @@ def resolve_development_type(term: str) -> tuple[str | None, str | None]:
     via food and drink premises without this module enumerating every business
     that might open in Lismore.
     """
+    key, how, _ = _resolve(term)
+    return key, how
+
+
+def _resolve(term: str) -> tuple[str | None, str | None, str | None]:
+    """As resolve_development_type, plus the HIERARCHY_TO_TYPE term that decided it.
+
+    Which term decided it is what says whether a registered reading was relied
+    on: 'food and drink premises' reaching the retail row, or 'warehouse or
+    distribution centre' reaching the industry row, is a judgement, where 'shop'
+    reaching retail premises is not.
+    """
     if not term:
-        return None, None
+        return None, None, None
 
     target = canonical_use(term)
 
     # A Table E2 key or plan name, given directly.
     for key, entry in DEVELOPMENT_TYPE_RATES.items():
         if target in (canonical_use(key), canonical_use(entry["plan_name"])):
-            return key, "exact"
+            return key, "exact", None
 
     for hierarchy_term, key in HIERARCHY_TO_TYPE.items():
         if canonical_use(hierarchy_term) == target:
-            return key, "exact"
+            return key, "exact", hierarchy_term
 
     # Otherwise walk up the land use hierarchy to the first term Table E2 covers.
     for parent in LAND_USE_HIERARCHY.get(target, []):
         parent_canonical = canonical_use(parent)
         for hierarchy_term, key in HIERARCHY_TO_TYPE.items():
             if canonical_use(hierarchy_term) == parent_canonical:
-                return key, f"via '{parent}'"
+                return key, f"via '{parent}'", hierarchy_term
 
-    return None, None
+    return None, None, None
+
+
+# The Table E2 rows reached through a registered reading rather than by name.
+# ROADMAP.md B1 — data/interpretations.py carries each one's alternative.
+_READING_FOR_TERM = {
+    "food and drink premises": "food_and_drink_charged_as_retail",
+    "warehouse or distribution centre": "warehouse_charged_as_industry",
+}
 
 
 def _units(entry: dict, counts: dict) -> tuple[float | None, str]:
@@ -112,7 +133,10 @@ def estimate_contribution(
             "catchments": list(CATCHMENTS),
         }
 
-    key, how = resolve_development_type(term)
+    key, how, decided_by = _resolve(term)
+    readings: list[str] = []
+    if decided_by in _READING_FOR_TERM:
+        readings.append(_READING_FOR_TERM[decided_by])
     if key is None:
         return {
             **result,
@@ -136,6 +160,8 @@ def estimate_contribution(
 
     units, described = _units(entry, counts)
     if units is None:
+        if readings:
+            result["readings_relied_on"] = cite_all(readings)
         return {
             **result,
             "contribution": None,
@@ -148,6 +174,10 @@ def estimate_contribution(
 
     rates = _rates(entry, catchment)
     gross = {name: round(rate * units, 2) for name, rate in rates.items()}
+    if entry["base"] == "100m2 GFA" and units != int(units):
+        readings.append("contribution_pro_rata")
+    if key == "tourist_accommodation" and catchment != "urban":
+        readings.append("tourist_rural_published_figure")
     result["units"] = round(units, 4)
     result["units_described"] = described
     result["rate_per_unit"] = rates
@@ -190,7 +220,10 @@ def estimate_contribution(
                     allowance["existing_interpreted_as"] = (
                         f"'{existing_use}' read as '{existing_entry['plan_name']}' {existing_how}"
                     )
+                if existing_entry["demand"] != entry["demand"]:
+                    readings.append("allowance_netted_as_totals")
                 if existing_counts is None:
+                    readings.append("allowance_same_floor_area")
                     allowance["assumption"] = (
                         "The previous use is taken to occupy the same floor area as the "
                         "proposal, which is the ordinary case for a change of use in an "
@@ -223,6 +256,9 @@ def estimate_contribution(
 
     if not catchment:
         result["catchment"] = CATCHMENT_NOTE
+
+    if readings:
+        result["readings_relied_on"] = cite_all(readings)
 
     result["pro_rata_note"] = (
         "Table E2 states the rate per unit; this applies it pro rata to the area or count "

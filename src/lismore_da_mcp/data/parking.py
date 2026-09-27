@@ -165,6 +165,9 @@ _RESTAURANT = {
             {"greater_of": [{"one_per": 3, "of": "seats"}, {"rate": 15, "per_area": 100}]},
         ],
     },
+    # The reading above, registered with its alternatives and what it costs if
+    # Council reads the rate differently. ROADMAP.md B1.
+    "interpretation": "cafe_whichever_is_greater",
 }
 
 _OFFICE = {
