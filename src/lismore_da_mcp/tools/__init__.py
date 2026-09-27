@@ -8,6 +8,7 @@ from lismore_da_mcp.tools import (  # noqa: F401
     approvals,
     documents,
     fees,
+    heritage,
     parking,
     planning,
     readiness,
