@@ -372,7 +372,7 @@ class TestItNeverSaysReady:
                            "description of the existing approved use",
                            "BCA compliance assessment", "fire safety upgrade report",
                            "access upgrade assessment", "car parking assessment",
-                           "operating hours", "waste storage", "acoustic report",
+                           "operating hours", "waste management plan", "acoustic report",
                        ])
         assert result["documents"]["missing"] == []
         assert result["verdict"].startswith("Nothing this tool can check is outstanding")
