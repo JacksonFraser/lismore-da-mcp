@@ -55,7 +55,7 @@ claude
 
 ## Available MCP Tools
 
-33 tools in total.
+34 tools in total.
 
 **Lookups**
 
@@ -78,6 +78,7 @@ claude
 | `get_flood_requirements` | Flood controls from DCP Chapter 8, which differ by flood hazard area — pass `flood_area` if you know it, and `is_change_of_use` for a business taking over existing premises, which §8.3 exempts from the commercial controls |
 | `get_heritage_requirements` | DCP Chapter 12 and LEP cl 5.10 for work on or near heritage land: whether it needs consent, the design guidelines for the work described (signage, shopfront, repaint, extension…), the conservation area's precinct policies, what Council *may* ask for, and cl 5.10(10) for a use the zone prohibits. Heritage status is never guessed — without it, every case comes back side by side. Pass `address` to search LEP Schedule 5 offline for a listing at that address or on its street |
 | `get_village_requirements` | Controls for a village site. Only Nimbin has a DCP chapter (Part B Chapter 6): precincts and the uses preferred in each, Cullen Street heritage controls, rainwater storage, and its own flood hazard controls. The village, precinct, heritage area and flood hazard are never inferred from the zone |
+| `get_waste_requirements` | What DCP Chapter 15 requires for waste — the waste management plan (SWMMP) that goes in the SEE, bin storage and collection, and for a food business the 240-litres-a-week food waste rule. It applies to a change of use too. Give `premises_type` and `floor_area_m2` for Appendix C's estimate of how much waste the premises will produce |
 | `check_referrals` | External agency referrals (integrated development) a proposal may trigger |
 | `calculate_da_fees` | What a DA costs: lodgement fee, Council's notification and technology charges, and the Section 7.11 developer contribution — which on a commercial DA is usually far larger than the fee |
 | `get_da_checklist` | Required documents for a DA, by development type |

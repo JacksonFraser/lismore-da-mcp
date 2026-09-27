@@ -1300,6 +1300,34 @@ Ordered by how often a business hits it. Each is the same shape as C1 and none i
 - **D2 — DCP Chapter 15, Waste Minimisation.** Referenced seven times in checklists as prose with
   no structured answer **[verified]**. A waste management plan is a standard request-for-information
   trigger on food premises, which makes it a delay, which is rent.
+
+  > **Landed 2026-09-27.** `data/waste.py`, `waste.py`, `get_waste_requirements` and
+  > `scripts/audit_waste.py` (written first). The audit checks 218 stored quotes and 6 figures,
+  > reads all 27 numbered sections and 8 appendices off the PDF's bold spans, counts the 118
+  > numbered requirements in the eleven sections that set them against what is carried (4.3 has
+  > 21; 4.2 has 27), rebuilds Appendix C's 16 rows from the page geometry and compares them cell
+  > by cell both ways, and asserts six absences. What it found:
+  >
+  > - **The change-of-use checklist was understating it.** §1.3 lists "Change of use" as covered,
+  >   and §2.1 puts a Site Waste Minimisation and Management Plan in the SEE. The checklist asked
+  >   only for "waste storage and collection arrangements". It now asks for the plan, and all
+  >   four existing checklist entries point at `get_waste_requirements` instead of naming the chapter; the
+  >   dwelling checklist gains the §4.1 plan, which Chapter 1 A21.1 already required.
+  > - **The food-business rule is §4.3 criterion 14**: 240 litres a week of meat, seafood,
+  >   poultry or food waste means collection at least twice weekly or refrigerated storage. The
+  >   chapter never uses the term "food premises".
+  > - **Grease is outside the chapter** (§1.3) — liquid trade waste is a separate s68 approval,
+  >   and the tool says so on every answer rather than leaving it out.
+  > - **Nobody has to be qualified to write the plan.** The chapter names no professional and
+  >   scales the detail to the proposal; Appendix A is a fill-in template.
+  > - **Appendix C's café rate is per 1.5m², not per 100m²** — an 80m² café defaults to 533 L a
+  >   day. Quoted as printed, labelled as the §2.3 default a project-specific calculation may
+  >   replace. "Variable" cells stay unquantified.
+  >
+  > Noted, not fixed (they are Council's text): Appendix G cites Appendix B for the rates, which
+  > are in Appendix C; Appendix A's construction page cites §3.2 (demolition); the chapter still
+  > names WorkCover NSW, s79C and SEPP (Major Development) 2005; and §1.4.4's variation test
+  > requires compliance with "relevant Performance Criteria" in sections that have none.
 - **D3 — The villages (RU5).** `PLAN.md` names RU5 as a business zone and Part B Chapter 6 (Nimbin)
   sits unread in `documents/`. Least common, genuinely underserved. **DONE 2026-09-27** —
   `data/nimbin.py` (the chapter, verbatim), `villages.py`, `get_village_requirements`, and

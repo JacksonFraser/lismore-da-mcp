@@ -310,8 +310,10 @@ APPROVALS = {
                       "will normally condition where bins are stored and how they are "
                       "presented.",
         "gotcha": "Bin storage is a design constraint in a small CBD tenancy with no rear "
-                  "access, and a waste management plan is commonly required with the DA. "
-                  "Deciding it after the fitout is drawn is how a tenancy loses floor area.",
+                  "access. DCP Chapter 15 §4.3 requires a waste management plan with the DA and "
+                  "every commercial tenant to keep written evidence onsite of a contract with a "
+                  "licensed waste contractor (get_waste_requirements). Deciding it after the "
+                  "fitout is drawn is how a tenancy loses floor area.",
     },
 }
 
