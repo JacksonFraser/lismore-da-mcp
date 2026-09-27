@@ -36,8 +36,8 @@ TYPICAL ORDER OF WORK
    which most applicants do not know: lookup_zone_by_address derives it from the
    address. Never guess it, and show the applicant the address it matched — a
    zone for the wrong property is worse than none.
-3. What is required? get_da_checklist, check_referrals, and the DCP standards
-   tools (parking, setbacks, flood, residential standards).
+3. What is required? get_da_checklist, check_referrals, and the DCP tools
+   (parking, setbacks, flood, heritage, residential standards).
    Parking: the CBD uses a fixed 3.3 spaces/100m2, not the Schedule 1 rate —
    usually several times lower. Pass `location`, never inferred from the
    zone. A shortfall has named remedies in the DCP.
