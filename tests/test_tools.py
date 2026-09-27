@@ -32,6 +32,7 @@ VALID_ARGS = {
     "get_zone_info": {"zone_code": "R2"},
     "calculate_da_fees": {"development_cost": 250000},
     "get_flood_requirements": {"development_type": "residential"},
+    "get_waste_requirements": {"development_type": "cafe", "floor_area_m2": 80},
     "get_contact_info": {},
     "search_dcp": {"query": "setback", "chapter": "chapter-1"},
     "read_dcp_section": {"chapter": "chapter-7-off-street-carparking.pdf", "start_page": 1, "end_page": 1},

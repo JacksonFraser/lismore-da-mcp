@@ -53,7 +53,7 @@ claude
 
 ## Available MCP Tools
 
-30 tools in total.
+31 tools in total.
 
 **Lookups**
 
@@ -73,6 +73,7 @@ claude
 | `get_setback_requirements` | Front setback for residential development, which DCP Chapter 1 sets by zone — 6m in R1/R2/R3/RU5, 15m in RU1/R5/E3, 28m on an RMS road. The chapter sets no side or rear setback for an ordinary lot, and the tool says so rather than inventing one |
 | `get_residential_standards` | DCP Chapter 1 by element — open space and landscaping, density, privacy, earthworks, parking, fences, solar access — plus small lot housing, secondary dwellings, shop top housing and the Lismore Health Precinct |
 | `get_flood_requirements` | Flood controls from DCP Chapter 8, which differ by flood hazard area — pass `flood_area` if you know it, and `is_change_of_use` for a business taking over existing premises, which §8.3 exempts from the commercial controls |
+| `get_waste_requirements` | What DCP Chapter 15 requires for waste — the waste management plan (SWMMP) that goes in the SEE, bin storage and collection, and for a food business the 240-litres-a-week food waste rule. It applies to a change of use too. Give `premises_type` and `floor_area_m2` for Appendix C's estimate of how much waste the premises will produce |
 | `check_referrals` | External agency referrals (integrated development) a proposal may trigger |
 | `calculate_da_fees` | What a DA costs: lodgement fee, Council's notification and technology charges, and the Section 7.11 developer contribution — which on a commercial DA is usually far larger than the fee |
 | `get_da_checklist` | Required documents for a DA, by development type |

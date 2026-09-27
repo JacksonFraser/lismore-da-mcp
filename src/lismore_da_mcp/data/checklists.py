@@ -70,6 +70,9 @@ DA_CHECKLISTS = {
             "Shadow diagrams (if 2+ storeys)",
             "Privacy assessment",
             "Landscape plan",
+            "Waste management plan — for a dwelling house, semi-detached dwelling or dual "
+            "occupancy, completing Council's Appendix B checklist is deemed to satisfy it (DCP "
+            "Chapter 15 §4.1; get_waste_requirements)",
         ],
     },
     "commercial": {
@@ -79,8 +82,9 @@ DA_CHECKLISTS = {
             "Fire safety schedule",
             "Access report — compliance with the Disability (Access to Premises) Standards "
             "(commonly required)",
-            "Waste management plan (construction and ongoing operational waste) — see DCP "
-            "Chapter 15",
+            "Waste management plan — a Site Waste Minimisation and Management Plan covering "
+            "construction and ongoing operation, with the bin storage area shown on the plans "
+            "(DCP Chapter 15 §2.1, §4.3; get_waste_requirements)",
             "Car parking assessment against DCP Chapter 7 — get_parking_rates gives the rate "
             "and any shortfall",
             "Traffic impact assessment (if significant traffic generation)",
@@ -106,7 +110,9 @@ DA_CHECKLISTS = {
             "Car parking assessment — including any credit for parking attributable to the "
             "previous use (get_parking_rates)",
             "Operating hours, staff numbers, patron or customer numbers, deliveries",
-            "Waste storage and collection arrangements — DCP Chapter 15",
+            "Waste management plan — Chapter 15 applies to a change of use (§1.3): ongoing "
+            "waste, bin storage and collection, in the SEE and shown on the plans (§2.1, §4.3; "
+            "get_waste_requirements)",
             "Acoustic report (if the new use generates noise, especially near residential)",
         ],
         "commonly_missed": [
@@ -132,7 +138,8 @@ DA_CHECKLISTS = {
         "documents": [
             "BCA compliance report",
             "Fire safety schedule, and a hazardous materials assessment if applicable",
-            "Waste management plan — DCP Chapter 15",
+            "Waste management plan — including the industrial waste streams (DCP Chapter 15 "
+            "§4.5; get_waste_requirements)",
             "Car parking and heavy vehicle manoeuvring — DCP Chapter 7 requires loading bays "
             "and manoeuvring areas sized to the vehicle type",
             "Stormwater management plan — DCP Chapter 22",
@@ -169,7 +176,8 @@ DA_CHECKLISTS = {
         "documents": [
             "Demolition plan and staging",
             "Hazardous materials survey (asbestos)",
-            "Waste management plan — DCP Chapter 15",
+            "Waste management plan — demolition waste, reuse and records of disposal (DCP "
+            "Chapter 15 §3.2; get_waste_requirements)",
             "Heritage management document if Council requires one (LEP cl 5.10(5)) — on or "
             "near a heritage item or conservation area",
         ],
