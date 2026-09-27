@@ -39,7 +39,7 @@ CHECKS = [
     ("check_permissibility", {"zone_code": "E2", "land_use": "cafe"},
      lambda t: json.loads(t)["permissibility"].startswith("permitted"),
      "permissibility answers for a business use"),
-    ("get_zone_info", {"zone": "R2"},
+    ("get_zone_info", {"colour": "R2"},
      lambda t: "Unrecognised" in t,
      "an unknown argument is refused, not guessed"),
     ("calculate_da_fees", {"development_cost": "lots"},

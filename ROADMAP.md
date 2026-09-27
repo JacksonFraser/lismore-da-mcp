@@ -419,6 +419,14 @@ this phase is aimed at the first three tool calls of a session that has never us
 
 ### A1 — Accept the argument names callers actually use
 
+> **DONE 2026-09-25.** `resolve_aliases()` in `registry.py`, run by `call_tool` before
+> `validate_arguments`. Six concepts — floor area, cost of works, zone, parking spaces provided,
+> address, the proposed use — each with an ordered list of the arguments it may land on, so a tool
+> takes the one it declares. The five RB-01 calls now resolve. The collision guard is
+> `test_an_alias_never_shadows_a_tools_own_argument`; names whose meaning differs between tools
+> (`area_sqm`, `existing_spaces_on_site`, `development_type`) are excluded and pinned. The use
+> concept reaches `development_type` only in the parking and fees tools, where it is the use.
+
 **The evidence.** The logs' only usability signal is three `invalid_arguments` results in 18
 seconds against `calculate_da_fees`. On 2026-08-09 the first natural-phrasing attempt at the
 business path failed twice in a row for the same reason **[verified]**:
