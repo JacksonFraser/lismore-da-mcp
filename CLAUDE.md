@@ -57,6 +57,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_parking_rates.py` **completeness** | Added 2026-08-20. The rates were only ever presence-checked, and the docstring claimed a completeness check that **did not exist** — so "27 entries checked, 0 not matching" printed while `Shop top housing` was absent from `data/parking.py` entirely. Schedule 1's land use column is now isolated from the PDF by x-position (the rate columns still cannot be diffed, which is why rates stay verbatim), every row is either carried or named in `UNCARRIED_SCHEDULE_1_USES`, and the hand-read list is itself checked against the document so it cannot drift into fiction. |
 | `scripts/audit_heritage.py` | Checks the LEP cl 5.10 provisions in `data/heritage.py` against the LEP text, and runs the check that matters more: that DCP **Chapter 12 still requires nothing**. Nine places asserted "a Heritage Impact Statement is required (DCP Chapter 12)" and both halves were wrong, so the correction rests on a negative — which a presence check is structurally blind to. It also pins the *modality*: if cl 5.10(5) ever stops saying "may", every hedge this repo now carries is wrong in the other direction. |
 | `scripts/run_scenarios.py` | Runs `SCENARIOS.md` against the real handlers with fixed calls and keeps every answer verbatim; `--compare` lists what changed since an earlier run. It does not judge — verdicts need a reading of the source — but an unchanged answer keeps its verdict, so a run costs the changed scenarios only. Run it after every phase: run 2 found a wrong "yes" 161 answers wide that every audit passed. |
+| `scripts/audit_interpretations.py` | Checks every provision quoted in `data/interpretations.py` — the register of readings this repo takes where a source admits more than one — appears verbatim in its source, **on the PDF page the entry names**, so a reviewer can turn straight to it and a phrase lifted from the wrong section fails. Also checks each entry carries what the planner review needs and that its `duty_planner_question` and `relied_on_by` links resolve. It cannot audit the readings themselves — that is ROADMAP.md B2, and `scripts/render_interpretations.py` prints the register as the review packet. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `/validate-tracker`, `tracker-validator` agent, `scripts/validate_against_tracker.py` | The only check graded by someone other than us: real business DAs from Council's DA Tracker, graded against the Notices of Determination (ROADMAP.md Phase T). `harvest` finds new DAs, `fetch --update` reads Council's figures into `tests/fixtures/tracker_cases.json`, `grade` scores the tools, `freeze` records a prediction for an undetermined DA — the only cases graded without hindsight. Inputs come from what the applicant knew at lodgement, never the consent. Notices carry names and emails, so downloads stay in `tracker-cache/`, which is gitignored and hook-blocked. Needs the `scraping` extra, and it is live — the tracker and the address services. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/`, `_quarantined/` or `tracker-cache/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
@@ -83,8 +84,8 @@ imports keep working. It is not where the code lives. Find things by module:
 
 | Layer | Where | What |
 |---|---|---|
-| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`, `interpretations`. No logic. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `interpretations.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
 | Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
@@ -322,6 +323,21 @@ fifteen-minute Duty Planner session. Each carries what it costs to leave unresol
 fifteen minutes does not fit ten questions and the applicant has to choose. **If you add a tool
 that declines to answer something, add the question here too** — otherwise the refusal is a dead
 end rather than a redirection.
+
+**`data/interpretations.py` is the other half: the repository's judgements, collected.** Where a
+tool does not refuse but reads an ambiguous provision one way and computes from it — the CBD fixed
+parking rate *replacing* Schedule 1 rather than flooring it, the café rate's "(whichever is
+greater)", the §8.3 flood exemption reaching a fitout, the section 2.7 allowance netted as one
+total — the entry records the provision verbatim with its page, the reading, the alternative, why
+this one, and **what it costs the applicant if Council disagrees**. Every figure underneath those
+answers is transcribed correctly and audited, so no presence check can catch a wrong reading: an
+80m² CBD café is 3 spaces on this repo's reading of §7.7.3.1 and 17 on the other. **If you take a
+reading where the source admits another, register it here** — otherwise the judgement is
+invisible and the next person assumes it was the only possibility. Tools cite an entry with
+`interpretations.cite()` inside the answer that turns on it and nowhere else: a citation on an
+answer it does not affect is the standing caveat item 0.1 diagnosed. Link an entry to its
+`DUTY_PLANNER_QUESTIONS` key where one exists; a reading a planner disputes becomes a correction or
+a Duty Planner question.
 
 **`flood.py` selects; `data/flood.py` is the chapter.** DCP Chapter 8 sets its controls per flood
 hazard area, and there are five of them — Floodway, High Flood Risk, Flood Fringe, Low Flood Risk

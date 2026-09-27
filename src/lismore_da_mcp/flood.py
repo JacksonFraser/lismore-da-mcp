@@ -37,6 +37,7 @@ from lismore_da_mcp.data.flood import (
     SCOPE,
     STATE_MAPPING_GAP,
 )
+from lismore_da_mcp.interpretations import cite_all
 from lismore_da_mcp.vocabulary import resolve
 
 DEVELOPMENT_TYPES = ("residential", "commercial", "industrial")
@@ -162,8 +163,15 @@ def is_cbd_flood_liable(term: str) -> bool:
     return str(term or "").strip().lower().replace("_", " ") in {"cbd", "cbd flood liable"}
 
 
-def controls_for(area_key: str, development_type: str, is_change_of_use: bool = False) -> dict:
-    """The controls one area applies to one development type."""
+def controls_for(area_key: str, development_type: str, is_change_of_use: bool = False,
+                 cbd_flood_liable: bool = False) -> dict:
+    """The controls one area applies to one development type.
+
+    `cbd_flood_liable` says the Flood Fringe controls are being given to CBD
+    Flood Liable land — either because the caller named it, or because no area
+    was named and the Flood Fringe entry stands for both. It matters only to
+    which registered reading the change-of-use exemption cites.
+    """
     area = FLOOD_AREAS[area_key]
     answer = {
         "flood_area": area["name"],
@@ -239,6 +247,14 @@ def controls_for(area_key: str, development_type: str, is_change_of_use: bool = 
                 "its merits rather than exempting it.",
             ],
             "minor_extensions_verbatim": SCOPE["minor_extensions_verbatim"],
+            # The exemption is this answer's largest saving and it rests on a
+            # reading of §8.3 — say which, and what it costs if Council reads
+            # it otherwise. ROADMAP.md B1.
+            "readings_relied_on": cite_all(
+                ["flood_change_of_use_with_fitout"]
+                + (["flood_exemption_reaches_cbd_flood_liable"]
+                   if cbd_flood_liable and area_key == "flood_fringe" else [])
+            ),
         }
         answer["would_apply_to_new_development"] = requirements
         answer["note"] = (
@@ -320,7 +336,8 @@ def is_sensitive_or_hazardous(term: str) -> bool:
 
 
 def requirements(development_type: str, flood_area: str | None = None,
-                 is_change_of_use: bool = False, asked_about: str = "") -> dict:
+                 is_change_of_use: bool = False, asked_about: str = "",
+                 cbd_flood_liable: bool = False) -> dict:
     """The flood answer for one proposal.
 
     `flood_area` is optional and is never guessed. Without it the answer
@@ -339,12 +356,14 @@ def requirements(development_type: str, flood_area: str | None = None,
     if flood_area:
         area_key = flood_area
         answer["flood_area_established_by"] = "supplied by the caller"
-        answer["applies"] = controls_for(area_key, development_type, is_change_of_use)
+        answer["applies"] = controls_for(area_key, development_type, is_change_of_use,
+                                         cbd_flood_liable)
     else:
         answer["flood_area"] = "not established"
         answer["why_not_established"] = AREA_NOT_INFERABLE
         answer["controls_by_area"] = {
-            area["name"]: controls_for(key, development_type, is_change_of_use)
+            area["name"]: controls_for(key, development_type, is_change_of_use,
+                                       cbd_flood_liable=True)
             for key, area in FLOOD_AREAS.items()
         }
         answer["what_this_means"] = (
