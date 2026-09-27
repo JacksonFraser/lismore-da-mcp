@@ -719,6 +719,93 @@ T8 before T5, which depends on it.
 
 ---
 
+# Phase U — Use Council's record, not just grade against it
+
+> **Added 2026-09-27.** Phase T used the DA Tracker as an answer key. Reading 21 notices showed it
+> is also a source, and a better one than the documents for three questions a business actually
+> asks: *what has already been approved on this site*, *what will Council ask of me*, and *how long
+> will I be paying rent before I can open*. Council's consents are heavily templated, so its past
+> decisions predict its next ones better than any reading of the DCP. None of this predicts
+> **approval** — 20 of 21 were approved, and *Deliberately not doing* still stands.
+>
+> **Shared rules for all three:**
+> - **Snapshot, never live.** Build from a scheduled harvest (T8's machinery) into a dated data
+>   file. The public server must not scrape Council's site per request: it is slow, fragile, and
+>   an open endpoint scraping on demand is a way to get the tracker blocked for everyone.
+> - **Public record only in the snapshot.** DA number, property, lot/DP, description, dates,
+>   determination, Council's figures and condition *headings*. Never the applicant, the officer or
+>   any contact detail — `parse_listing` already skips them, and `council_facts` is the model.
+> - **Say how old it is.** Every answer carries the snapshot date, the way `schedule_status()`
+>   does for fees — loudly only when it is actually stale.
+> - Do T1–T4 first. This phase adds new answers; T fixes wrong and missing ones.
+
+### U1 — `site_history`: what has already been approved here · **HIGH**
+
+**The evidence.** The small bar refused in June 2026 (DA 2026/24) sat on the same lots — Lots 1
+and 2, DP 11350 — as a café approved a year earlier (DA 2025/38), whose consent limited trading
+to **9–5 weekdays and 9:30–2:30 Saturday "to ensure reasonable expectations of residential
+amenity"**. That is the single most relevant fact about the site for a late-night venue, it was
+public, and nothing in this server could have surfaced it. The same lookup answers two other
+questions no tool can today:
+
+- **The Section 7.11 allowance.** It depends on evidence of the lawful existing use as at
+  1 January 2024 (`EXISTING_DEVELOPMENT_ALLOWANCE["what_you_must_do"]`), and a prior consent *is*
+  that evidence. Shop → café is $0 and office → café is ~$12k — the allowance is the difference.
+- **Inherited constraints.** Hours, patron limits and conditions on a prior consent tell a
+  business what the neighbours have already been promised.
+
+**The fix.** A `site_history` tool that takes an address or lot/DP and returns prior DAs on the
+same lots: number, description, dates, determination, and — where a notice is on the tracker —
+the condition headings, hours conditions and contributions. **Key it by lot/DP, not street
+number**: Council's and the geocoder's street numbers disagree (T7), while the tracker's search
+form takes `lotNumber` and `planNumber` directly and every notice lists them.
+
+**Cost:** two days, most of it the snapshot and the lot/DP index. Depends on T8 (done) and pairs
+with T7.
+
+### U2 — `find_precedents`: what Council did with applications like mine · **HIGH**
+
+**The evidence.** Across 15 business consents the conditions repeat almost word for word: a Flood
+Evacuation Plan (9 of 15), fire safety certification, health premises registration and "no skin
+penetration" for hair and beauty, AS 4674 food fitout and an 8kW cooking-appliance limit for
+cafés, hours of operation on nearly all. Timing splits the same way: five of the six business DAs
+over 100 days in the sample had an information request (the sixth, a childcare expansion, was
+notified to neighbours twice), and most without one took 29–64 days.
+
+**The fix.** A `find_precedents` tool: given a use (resolved through `lep_term_for`, so "barber"
+finds business premises consents), a zone and optionally a street, return the most recent
+comparable determinations with days taken, whether there was an information request, the charges
+levied, and the condition headings. Add a short **conditions preview** — the headings that appear
+in most of the matches, with what each will require — labelled as practice, not rule, like T4.
+
+**Guard against over-reading.** Show the count behind every pattern ("7 of 9 café consents"), and
+answer "not enough precedent" below three matches rather than generalising from one or two.
+
+**Cost:** two days on top of U1's snapshot. Condition headings need a light parser over notice
+text. Only headings go into the snapshot, never the notice itself.
+
+### U3 — The lease-stage check, with the cost of waiting · **MED**
+
+**The evidence.** A business's real decision point is signing the lease, not lodging the DA —
+and `get_assessment_timeline` tells it the 40-day statutory period while the observed median for
+business DAs is 62 days and the 75th percentile 101 (T5). At those figures a business pays about
+**nine weeks of rent before it can open at the median, and fourteen at the 75th percentile** —
+the number that should set the rent-free period it negotiates, and one no tool gives.
+
+**The fix.** Not a new walk — `prepare_prelodgement_brief` already composes one. Add an optional
+`weekly_rent` argument and a *before you sign* section at the top: whether the use is allowed; whether a DA is
+needed at all; the charges including the Section 64 range (T3); flood and heritage; the site's
+history (U1); and **rent exposure = weekly rent × the observed duration distribution** for that
+kind of DA, shown as a median and a slow case, never a date. Keep T5's rule that no calendar date
+is calculated.
+
+**Cost:** a day once T5 and U1 exist.
+
+**Order within the phase:** U1 first — it is cheapest, it underpins the contribution allowance,
+and it would have flagged the one refusal in the sample. U2 reuses its snapshot. U3 needs T5.
+
+---
+
 # Phase A — Survive first contact
 
 Cheap, days not weeks, and it is the distribution work that can be done from here. Everything in
@@ -857,6 +944,25 @@ enter this system.
 the two PII tools.
 
 **Cost:** an hour, plus the PII decision.
+
+### A5 — Make the brief a one-page printout
+
+**The evidence.** People bring paper to the Duty Planner's counter, and the brief is the only
+output here that can reach a business owner without an AI client. It is plain text today, which is
+the right content in the wrong form: printed from a chat window it is long, unformatted and easily
+mistaken for something Council issued (see A4).
+
+**The fix.** A `format: "pdf"` option on `prepare_prelodgement_brief` that returns one A4 page:
+the site and use, the questions for the Duty Planner in priority order with what each costs if
+unresolved, the charges known and unknown, and the identity statement at the foot. Return it
+inline in public mode and never write it to disk, following `fill_see_pdf`'s `PUBLIC_MODE` rule.
+**Take no name or address beyond the property** — a brief does not need an applicant, so this
+stays off the PII surface A4 is trying to shrink.
+
+This is the smallest version of shape option 2 in *The decision this roadmap cannot make*: the
+paper becomes the product without building the public page, so it does not pre-empt that decision.
+
+**Cost:** half a day. Reuse `fitz`, already a dependency.
 
 ---
 
@@ -1021,6 +1127,19 @@ Runs in parallel with everything above and is mostly not code. Phase A **is** th
   lines and undercounted by 7×.
 - **Decide the shape** (the three options above). Not urgent until Phase A lands, because Phase A
   is worth doing on all three.
+- **Approach Council's small business planner — with something to give.** Several consents in
+  Phase T's sample were signed by a *Development Planner – Small Business / Process Improvement*:
+  a role that exists to reduce exactly the friction this repo is about. The tracker analysis is a
+  useful gift to that role — a 62-day median for business DAs, and five of the six over 100 days
+  carrying an information request — and a better opening than asking for time. This is the concrete form of
+  shape option 3 and of *Open questions* 2. Lead with the data, not the tool.
+- **Get the information request letters.** They are what drives delay (Phase T: five of the six
+  business DAs over 100 days had one), and the tracker publishes none, so `check_da_readiness` is still graded
+  against nothing. Two routes: a **GIPA request** to Council for de-identified information request
+  letters on business DAs since July 2024, and asking recent applicants directly — the tracker
+  shows who had one. Twenty letters would show which requests recur for which use, and would make
+  the readiness check testable for the first time. Keep them out of the repo the way
+  `tracker-cache/` is kept out, and record only the categories of what was asked.
 
 ### A telemetry idea worth designing carefully
 
@@ -1056,6 +1175,10 @@ New:
   trustworthy — each rule carries the failure that produced it, which is why the invented figures
   were found and removed. It is not what is limiting this tool. Revisit if a second person ever
   works here.
+- **Reading uploaded documents** — an SEE, an acoustic report — to check them. It would have
+  caught the small bar's contradictions (T10), but it breaks `readiness.py`'s rule that nothing
+  here reports a document as verified, and it pulls private files onto an open endpoint. T10's
+  *confirm before lodging* item gets most of the benefit without either cost.
 - **A `disclaimer` field on every tool response.** See A4: this recreates the standing-caveat
   failure of item 0.1 and would make the identity statement invisible within a week.
 - **Building the public web front end** before the shape decision is made. It is option 2 of three,
@@ -1094,6 +1217,8 @@ Two rules for whoever picks this up:
 - **Phase T's T1 goes with the correctness work, ahead of Phase A** — it understates a charge the
   way S3's sign flip did. The rest of Phase T can run alongside Phase A: it is coverage, and it is
   the only part of this roadmap graded against Council's decisions rather than our own reading.
+- **Phase U after T1–T4.** It adds answers the server has never given; T fixes answers it gives
+  wrongly or not at all. U1 can start as soon as T1 is in, since it shares only T8's machinery.
 - **Re-run `SCENARIOS.md` after each phase.** It caught fifteen defects that 1,346 tests and ten
   audits did not, because it is the only thing here that composes tools the way an applicant does.
 - **Do not declare a phase finished without listing what was in it.** Phase 0 was declared done
