@@ -289,7 +289,9 @@ INTERPRETATIONS = [
         ],
         "reading": "A change of use in an existing tenancy is netted against the previous use "
                    "at the same floor area unless existing_gross_floor_area_m2 is supplied — "
-                   "the ordinary case, and the answer says it was assumed.",
+                   "the ordinary case, and the answer says it was assumed. The same use is "
+                   "never assumed this way: that would net any expansion to nil, so the "
+                   "answer asks for the previous floor area instead.",
         "alternative": "The discount is measured on the lawful existing development as "
                        "evidenced, which may be smaller than the proposal — part of the "
                        "building vacant, the proposal adding floor space, or only part of the "
@@ -298,8 +300,9 @@ INTERPRETATIONS = [
                         "no other default. It is a factual assumption rather than a reading of "
                         "the words, registered because it changes the number and the "
                         "applicant may not notice it was made.",
-        "cost_if_council_disagrees": "A restaurant expanding from 100m² to 140m² nets to $0 on "
-                                     "this assumption against a real $8,040 (urban).",
+        "cost_if_council_disagrees": "A 140m² cafe replacing a 100m² office nets to $21,543 on "
+                                     "this assumption against a real $23,428 (urban) — "
+                                     "$1,886 understated.",
         "if_wrong_this_tool": "understates the burden",
         "relied_on_by": ["calculate_da_fees"],
         "duty_planner_question": "existing_use_allowance",

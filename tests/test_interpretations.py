@@ -147,8 +147,8 @@ class TestTheContributionCitesItsReadings:
         assert cited(answer["readings_relied_on"]) == ["warehouse_charged_as_industry"]
 
     def test_an_assumed_previous_floor_area_is_cited(self):
-        answer = estimate_contribution("restaurant", {"gross_floor_area_m2": 140}, "urban",
-                                       existing_use="restaurant")
+        answer = estimate_contribution("cafe", {"gross_floor_area_m2": 140}, "urban",
+                                       existing_use="office")
         assert "allowance_same_floor_area" in cited(answer["readings_relied_on"])
 
     def test_a_house_to_cafe_cites_the_netting_reading(self):
@@ -226,14 +226,15 @@ class TestTheStatedCostsAreWhatTheToolsCompute:
             "cbd_credit_on_change_of_use"]["cost_if_council_disagrees"]
 
     def test_same_floor_area_cost(self):
-        assumed = estimate_contribution("restaurant", {"gross_floor_area_m2": 140}, "urban",
-                                        existing_use="restaurant")
-        stated = estimate_contribution("restaurant", {"gross_floor_area_m2": 140}, "urban",
-                                       existing_use="restaurant",
+        assumed = estimate_contribution("cafe", {"gross_floor_area_m2": 140}, "urban",
+                                        existing_use="office")
+        stated = estimate_contribution("cafe", {"gross_floor_area_m2": 140}, "urban",
+                                       existing_use="office",
                                        existing_counts={"gross_floor_area_m2": 100})
-        assert assumed["net_contribution"]["urban"] == 0
-        assert round(stated["net_contribution"]["urban"]) == 8041
-        assert "$8,040" in BY_KEY["allowance_same_floor_area"]["cost_if_council_disagrees"]
+        assert round(assumed["net_contribution"]["urban"]) == 21543
+        assert round(stated["net_contribution"]["urban"]) == 23428
+        cost = BY_KEY["allowance_same_floor_area"]["cost_if_council_disagrees"]
+        assert "$21,543" in cost and "$23,428" in cost
 
     def test_netting_cost(self):
         answer = estimate_contribution("cafe", {"gross_floor_area_m2": 80}, "urban",
