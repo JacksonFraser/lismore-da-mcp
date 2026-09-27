@@ -1221,7 +1221,39 @@ Two rules to carry across from flood before writing a line:
 
 **Cost:** a week, on the flood template. The template is the reason this is a week and not a month.
 
-### C2 — LEP Schedule 5 heritage items
+### C2 — LEP Schedule 5 heritage items · **DONE 2026-09-27**
+
+> **Transcribed, because the layer answers a narrower question than it looks.** The check this entry
+> asks for came first. The live layer could not be queried from the session that did this work (the
+> proxy refused mapprod3), so the comparison is from the code and the canned responses:
+> `lookup_site_constraints` asks whether the *point under the address* intersects a heritage polygon
+> and returns `H_NAME`, `SIG`, `H_ID`. That answers "is this building listed" well — when the service
+> is up and the address point sits on the listed lot. It cannot answer three things Schedule 5 can:
+> whether a listing exists when no map service is reachable; what is listed **on the same street**,
+> which is the evidence an applicant has for the cl 5.10(5)(c) vicinity rule C1 surfaces; and what the
+> listing covers — grounds, street trees, or an interior (A5), which cl 5.10(2)(b) turns on. So this
+> does not duplicate a working lookup; it answers the question beside it.
+>
+> **What landed.** `data/heritage_items.py` carries all 113 items (I1–I113) and 18 archaeological
+> sites (A1–A18) row for row as the LEP prints them; Part 2's seven conservation areas were already in
+> C1. `audit_heritage.py` re-reads both tables from the LEP text and diffs every row both ways, and
+> reports any gap in the numbering read off the document. `get_heritage_requirements` takes an
+> optional `address` and returns `schedule_5_cross_check`: a listing at that address, listings on the
+> same street, and same-named streets in other suburbs.
+>
+> **Positive-only, both ways.** A match never sets `heritage_status` — a Schedule 5 address can be a
+> range, a road reserve or several lots — and no match clears nothing: a conservation area is a map
+> boundary, and an item round the corner is as near as one on the street. The matcher reads the LEP's
+> own address forms (ranges, `1/115` unit prefixes, "Bridge and Woodlark Streets", I49's untyped
+> "188 Keen") and rejects a street name followed by another word ("Leycester Creek", "Eltham Railway
+> Bridge"); each is a test.
+>
+> **Left for later, deliberately.** Joining the layer's `H_ID` to the Schedule 5 row inside
+> `lookup_site_constraints` would let it quote the property description — but `addresses.py`'s
+> heritage handling is being changed in parallel, so it is not touched here. And "State" in the
+> Significance column is not State Heritage Register listing; nothing here treats it as one.
+
+### C2 — original entry
 
 Lower priority and only worth it if C1 lands: the item list makes "is this specific building
 listed" answerable offline, against a source already in `documents/`. Check first whether the

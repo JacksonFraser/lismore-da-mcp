@@ -50,6 +50,7 @@ from lismore_da_mcp.data.heritage import (
     WHAT_CHAPTER_12_DOES_ASK_FOR,
     WHAT_CHAPTER_12_DOES_NOT_SAY,
 )
+from lismore_da_mcp.data.heritage_items import ARCHAEOLOGICAL_SITES, HERITAGE_ITEMS
 from lismore_da_mcp.vocabulary import resolve
 
 STATUSES = {
@@ -236,6 +237,194 @@ STATE_LAYER_CONFIRMS_BUT_CANNOT_CLEAR = {
         "prepare_prelodgement_brief carries it as the `heritage_status` question."
     ),
 }
+
+
+# --- LEP Schedule 5, offline (ROADMAP.md C2) ----------------------------------
+
+STREET_TYPES = {
+    "st": "street", "street": "street", "rd": "road", "road": "road",
+    "ave": "avenue", "av": "avenue", "avenue": "avenue", "pde": "parade", "parade": "parade",
+    "hwy": "highway", "highway": "highway", "ln": "lane", "lane": "lane",
+    "cres": "crescent", "crescent": "crescent", "dr": "drive", "drive": "drive",
+    "pl": "place", "place": "place", "ct": "court", "court": "court",
+    "tce": "terrace", "terrace": "terrace", "way": "way", "cl": "close", "close": "close",
+}
+# A house number or range; a unit prefix ("1/115") is consumed and dropped, so
+# the unit is not read as a house number in its own right.
+_NUMBER = re.compile(r"(?:\d+[a-z]?/)?(\d+)([a-z]?)(?:\s*[–-]\s*(\d+)[a-z]?)?")
+_PLURAL_TYPES = {"streets": "street", "roads": "road"}
+
+
+def _words(text: str) -> list[str]:
+    text = text.lower().replace("’", "'").replace("'", "")
+    return [STREET_TYPES.get(w, w) for w in re.findall(r"[a-z0-9]+(?:/[0-9a-z]+)?|[–-]", text)]
+
+
+def parse_address(address: str) -> dict | None:
+    """(number, street name, street type, suburb) from a written address.
+
+    Deliberately modest: it reads '12 Keen Street, Lismore NSW 2480' and its
+    abbreviations, and returns None rather than guessing at anything else. The
+    street name is everything between the number and the first street type.
+    """
+    lowered = re.sub(r"\b(nsw|new south wales)\b|\b\d{4}\s*$", " ", address.lower())
+    words = _words(lowered.replace(",", " , "))
+    words = [w for w in words if w not in ("-", "–")]
+    number = unit = None
+    if words and re.fullmatch(r"(\d+[a-z]?/)?\d+[a-z]?", words[0]):
+        token = words.pop(0)
+        if "/" in token:
+            unit, token = token.split("/", 1)
+        number = token
+    type_at = next((i for i, w in enumerate(words) if w in STREET_TYPES.values() and i > 0), None)
+    if type_at is None:
+        return None
+    name = " ".join(w for w in words[:type_at] if w != ",")
+    rest = [w for w in words[type_at + 1:] if w != ","]
+    if not name:
+        return None
+    return {"number": number, "unit": unit, "street": name, "street_type": words[type_at],
+            "suburb": " ".join(rest) or None}
+
+
+def _numbers_before(text: str) -> list[tuple[int, str, int]]:
+    """(low, suffix, high) for each house number or range in a run of text."""
+    found = []
+    for low, suffix, high in _NUMBER.findall(text.lower()):
+        found.append((int(low), suffix, int(high) if high else int(low)))
+    return found
+
+
+def _number_matches(wanted: str, candidates: list[tuple[int, str, int]]) -> bool:
+    match = re.fullmatch(r"(\d+)([a-z]?)", wanted)
+    if not match:
+        return False
+    value, suffix = int(match.group(1)), match.group(2)
+    for low, their_suffix, high in candidates:
+        if low == high:
+            if value == low and suffix == their_suffix:
+                return True
+        elif low <= value <= high and not suffix:
+            return True
+    return False
+
+
+def _street_mentions(row_address: str, street: str, street_type: str) -> list[str]:
+    """For each mention of the street in a Schedule 5 address, the text naming
+    its house numbers — the run since the previous street name, or the start.
+
+    '8 and 14 Zadoc Street and 21 Keen Street' gives '8 and 14 ' for Zadoc and
+    ' and 21 ' for Keen. The word after the name must be the same street type
+    (Keen Lane is not Keen Street, and Leycester Creek is not Leycester
+    Street), or nothing at all — the LEP prints I49 as '188 Keen' — or the
+    'Bridge and Woodlark Streets' form, where one plural type serves two names.
+    """
+    lowered = row_address.lower().replace("’", "").replace("'", "")
+    runs = []
+    pattern = re.compile(r"\b" + re.escape(street) + r"\b(?:\s+(\w+))?")
+    previous_end = 0
+    for m in pattern.finditer(lowered):
+        word = m.group(1)
+        if word == "and":
+            shared = re.match(r"\s+\w+\s+(\w+)", lowered[m.end():])
+            word = shared.group(1) if shared else word
+        if word:
+            following = _PLURAL_TYPES.get(word, STREET_TYPES.get(word))
+        else:
+            # Untyped only at the very end ('188 Keen'); 'Eltham Railway Bridge,
+            # Johnston Road' is not a mention of Bridge Street.
+            following = street_type if not lowered[m.end():].strip() else None
+        if following != street_type:
+            continue
+        runs.append(lowered[previous_end:m.start()])
+        previous_end = m.end()
+    return runs
+
+
+def _row(entry: tuple, kind: str) -> dict:
+    number, suburb, name, address, description, significance = entry
+    return {"item_no": number, "item_name": name, "address": address, "suburb": suburb,
+            "property_description": description, "significance": significance,
+            "schedule_5_part": kind}
+
+
+def schedule_5_cross_check(address: str) -> dict:
+    """What LEP Schedule 5 says about an address, read offline from the LEP.
+
+    Positive-only by construction. It can find the address or its street in the
+    schedule; it can never say a site is unaffected, because a conservation
+    area is a map boundary and the vicinity rule crosses streets.
+    """
+    parsed = parse_address(address)
+    answer: dict = {"address_as_given": address}
+    if not parsed:
+        answer["not_read"] = (
+            "The address could not be read as a number, street and suburb, so Schedule 5 was "
+            "not searched. Give it as '12 Keen Street, Lismore'."
+        )
+        answer["this_is_not_a_clearance"] = SCHEDULE_5_NO_MATCH
+        return answer
+    answer["read_as"] = parsed
+
+    at_address, on_street, elsewhere = [], [], []
+    rows = [(r, "Part 1 heritage items") for r in HERITAGE_ITEMS]
+    rows += [(r, "Part 3 archaeological sites") for r in ARCHAEOLOGICAL_SITES]
+    for entry, kind in rows:
+        runs = _street_mentions(entry[3], parsed["street"], parsed["street_type"])
+        if not runs:
+            continue
+        row = _row(entry, kind)
+        same_suburb = not parsed["suburb"] or entry[1].lower() == parsed["suburb"]
+        if not same_suburb:
+            elsewhere.append(row)
+        elif parsed["number"] and any(_number_matches(parsed["number"], _numbers_before(run))
+                                      for run in runs):
+            at_address.append(row)
+        else:
+            on_street.append(row)
+
+    answer["schedule_5_names_this_address"] = at_address
+    answer["listed_on_the_same_street"] = on_street
+    if elsewhere:
+        answer["same_street_name_in_another_suburb"] = {
+            "rows": elsewhere,
+            "note": "Schedule 5 gives these a different suburb from the one you gave. Long roads "
+                    "cross suburbs, and applicants often write 'Lismore' for a Girards Hill or "
+                    "East Lismore address — check whether any is yours or next to it.",
+        }
+    if at_address:
+        answer["what_this_means"] = (
+            "Schedule 5 names this address. If the listing is your building or land, it is a "
+            "heritage item — pass heritage_status 'heritage_item'. This tool does not set that "
+            "for you: a Schedule 5 address can be a range, several lots, grounds, street trees "
+            "or a road reserve, so read the item name and property description against your "
+            "own lot and DP."
+        )
+        if any(r["schedule_5_part"].startswith("Part 3") for r in at_address):
+            answer["archaeological_site"] = (
+                "A Part 3 archaeological site: disturbing or excavating it knowing a relic is "
+                "likely to be affected needs consent (cl 5.10(2)(c)), and Council must notify "
+                "the Heritage Council before granting consent (cl 5.10(7))."
+            )
+    elif on_street:
+        answer["what_this_means"] = (
+            "A listed item is on the same street. If your site is near it, cl 5.10(5)(c) lets "
+            "Council require a heritage management document for your proposal too — consider "
+            "heritage_status 'vicinity'. Whether you are 'in the vicinity' is Council's call, "
+            "not a distance anyone has set."
+        )
+    answer["this_is_not_a_clearance"] = SCHEDULE_5_NO_MATCH
+    answer["source"] = "Lismore LEP 2012 Schedule 5 Parts 1 and 3, read from the LEP text"
+    return answer
+
+
+SCHEDULE_5_NO_MATCH = (
+    "Schedule 5 is searched by the address as the LEP writes it, and a match is evidence. No "
+    "match is not: a conservation area is a boundary on the Heritage Map, not a list of "
+    "addresses; an item round the corner or across a lane is as near as one on your street; "
+    "and the LEP writes some addresses as ranges, road reserves or place names. Settle the "
+    "status with a s10.7 planning certificate."
+)
 
 
 def resolve_status(term: str):

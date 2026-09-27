@@ -555,3 +555,128 @@ class TestWhatChapter12DoesAskFor:
         asks = call("get_heritage_requirements", {})["documents"]["what_chapter_12_asks_for"]
         assert any("Colour scheme details" in a["quote"] for a in asks)
         assert any("justification must be provided" in a["quote"] for a in asks)
+
+
+# --- ROADMAP.md C2: LEP Schedule 5 heritage items ------------------------------
+
+class TestSchedule5IsTranscribed:
+    def test_every_row_matches_the_lep_both_ways(self, lep_raw):
+        import audit_heritage
+
+        assert audit_heritage.schedule_5_findings(lep_raw) == []
+
+    def test_the_counts_are_read_off_the_document(self, lep_raw):
+        import audit_heritage
+
+        assert len(audit_heritage.schedule_5_rows(lep_raw, "Part 1 heritage items")) == 113
+        assert len(audit_heritage.schedule_5_rows(lep_raw, "Part 3 archaeological sites")) == 18
+
+
+class TestTheSchedule5AuditCanFail:
+    def test_a_changed_field_is_caught(self, lep_raw, monkeypatch):
+        import audit_heritage
+        from lismore_da_mcp.data.heritage_items import HERITAGE_ITEMS
+
+        drifted = [("I64", "Lismore", "Commonwealth Bank", "182 Molesworth Street",
+                    "Lot 1, DP 121070", "Local") if r[0] == "I64" else r for r in HERITAGE_ITEMS]
+        parts = dict(audit_heritage.SCHEDULE_5_PARTS)
+        opening, closing, _, prefix = parts["Part 1 heritage items"]
+        parts["Part 1 heritage items"] = (opening, closing, drifted, prefix)
+        monkeypatch.setattr(audit_heritage, "SCHEDULE_5_PARTS", parts)
+        assert any("I64 differs" in p for p in audit_heritage.schedule_5_findings(lep_raw))
+
+    def test_a_dropped_row_and_an_invented_row_are_caught(self, lep_raw, monkeypatch):
+        import audit_heritage
+        from lismore_da_mcp.data.heritage_items import ARCHAEOLOGICAL_SITES
+
+        edited = [r for r in ARCHAEOLOGICAL_SITES if r[0] != "A5"]
+        edited.append(("A99", "Lismore", "Invented site", "1 Nowhere Street", "", "Local"))
+        parts = dict(audit_heritage.SCHEDULE_5_PARTS)
+        opening, closing, _, prefix = parts["Part 3 archaeological sites"]
+        parts["Part 3 archaeological sites"] = (opening, closing, edited, prefix)
+        monkeypatch.setattr(audit_heritage, "SCHEDULE_5_PARTS", parts)
+        findings = " ".join(audit_heritage.schedule_5_findings(lep_raw))
+        assert "A5" in findings and "A99" in findings
+
+
+def _ids(result, key):
+    value = result.get(key, [])
+    if isinstance(value, dict):
+        value = value["rows"]
+    return [r["item_no"] for r in value]
+
+
+class TestTheSchedule5CrossCheck:
+    """Positive-only. A match is the instrument naming the address; no match
+    clears nothing, and the cross-check never sets the status."""
+
+    def test_a_listed_address_is_found(self):
+        from lismore_da_mcp.heritage import schedule_5_cross_check
+
+        result = schedule_5_cross_check("180 Molesworth Street, Lismore NSW 2480")
+        assert _ids(result, "schedule_5_names_this_address") == ["I64"]
+        assert "I62" in _ids(result, "listed_on_the_same_street")
+
+    def test_a_unit_prefix_is_not_a_house_number(self):
+        """The LEP writes '1/115 Molesworth Street'. Read naively, 1 Molesworth
+        Street would be 'listed'."""
+        from lismore_da_mcp.heritage import schedule_5_cross_check
+
+        result = schedule_5_cross_check("1 Molesworth St, Lismore")
+        assert _ids(result, "schedule_5_names_this_address") == []
+
+    @pytest.mark.parametrize("address,item", [
+        ("188 Keen St, Lismore", "I49"),       # the LEP omits the street type
+        ("8 Zadoc Street, Lismore", "I74"),    # '8 and 14 Zadoc Street and 21 Keen Street'
+        ("21 Keen Street, Lismore", "I74"),
+        ("8 Leycester Street, Lismore", "I51"),  # inside the range '6–10'
+        ("53A Cullen Street, Nimbin", "I85"),
+    ])
+    def test_the_ways_the_lep_writes_an_address(self, address, item):
+        from lismore_da_mcp.heritage import schedule_5_cross_check
+
+        assert item in _ids(schedule_5_cross_check(address), "schedule_5_names_this_address")
+
+    def test_a_creek_is_not_a_street(self):
+        from lismore_da_mcp.heritage import schedule_5_cross_check
+
+        result = schedule_5_cross_check("6 Leycester St, Lismore")
+        assert not {"A9", "A10"} & set(_ids(result, "same_street_name_in_another_suburb"))
+
+    def test_a_bridge_is_not_bridge_street(self):
+        from lismore_da_mcp.heritage import schedule_5_cross_check
+
+        result = schedule_5_cross_check("1 Bridge Street, Lismore")
+        everything = (_ids(result, "listed_on_the_same_street")
+                      + _ids(result, "same_street_name_in_another_suburb"))
+        assert "I27" not in everything  # 'Adjacent to Eltham Railway Bridge, Johnston Road'
+        assert "A3" in everything       # 'joining Bridge and Woodlark Streets'
+
+    def test_a_different_suburb_is_reported_apart(self):
+        from lismore_da_mcp.heritage import schedule_5_cross_check
+
+        result = schedule_5_cross_check("42 Cathcart Street, Lismore")
+        assert _ids(result, "schedule_5_names_this_address") == []
+        assert "I30" in _ids(result, "same_street_name_in_another_suburb")
+
+    def test_an_archaeological_site_brings_its_clauses(self):
+        from lismore_da_mcp.heritage import schedule_5_cross_check
+
+        result = schedule_5_cross_check("7 Engine Street, South Lismore")
+        assert _ids(result, "schedule_5_names_this_address") == ["A11"]
+        assert "5.10(7)" in result["archaeological_site"]
+
+    @pytest.mark.parametrize("address", ["12 Keen Street, Lismore", "somewhere", "1 Nowhere Rd"])
+    def test_no_match_is_never_a_clearance(self, address):
+        from lismore_da_mcp.heritage import schedule_5_cross_check
+
+        result = schedule_5_cross_check(address)
+        assert "No match is not" in result["this_is_not_a_clearance"]
+
+    def test_the_tool_does_not_set_the_status_from_the_address(self, call):
+        result = call("get_heritage_requirements",
+                      {"address": "180 Molesworth Street, Lismore"})
+        assert result["heritage_status"] == "not established"
+        cross = result["schedule_5_cross_check"]
+        assert _ids(cross, "schedule_5_names_this_address") == ["I64"]
+        assert "does not set that" in cross["what_this_means"]

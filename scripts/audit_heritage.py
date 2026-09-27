@@ -67,6 +67,10 @@ from lismore_da_mcp.data.heritage import (  # noqa: E402
     WHAT_CHAPTER_12_DOES_ASK_FOR,
     WHAT_CHAPTER_12_DOES_NOT_SAY,
 )
+from lismore_da_mcp.data.heritage_items import (  # noqa: E402
+    ARCHAEOLOGICAL_SITES,
+    HERITAGE_ITEMS,
+)
 
 LEP_PATH = ROOT / "documents" / "lep" / "lep-2012-nsw-full.txt"
 CHAPTER_12 = ROOT / "documents" / "dcp" / "chapter-12-heritage-conservation.pdf"
@@ -222,6 +226,75 @@ def conservation_area_findings(lep_raw: str) -> list[str]:
     if not rows:
         problems.append("No Schedule 5 Part 2 rows were found in the LEP text — the table "
                         "layout changed and this check is reading nothing.")
+    return problems
+
+
+SCHEDULE_5_PARTS = {
+    # label: (heading that opens the part, heading that closes it, stored rows, id prefix)
+    "Part 1 heritage items": ("Schedule 5 Environmental heritage\n(Clause 5.10)",
+                              "Part 2 Heritage conservation areas", HERITAGE_ITEMS, "I"),
+    "Part 3 archaeological sites": ("Part 3 Archaeological sites",
+                                    "Schedule 6 Pond-based", ARCHAEOLOGICAL_SITES, "A"),
+}
+
+
+def schedule_5_rows(lep_raw: str, part: str) -> list[tuple[str, ...]]:
+    """Every row of one Schedule 5 table, read off the LEP text.
+
+    The extract prints each field on its own line with a tab line between
+    fields, and two blank lines between rows; the first chunk is the header.
+    Returned in the stored tuple order: (item_no, suburb, name, address,
+    property description, significance).
+    """
+    opening, closing, _, _ = SCHEDULE_5_PARTS[part]
+    # The table of contents names every heading too; the schedule proper is the
+    # last occurrence of each.
+    start = lep_raw.rindex(opening)
+    end = lep_raw.index(closing, start)
+    rows = []
+    for chunk in re.split(r"\n\n\n", lep_raw[start:end])[1:]:
+        fields = [f.strip() for f in chunk.split("\t")]
+        if len(fields) != 6:
+            rows.append(tuple(fields))  # surfaces as a mismatch rather than vanishing
+            continue
+        suburb, name, address, description, significance, number = fields
+        rows.append((number, suburb, name, address, description, significance))
+    return rows
+
+
+def schedule_5_findings(lep_raw: str) -> list[str]:
+    """Row for row, both ways: every stored row is in the LEP exactly, and every
+    LEP row is stored. Plus the numbering, read off the document — a gap in
+    I1..In is reported, because a missing number is either a repealed item or
+    a row the parse lost, and only a reader can tell which."""
+    problems = []
+    for part, (_, _, stored, prefix) in SCHEDULE_5_PARTS.items():
+        source = schedule_5_rows(lep_raw, part)
+        if not source:
+            problems.append(f"{part}: no rows found in the LEP text — the layout changed.")
+            continue
+        malformed = [r for r in source if len(r) != 6]
+        for row in malformed:
+            problems.append(f"{part}: a row did not split into six fields: {row!r}")
+        by_number = {r[0]: r for r in source if len(r) == 6}
+        stored_by_number = {r[0]: tuple(r) for r in stored}
+        if len(stored_by_number) != len(stored):
+            problems.append(f"{part}: duplicate item numbers in the stored rows.")
+        for number, row in stored_by_number.items():
+            if number not in by_number:
+                problems.append(f"{part}: {number} is stored but is not in the LEP.")
+            elif row != by_number[number]:
+                problems.append(f"{part}: {number} differs from the LEP — stored {row!r}, "
+                                f"LEP {by_number[number]!r}.")
+        for number in by_number:
+            if number not in stored_by_number:
+                problems.append(f"{part}: the LEP lists {number} ({by_number[number][2]}), "
+                                "which is not stored.")
+        numbers = sorted(int(n[len(prefix):]) for n in by_number if n.startswith(prefix))
+        gaps = [f"{prefix}{i}" for i in range(1, (numbers or [0])[-1] + 1) if i not in numbers]
+        if gaps:
+            problems.append(f"{part}: the LEP's numbering skips {gaps}. Read the schedule — a "
+                            "repealed item is fine, a row the parse lost is not.")
     return problems
 
 
@@ -395,6 +468,7 @@ def main() -> int:
         ("LEP QUOTES NOT FOUND IN THE LEP", quote_findings(raw)),
         ("THE CLAUSE NO LONGER SAYS WHAT THIS REPO SAYS IT SAYS", modality_findings(raw)),
         ("CONSERVATION AREAS DISAGREE WITH LEP SCHEDULE 5 PART 2", conservation_area_findings(lep_raw)),
+        ("HERITAGE ITEMS DISAGREE WITH LEP SCHEDULE 5 PARTS 1 AND 3", schedule_5_findings(lep_raw)),
         ("CHAPTER 12 QUOTES NOT FOUND IN THE CHAPTER", chapter_quote_findings(body)),
         ("CHAPTER 12 BULLETS NOT CARRIED", bullet_problems),
         ("CHAPTER 12 STRUCTURE NOT CARRIED", structure_findings(body)),
@@ -405,6 +479,8 @@ def main() -> int:
 
     real, _ = bullet_segments(body)
     print(f"{len(QUOTED)} LEP provisions checked against {LEP_PATH.name}")
+    print(f"{len(HERITAGE_ITEMS)} heritage items and {len(ARCHAEOLOGICAL_SITES)} archaeological "
+          "sites diffed row for row against LEP Schedule 5")
     print(f"{len(chapter_quotes())} Chapter 12 quotes checked against {CHAPTER_12.name}")
     print(f"{len(real)} bullets in the chapter, {len(CONSERVATION_AREAS)} conservation areas, "
           f"{len(FIGURE.findall(body))} figures counted off the document")
