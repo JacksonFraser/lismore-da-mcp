@@ -782,3 +782,11 @@ The rule that put Phase S before Phase A still holds: **do not remove the brake 
 same wrong "yes" D1 was, and A1/A2 would route more natural phrasings into it. R1, R2 and R3 are
 correctness items and belong ahead of Phase A. R1 in particular should land with its audit, since
 the audit's blind spot is how it survived Phase S.
+
+## Leftovers fixed, 2026-09-27
+ROADMAP.md S6. Fixed, each with a test that fails on the code before it
+(`tests/test_run2_leftovers.py`): cl 5.22 in `check_da_readiness`; heritage hardening to "no" with
+an address; `cbd_flood_liable` in the flood-area menu; RU4 / C4 (and RU6, R4, E5, W3, W4) answered
+as zones the Plan does not use; `get_da_checklist` for `takeaway food premises` and `heritage`.
+Elsewhere: zero `gross_floor_area_m2` (PR #70), the hairdresser note (A2), argument names (A1).
+Left as is: implausible inputs — no document gives a threshold to flag against.

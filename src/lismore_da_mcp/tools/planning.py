@@ -1,6 +1,7 @@
 """Flood, setbacks, residential standards, referrals, checklists and contacts."""
 
 import json
+import re
 
 from mcp.types import TextContent
 
@@ -73,7 +74,13 @@ def get_flood_requirements(arguments: dict):
     if area_arg:
         area = flood.resolve_flood_area(area_arg)
         if not area:
-            error = unresolved_error(area_arg, area, "flood area", FLOOD_AREAS)
+            # The menu is what the schema offers, not the data's keys. CBD Flood
+            # Liable is its own category on Map 1 that §8.3 gives the Flood
+            # Fringe's controls, so it has no key of its own — and was missing
+            # from the one list a caller who got the name wrong is shown.
+            # SCENARIOS.md run 2.
+            error = unresolved_error(area_arg, area, "flood area",
+                                     [*FLOOD_AREAS, "cbd_flood_liable"])
             error["how_to_find_it"] = flood.AREA_NOT_INFERABLE["how_to_settle"]
             return [TextContent(type="text", text=json.dumps(error, indent=2))]
         area_key = area.key
@@ -223,6 +230,25 @@ def check_referrals(arguments: dict):
     return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
 
+# Words in the conditions that say nothing on their own: "land" alone would
+# match both the flood and the bushfire entries, "development" the cl 4.6 one.
+_TOO_GENERIC_TO_MATCH = {"land", "area", "development", "more", "required", "becoming"}
+
+
+def _conditions_named(requested: str) -> list[dict]:
+    """The conditional documents whose condition names every word asked about.
+
+    Read off CONDITIONAL_DOCUMENTS' own wording rather than a list of site words,
+    so a condition added there is reachable here without a second edit.
+    """
+    asked = {w for w in re.findall(r"[a-z]+", requested.lower())
+             if len(w) > 3 and w not in _TOO_GENERIC_TO_MATCH}
+    if not asked:
+        return []
+    return [entry for entry in CONDITIONAL_DOCUMENTS
+            if asked <= set(re.findall(r"[a-z]+", entry["condition"].lower()))]
+
+
 @tool(
     name='get_da_checklist',
     description='Get the documents a Development Application must include, for a given kind of development. An incomplete lodgement is not assessed — the clock does not start — so this is the cheapest place for a business to avoid losing weeks.',
@@ -234,6 +260,30 @@ def check_referrals(arguments: dict):
 def get_da_checklist(arguments: dict):
     requested = arguments.get("development_type", "")
     match = resolve(requested, DA_CHECKLISTS, CHECKLIST_SYNONYMS)
+
+    site_conditions = _conditions_named(requested) if not match else []
+    if site_conditions:
+        # 'heritage' was refused as an unknown development type. It is not one
+        # — it is a fact about the site, and every checklist already carries it
+        # as a conditional document. Answer with that, and ask for the type.
+        # Checked only after the type fails to resolve, so it cannot shadow one.
+        # SCENARIOS.md run 2.
+        return [TextContent(type="text", text=json.dumps({
+            "development_type": None,
+            "not_a_development_type": (
+                f"'{requested}' describes a condition of the site or proposal, not the kind of "
+                "development. The checklist is chosen by the kind of development; what this "
+                "condition adds is the same for every kind, and is below."
+            ),
+            "because_of_that_condition": site_conditions,
+            "required_documents": UNIVERSAL_DOCUMENTS,
+            "for_the_rest": (
+                "Call get_da_checklist again with what you are doing — 'change of use', "
+                "'fitout', 'signage', 'dwelling' — for the documents that kind of development "
+                "adds."
+            ),
+            "available_checklists": sorted(DA_CHECKLISTS),
+        }, indent=2))]
 
     if not match:
         # Say what is not known rather than returning the universal list, which

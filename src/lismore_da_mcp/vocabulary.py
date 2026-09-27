@@ -345,6 +345,15 @@ CHECKLIST_SYNONYMS = {
     "food premises": "commercial",
     "takeaway": "commercial",
     "take away": "commercial",
+    # The LEP's own names for food uses, which a caller who has just been
+    # given them by check_permissibility or get_definition will pass straight
+    # on. "takeaway food premises" was refused. SCENARIOS.md run 2.
+    "takeaway food premises": "commercial",
+    "takeaway food": "commercial",
+    "take away food and drink premises": "commercial",
+    "food and drink premises": "commercial",
+    "restaurant or cafe": "commercial",
+    "restaurants or cafes": "commercial",
     "bar": "commercial",
     "pub": "commercial",
     "shop": "commercial",
