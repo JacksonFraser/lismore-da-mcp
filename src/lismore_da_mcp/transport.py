@@ -5,6 +5,8 @@ which is open and unauthenticated and so carries a best-effort per-IP limiter.
 """
 
 import os
+import time
+from collections import deque
 
 from mcp.server.stdio import stdio_server
 
@@ -12,6 +14,7 @@ from lismore_da_mcp.app import server
 from lismore_da_mcp.observability import (
     configure_logging,
     record_index_state,
+    record_proxy_chain,
     record_rate_limited,
     record_startup,
 )
@@ -33,17 +36,42 @@ class _RateLimitMiddleware:
 
     This is meant as a cheap abuse guard for an open, unauthenticated public deployment —
     not a substitute for a real edge limiter (e.g. Cloudflare) if traffic grows.
+
+    Behind a reverse proxy the connection's address is the proxy's, so every
+    caller would share one bucket. `proxy_hops` is how many proxies in front of
+    this process append to X-Forwarded-For; the client is the entry the
+    outermost of them appended, counted from the right. Entries further left
+    are whatever the client sent, and are never trusted. 0 uses the connection.
     """
 
     # Sweep idle IPs this often, so the map does not grow with every distinct IP.
     SWEEP_EVERY_SECONDS = 300.0
 
-    def __init__(self, app, max_requests: int = 30, window_seconds: float = 60.0):
+    # Not rate limited: the platform's health checks would otherwise use up a
+    # bucket, and the endpoint does no work.
+    UNLIMITED_PATHS = frozenset({"/health"})
+
+    def __init__(self, app, max_requests: int = 30, window_seconds: float = 60.0,
+                 proxy_hops: int = 0):
         self.app = app
         self.max_requests = max_requests
         self.window_seconds = window_seconds
+        self.proxy_hops = proxy_hops
         self._hits: dict = {}
         self._last_sweep = 0.0
+        self._proxy_chain_logged = False
+
+    def _client_ip(self, scope) -> str:
+        if self.proxy_hops:
+            forwarded = dict(scope.get("headers") or []).get(b"x-forwarded-for", b"")
+            entries = [e.strip() for e in forwarded.decode("latin-1").split(",") if e.strip()]
+            if not self._proxy_chain_logged:
+                record_proxy_chain(len(entries), self.proxy_hops)
+                self._proxy_chain_logged = True
+            if len(entries) >= self.proxy_hops:
+                return entries[-self.proxy_hops]
+        client = scope.get("client")
+        return client[0] if client else "unknown"
 
     def _sweep(self, now: float) -> int:
         """Drop IPs with no request inside the current window. Returns how many."""
@@ -57,15 +85,11 @@ class _RateLimitMiddleware:
         return len(stale)
 
     async def __call__(self, scope, receive, send):
-        import time
-        from collections import deque
-
-        if scope["type"] != "http":
+        if scope["type"] != "http" or scope.get("path") in self.UNLIMITED_PATHS:
             await self.app(scope, receive, send)
             return
 
-        client = scope.get("client")
-        ip = client[0] if client else "unknown"
+        ip = self._client_ip(scope)
         now = time.monotonic()
 
         # Amortised: a sweep is O(tracked IPs) and runs at most every few minutes,
@@ -128,12 +152,25 @@ def build_http_app():
         ],
         lifespan=lifespan,
     )
-    return _RateLimitMiddleware(app)
+    return _RateLimitMiddleware(app, proxy_hops=trusted_proxy_hops())
+
+
+def trusted_proxy_hops() -> int:
+    """How many reverse proxies append to X-Forwarded-For in front of the HTTP app.
+
+    Defaults to 1, for Render's load balancer. The first proxied request logs
+    `event=proxy_chain` with its entry count; if that is higher than this,
+    another proxy (e.g. a CDN) is in front and this should be raised to match.
+    """
+    try:
+        return max(0, int(os.environ.get("LISMORE_TRUSTED_PROXY_HOPS", "1")))
+    except ValueError:
+        return 1
 
 def run_http():
     """Run the MCP server over Streamable HTTP (public deployment)."""
     import uvicorn
 
     app = build_http_app()
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", "8080"))
     uvicorn.run(app, host="0.0.0.0", port=port)

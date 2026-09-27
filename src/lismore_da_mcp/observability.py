@@ -102,6 +102,15 @@ def record_rate_limited(window_seconds: float, max_requests: int) -> None:
     )
 
 
+def record_proxy_chain(entries: int, trusted_hops: int) -> None:
+    """How many X-Forwarded-For entries the first proxied request carried.
+
+    Logged once, so the rate limiter's trusted hop count can be checked against
+    the real proxy chain. Only the count is logged, never an address.
+    """
+    logger.info(f"event=proxy_chain forwarded_for_entries={entries} trusted_hops={trusted_hops}")
+
+
 def record_index_state(status: str, segments: int | None = None) -> None:
     """Whether the search index is present.
 
