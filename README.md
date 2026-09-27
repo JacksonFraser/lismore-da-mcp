@@ -53,7 +53,7 @@ claude
 
 ## Available MCP Tools
 
-30 tools in total.
+31 tools in total.
 
 **Lookups**
 
@@ -72,6 +72,7 @@ claude
 | `list_signage_types` | List sign types grouped by the approval each needs (exempt / CDC / DA) |
 | `get_setback_requirements` | Front setback for residential development, which DCP Chapter 1 sets by zone — 6m in R1/R2/R3/RU5, 15m in RU1/R5/E3, 28m on an RMS road. The chapter sets no side or rear setback for an ordinary lot, and the tool says so rather than inventing one |
 | `get_residential_standards` | DCP Chapter 1 by element — open space and landscaping, density, privacy, earthworks, parking, fences, solar access — plus small lot housing, secondary dwellings, shop top housing and the Lismore Health Precinct |
+| `get_commercial_requirements` | Design controls for commercial buildings from DCP Chapter 2 — awnings and weather protection, shopfronts, heritage, signage and the 14m blank wall rule in the CBD, and the Performance Criteria table for Brewster Street in the Health Precinct. Pass `precinct` (the maps cannot be read from an address) and `work_type`: the chapter never mentions a change of use, and the tool says so rather than applying building design rules to an internal fitout |
 | `get_flood_requirements` | Flood controls from DCP Chapter 8, which differ by flood hazard area — pass `flood_area` if you know it, and `is_change_of_use` for a business taking over existing premises, which §8.3 exempts from the commercial controls |
 | `check_referrals` | External agency referrals (integrated development) a proposal may trigger |
 | `calculate_da_fees` | What a DA costs: lodgement fee, Council's notification and technology charges, and the Section 7.11 developer contribution — which on a commercial DA is usually far larger than the fee |

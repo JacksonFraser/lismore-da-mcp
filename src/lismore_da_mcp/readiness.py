@@ -560,6 +560,35 @@ def _site(p: Proposal) -> list[dict]:
             "do_this": "check_referrals with 'bushfire_prone' for the documents the RFS needs.",
         })
 
+    if _chapter_2_in_question(p):
+        if p.is_change_of_use:
+            findings.append({
+                "severity": "address_in_the_see",
+                "finding": "If the site is on Map 1 or Map 2 of DCP Chapter 2, any external work "
+                           "— a new shopfront, an awning, signage, a colour scheme — brings in "
+                           "that chapter's design controls.",
+                "why": "Chapter 2 is written for new and renovating buildings and never mentions "
+                       "a change of use, so an internal fitout meets nothing in it addressed to "
+                       "that case. The front of the building is where that stops being true.",
+                "source": "DCP Chapter 2, A.1, A.8-A.13; Table B1",
+                "do_this": "get_commercial_requirements with work_type 'change_of_use_only' "
+                           "lists what external work would bring in.",
+            })
+        else:
+            findings.append({
+                "severity": "address_in_the_see",
+                "finding": "If the site is on Map 1 of DCP Chapter 2 (the CBD), its design "
+                           "principles apply, and a new building needs a site analysis submitted "
+                           "with the DA. On Map 2 (Brewster Street), Table B1 applies instead.",
+                "why": "A.13: 'A site analysis is to be prepared and submitted as part of the "
+                       "Development Application for any new building in the CBD.' Both maps are "
+                       "images, so whether either applies is a question for Council, not "
+                       "something the zone settles.",
+                "source": "DCP Chapter 2, A.13; Table B1",
+                "do_this": "get_commercial_requirements for the controls; ask the Duty Planner "
+                           "which map, if either, the site is on.",
+            })
+
     if p.is_change_of_use:
         findings.append({
             "severity": "address_in_the_see",
@@ -573,6 +602,16 @@ def _site(p: Proposal) -> list[dict]:
                        "Preliminary Site Investigation now rather than when asked.",
         })
     return findings
+
+
+def _chapter_2_in_question(p: Proposal) -> bool:
+    """Whether DCP Chapter 2 might reach this site.
+
+    Never whether it does: its two maps are images. Over-listed on the zones
+    the CBD and Brewster Street sit in, and on the applicant's own word that the
+    site is in the CBD — a wrongly-raised question costs a sentence.
+    """
+    return p.in_cbd is True or p.zone_code.strip().upper() in ("E2", "MU1")
 
 
 def referral_triggers(p: Proposal) -> dict:
@@ -651,6 +690,7 @@ def open_questions(p: Proposal, has_parking_shortfall: bool | None = None) -> li
         "parking_contribution_in_lieu": has_parking_shortfall is not False and p.in_cbd is not False,
         "heritage_status": p.heritage is None,
         "gfa_increase_within_tenancy": p.is_change_of_use,
+        "commercial_design_precinct": _chapter_2_in_question(p) and not p.is_change_of_use,
     }
     return [q for q in DUTY_PLANNER_QUESTIONS if applies.get(q["key"])]
 

@@ -56,6 +56,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_landuse_matching.py` | The only audit that checks a **tool** rather than a data file: it asks `check_permissibility` about all 991 land use rows in both the table's spelling and the LEP Dictionary's, and grades the answer against the table. Every other audit here would pass with the matching layer completely broken, which is how ROADMAP.md S1's defect survived 1,346 tests. The singular↔plural pairing is read off the Dictionary in the document, never computed — a candidate spelling the document does not confirm is discarded, so the audit can never grade the tool against a word that is not a land use. It also audits `LAND_USE_TABLE_SPELLINGS` itself, since S1's fix turned that pairing into stored data: every pair must be one the document yields, every pair the document yields must be stored, and every table spelling must appear verbatim in `data/zones.py` — a pair whose right-hand side is not a real table entry resolves onto nothing and reads exactly like one that works. **Since 2026-09-25 it also asks about every use the Dictionary places under a parent** (108 "is a type of" notes × 21 zones), graded through the chain of parents read off the document — the first pass asked only about terms a table names, and passed clean while 161 answers like *medical centre in E4* were a wrong "yes" (SCENARIOS.md run 2, R1). It audits `LEP_TYPE_OF` against the notes both ways, too. |
 | `scripts/audit_parking_rates.py` **completeness** | Added 2026-08-20. The rates were only ever presence-checked, and the docstring claimed a completeness check that **did not exist** — so "27 entries checked, 0 not matching" printed while `Shop top housing` was absent from `data/parking.py` entirely. Schedule 1's land use column is now isolated from the PDF by x-position (the rate columns still cannot be diffed, which is why rates stay verbatim), every row is either carried or named in `UNCARRIED_SCHEDULE_1_USES`, and the hand-read list is itself checked against the document so it cannot drift into fiction. |
 | `scripts/audit_heritage.py` | Checks the LEP cl 5.10 provisions in `data/heritage.py` against the LEP text, and runs the check that matters more: that DCP **Chapter 12 still requires nothing**. Nine places asserted "a Heritage Impact Statement is required (DCP Chapter 12)" and both halves were wrong, so the correction rests on a negative — which a presence check is structurally blind to. It also pins the *modality*: if cl 5.10(5) ever stops saying "may", every hedge this repo now carries is wrong in the other direction. |
+| `scripts/audit_commercial.py` | Checks every DCP Chapter 2 quote and figure in `data/commercial.py` against the chapter, and the reading rule against the DCP Introduction. Completeness is read off the chapter's **typography** — bold 12pt sections, bold italic subheadings, bold 10pt Table B1 labels — so every section, subheading and P/A label must be carried or named in `DESCRIPTIVE_SECTIONS`, and the data may claim none the chapter lacks. Like `audit_standards.py` it asserts the absences, one of which is load-bearing: the chapter **never mentions a change of use**. Written before the data (ROADMAP.md D1), and it caught one of its own absences being wrong on the first run. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/` or `_quarantined/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 
@@ -81,9 +82,9 @@ imports keep working. It is not where the code lives. Find things by module:
 
 | Layer | Where | What |
 |---|---|---|
-| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
-| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
+| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `commercial`, `contacts`. No logic. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `commercial.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `commercial`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
 
@@ -348,6 +349,8 @@ researched because each collided with a real number somewhere in the source. **D
 to either file that you have not read in the document, and prefer `NOT_SET_BY_THIS_CHAPTER` to a
 plausible guess** — a presence-checking audit cannot catch an invention, which is why
 `audit_standards.py` also asserts the absences.
+
+**`commercial.py` selects from DCP Chapter 2, and the chapter is two documents.** Part A (the CBD, Chapter 2's Map 1) is prose design principles; Part B (Brewster Street in the Health Precinct, Map 2) is a Performance Criteria / Acceptable Solutions table. Three rules. **The precinct is never inferred** — both maps are images, Part B covers only part of the old B3 (now E2) zone, and Chapter 2's Map 1 is not Chapter 7's CBD parking map; without `precinct` both parts come back. **A change of use is not given the design rules**: the chapter is written for new and renovating buildings and never mentions a change of use, so an internal fitout gets that scope plus what external work would bring in. And **Chapter 1's §1.3 does not carry over** — Chapter 2 has no statement that an Acceptable Solution is only one route, so `HOW_TO_READ_THIS_CHAPTER` quotes the DCP Introduction's narrower "Variations to the Plan" instead. A figure is compared, and a miss is a variation to argue, never reported as a failure.
 
 **`data/definitions.py` quotes the LEP Dictionary, and the same failure had reached it.** Which
 defined term a proposal falls under is the whole assessment — it decides permissibility off the
@@ -659,7 +662,8 @@ Where development doesn't comply with a development standard (height, lot size, 
 ⚠️ This section claimed a 14m maximum external wall length, a maximum of 3 dwellings under one
 roof, a 4m separation between dwelling groups and 50–60% site coverage until 2026-08-08. **None
 of those phrases appear anywhere in Chapter 1.** They are gone, along with the matching
-inventions in `data/standards.py` (item 0.6). Prefer `get_residential_standards` and
+inventions in `data/standards.py` (item 0.6). (The 14m wall rule is real — it is Chapter 2's,
+for new development in the CBD.) Prefer `get_residential_standards` and
 `get_setback_requirements`, which quote the chapter.
 
 ## How the chapter works — read this before quoting any figure
@@ -725,23 +729,33 @@ lots under 400m² only. There is no battle-axe provision and no building envelop
 
 # COMMERCIAL DEVELOPMENT STANDARDS (DCP Chapter 2)
 
-## Lismore CBD Requirements (E2 Commercial Centre)
-- Weather protection (awnings/verandahs) required
-- Energy efficiency measures
-- Disabled access compliance
-- Respect for streetscape and heritage values
-- Crime prevention through environmental design
+⚠️ This section headed the CBD controls "E2 Commercial Centre" until 2026-09-27. Part A applies
+to the CBD **as shown on Chapter 2's Map 1**, not to the E2 zone, and Part B only to the Brewster
+Street part of it. Prefer `get_commercial_requirements`, which quotes the chapter.
 
-## Health Precinct (Brewster Street E2 Zone)
-- Specific urban design requirements
-- Integration with Lismore Base Hospital precinct
+## Part A — Urban Design in the Lismore CBD (Map 1)
+- Written for **new and renovating buildings**. The chapter **never mentions a change of use** —
+  an internal fitout meets nothing in it; a new shopfront, awning, sign or colour scheme does
+- A.10: shade screening UV "must be integral"; awnings should be connected to the neighbours and
+  **extend to the kerb line** (A.9). **No awning height, depth or clearance is set**
+- A.13: a **site analysis** must accompany the DA for any new building in the CBD; no external
+  wall over **14m** without a return, buttress, balcony or recess of at least **600mm**; glass
+  curtain walls and large blank walls "will not be permitted"
+- Height defers to the LEP Height of Buildings Map; no side or rear setback — continuity with the
+  neighbours instead, especially within "the Block" (Molesworth, Magellan, Keen, Woodlark Streets)
+- Heritage, colour and signage expectations are stricter on heritage buildings and in Molesworth St
 
-## General Commercial Standards
-- Assessment based on:
-  - Adjacent building design
-  - Context and form
-  - Overall streetscape character
-- Council assesses each application on individual merit
+## Part B — Brewster Street, Health Precinct (Map 2; the chapter says B3, now E2)
+- Table B1, Performance Criteria and Acceptable Solutions: 6m street setback (corner 6m / 4m),
+  two-storey street presentation with 3rd/4th storey set back 3m, non-residential ground floor,
+  no parking in the front setback, parking per Chapter 7
+- Buildings of 3 levels or more: site of at least 1200m²; beside R2, separation of 6m (habitable)
+  / 3m (non-habitable) **up to 11.5m** — the table sets nothing above that
+
+## How to read it
+- Chapter 2 has **no** equivalent of Chapter 1 §1.3. A departure is a variation under the DCP
+  Introduction: considered where minor, where compliance is impossible or impractical, or where
+  the alternative is a better design — not to save cost
 
 ---
 
