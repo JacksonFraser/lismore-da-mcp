@@ -4,20 +4,16 @@ import json
 
 from mcp.types import TextContent
 
-from lismore_da_mcp.data.signage import APPLICATION_REQUIREMENTS
-from lismore_da_mcp.data.signage import EXISTING_USE_RIGHTS
-from lismore_da_mcp.data.signage import PATHWAYS
-from lismore_da_mcp.data.signage import SEPP_CURRENCY_WARNING
-from lismore_da_mcp.data.signage import SIGNAGE
+from lismore_da_mcp.data.signage import (
+    APPLICATION_REQUIREMENTS,
+    EXISTING_USE_RIGHTS,
+    PATHWAYS,
+    SEPP_CURRENCY_WARNING,
+    SIGNAGE,
+)
 from lismore_da_mcp.registry import tool
-from lismore_da_mcp.signage import is_on_road_reserve
-from lismore_da_mcp.signage import pathway
-from lismore_da_mcp.signage import relevant_guidelines
-from lismore_da_mcp.signage import size_check
-from lismore_da_mcp.signage import zone_restriction
-from lismore_da_mcp.vocabulary import SIGNAGE_SYNONYMS
-from lismore_da_mcp.vocabulary import resolve
-from lismore_da_mcp.vocabulary import unresolved_error
+from lismore_da_mcp.signage import is_on_road_reserve, pathway, relevant_guidelines, size_check, zone_restriction
+from lismore_da_mcp.vocabulary import SIGNAGE_SYNONYMS, resolve, unresolved_error
 
 
 @tool(
@@ -35,15 +31,13 @@ from lismore_da_mcp.vocabulary import unresolved_error
 def get_signage_requirements(arguments: dict):
     requested = arguments.get("sign_type", "")
     match = resolve(requested, SIGNAGE, SIGNAGE_SYNONYMS)
-    if not match:
+    if not match.key:
         error = unresolved_error(requested, match, "sign type", SIGNAGE)
         # A bare list of names is not neutral here: the suggestions are ranked by
         # string similarity, which has no idea that `awning_sign_below` is Exempt
-        # Development and `awning_sign_above` needs consent. Every one of the
-        # eight offered for "sign above the awning" was exempt-pathway, so a
-        # business asking about a sign that needs a DA was steered to "no
-        # application needed". Naming each pathway removes the bias whatever the
-        # ranking does. SCENARIOS.md D6.
+        # Development and `awning_sign_above` needs consent. Naming each
+        # suggestion's pathway stops a similarity ranking steering a business
+        # to "no application needed".
         if error.get("did_you_mean"):
             error["did_you_mean"] = [
                 {

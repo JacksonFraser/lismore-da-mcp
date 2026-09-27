@@ -76,8 +76,15 @@ def check(label: str, quote: str, haystack: str, problems: list) -> None:
 def main() -> int:
     sys.path.insert(0, str(ROOT / "src"))
     from lismore_da_mcp.data.flood import (
-        ALL_DEVELOPMENT_CONTROLS, ARI_500_OFFSET_M, DEFINITIONS, FLOOD_AREAS,
-        FREEBOARD_MM, LEP_FLOOD_CLAUSES, SCOPE, STRUCTURAL_ADEQUACY_EXEMPTION)
+        ALL_DEVELOPMENT_CONTROLS,
+        ARI_500_OFFSET_M,
+        DEFINITIONS,
+        FLOOD_AREAS,
+        FREEBOARD_MM,
+        LEP_FLOOD_CLAUSES,
+        SCOPE,
+        STRUCTURAL_ADEQUACY_EXEMPTION,
+    )
 
     for path in (CHAPTER, LEP):
         if not path.exists():
@@ -102,7 +109,7 @@ def main() -> int:
         check(f"{key:28}", quote, haystack, problems)
     check("small works exemption      ", STRUCTURAL_ADEQUACY_EXEMPTION, haystack, problems)
 
-    for area_key, area in FLOOD_AREAS.items():
+    for area in FLOOD_AREAS.values():
         print(f"\n{area['name']} (§{area['section']}):")
         check("  definition", area["definition_verbatim"], haystack, problems)
 

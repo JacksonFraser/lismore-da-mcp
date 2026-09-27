@@ -132,8 +132,8 @@ def shape_findings(entries: list[dict]) -> list[str]:
 
 
 def link_findings(entries: list[dict]) -> list[str]:
-    from lismore_da_mcp.data.readiness import DUTY_PLANNER_QUESTIONS
     import lismore_da_mcp.server  # noqa: F401 — registers every tool
+    from lismore_da_mcp.data.readiness import DUTY_PLANNER_QUESTIONS
     from lismore_da_mcp.registry import registered
 
     questions = {q["key"] for q in DUTY_PLANNER_QUESTIONS}

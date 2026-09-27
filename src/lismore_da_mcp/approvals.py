@@ -8,10 +8,7 @@ is stated — the inverse of how permissibility or a fee figure is handled, wher
 a confident wrong answer is the danger.
 """
 
-from lismore_da_mcp.data.approvals import APPROVALS
-from lismore_da_mcp.data.approvals import BY_ACTIVITY
-from lismore_da_mcp.data.approvals import SEQUENCE
-from lismore_da_mcp.data.approvals import TIMING
+from lismore_da_mcp.data.approvals import APPROVALS, BY_ACTIVITY, SEQUENCE, TIMING
 
 # Words in a proposed use that imply food handling. Kept broad on purpose: a
 # business that turns out not to handle food loses nothing by reading the food
@@ -24,11 +21,8 @@ FOOD_WORDS = (
 )
 
 # Trades that discharge something other than domestic sewage without handling
-# food. `liquid_trade_waste`'s own `triggered_by` has always named "butcher,
-# hairdresser, mechanic or car wash", but the approval was only ever selected by
-# the `food` activity — so a hairdresser or mechanic got a passing mention in
-# `advice` and no approval entry, while the data said they need one.
-# SCENARIOS.md D12. The butcher is already caught by FOOD_WORDS.
+# food, matching `liquid_trade_waste`'s own `triggered_by`. The butcher is
+# already caught by FOOD_WORDS.
 TRADE_WASTE_WORDS = (
     "hairdresser", "hairdressing", "salon", "barber", "beauty", "nail",
     "mechanic", "motor repair", "vehicle repair", "panel beater", "smash repair",

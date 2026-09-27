@@ -12,13 +12,15 @@ paid. Producing "your DA will be determined on 14 October" from a submission
 date would be inventing the one number a business would most like to have.
 """
 
-from lismore_da_mcp.data.timing import ASSESSMENT_PERIODS
-from lismore_da_mcp.data.timing import CLOCK_START
-from lismore_da_mcp.data.timing import CLOCK_STOPS
-from lismore_da_mcp.data.timing import INFORMATION_REQUESTS
-from lismore_da_mcp.data.timing import REJECTION
-from lismore_da_mcp.data.timing import WHAT_THE_APPLICANT_CONTROLS
-from lismore_da_mcp.data.timing import WHAT_THE_PERIOD_ACTUALLY_IS
+from lismore_da_mcp.data.timing import (
+    ASSESSMENT_PERIODS,
+    CLOCK_START,
+    CLOCK_STOPS,
+    INFORMATION_REQUESTS,
+    REJECTION,
+    WHAT_THE_APPLICANT_CONTROLS,
+    WHAT_THE_PERIOD_ACTUALLY_IS,
+)
 
 # Which of the s91 periods a proposal falls into. Checked longest-first,
 # because a proposal can be several of these at once — integrated development

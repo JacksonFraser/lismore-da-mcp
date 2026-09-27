@@ -126,8 +126,13 @@ def solutions_not_carried(haystack: str, carried: set) -> list:
 def main() -> int:
     sys.path.insert(0, str(ROOT / "src"))
     from lismore_da_mcp.data.standards import (
-        DEFINITIONS, ELEMENTS, HEALTH_PRECINCT, HOUSING_TYPES,
-        HOW_THIS_CHAPTER_WORKS, NOT_SET_BY_THIS_CHAPTER)
+        DEFINITIONS,
+        ELEMENTS,
+        HEALTH_PRECINCT,
+        HOUSING_TYPES,
+        HOW_THIS_CHAPTER_WORKS,
+        NOT_SET_BY_THIS_CHAPTER,
+    )
 
     if not CHAPTER.exists():
         print(f"missing {CHAPTER}")
@@ -144,7 +149,7 @@ def main() -> int:
     for key, text in DEFINITIONS.items():
         check(f"  {key}", text, haystack, problems)
 
-    for key, element in ELEMENTS.items():
+    for element in ELEMENTS.values():
         print(f"\n§{element['section']} {element['title']}:")
         walk(element, "", haystack, problems, seen)
 

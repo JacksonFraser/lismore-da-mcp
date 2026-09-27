@@ -5,14 +5,15 @@ import json
 from mcp.types import TextContent
 
 from lismore_da_mcp.config import DOCS_DIR
-from lismore_da_mcp.data.instruments import superseded_banner
-from lismore_da_mcp.data.instruments import is_superseded
+from lismore_da_mcp.data.instruments import is_superseded, superseded_banner
 from lismore_da_mcp.registry import tool
-from lismore_da_mcp.search import extract_document_section
-from lismore_da_mcp.search import find_document
-from lismore_da_mcp.search import list_available_documents
-from lismore_da_mcp.search import search_all
-from lismore_da_mcp.search import searchable_documents
+from lismore_da_mcp.search import (
+    extract_document_section,
+    find_document,
+    list_available_documents,
+    search_all,
+    searchable_documents,
+)
 
 
 @tool(
@@ -78,8 +79,8 @@ def read_dcp_section(arguments: dict):
     start_page = arguments.get("start_page", 1)
     end_page = arguments.get("end_page")
 
-    # Resolve across every category, not just dcp/ — search_dcp can return a hit in
-    # lep/ or exempt-development/, and there was previously no way to open it.
+    # Resolve across every category, not just dcp/: search_dcp can return a hit
+    # in lep/ or exempt-development/.
     doc_path = find_document(chapter)
 
     if not doc_path:

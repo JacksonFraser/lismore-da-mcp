@@ -336,6 +336,7 @@ class TestTheChapterAuditCanFail:
 
     def test_a_dropped_bullet_is_caught(self, body, monkeypatch):
         import audit_heritage
+
         from lismore_da_mcp.data import heritage as data
 
         fences = dict(data.DESIGN_GUIDELINES["fences"])
@@ -348,6 +349,7 @@ class TestTheChapterAuditCanFail:
 
     def test_a_drifted_chapter_quote_is_caught(self, body, monkeypatch):
         import audit_heritage
+
         from lismore_da_mcp.data import heritage as data
 
         signage = dict(data.DESIGN_GUIDELINES["signage"])
@@ -358,6 +360,7 @@ class TestTheChapterAuditCanFail:
 
     def test_a_relabelled_conservation_area_is_caught(self, lep_raw, monkeypatch):
         import audit_heritage
+
         from lismore_da_mcp.data import heritage as data
 
         nimbin = dict(data.CONSERVATION_AREAS["nimbin"], heritage_map_label="C1")
@@ -367,6 +370,7 @@ class TestTheChapterAuditCanFail:
 
     def test_a_missing_conservation_area_is_caught(self, lep_raw, monkeypatch):
         import audit_heritage
+
         from lismore_da_mcp.data import heritage as data
 
         fewer = {k: v for k, v in data.CONSERVATION_AREAS.items() if k != "eltham"}
@@ -544,6 +548,7 @@ class TestWhatChapter12DoesAskFor:
 
     def test_both_are_carried_and_quoted(self, body):
         import audit_heritage
+
         from lismore_da_mcp.data.heritage import WHAT_CHAPTER_12_DOES_ASK_FOR
 
         haystack = audit_heritage.fold(body)
@@ -575,6 +580,7 @@ class TestSchedule5IsTranscribed:
 class TestTheSchedule5AuditCanFail:
     def test_a_changed_field_is_caught(self, lep_raw, monkeypatch):
         import audit_heritage
+
         from lismore_da_mcp.data.heritage_items import HERITAGE_ITEMS
 
         drifted = [("I64", "Lismore", "Commonwealth Bank", "182 Molesworth Street",
@@ -587,6 +593,7 @@ class TestTheSchedule5AuditCanFail:
 
     def test_a_dropped_row_and_an_invented_row_are_caught(self, lep_raw, monkeypatch):
         import audit_heritage
+
         from lismore_da_mcp.data.heritage_items import ARCHAEOLOGICAL_SITES
 
         edited = [r for r in ARCHAEOLOGICAL_SITES if r[0] != "A5"]

@@ -35,25 +35,15 @@ from dataclasses import dataclass, field
 from lismore_da_mcp.approvals import FOOD_WORDS
 from lismore_da_mcp.approvals import relevant as relevant_approvals
 from lismore_da_mcp.data.approvals import APPROVALS
-from lismore_da_mcp.data.checklists import DA_CHECKLISTS
-from lismore_da_mcp.data.checklists import UNIVERSAL_DOCUMENTS
-from lismore_da_mcp.data.readiness import DUTY_PLANNER_QUESTIONS
-from lismore_da_mcp.data.readiness import REJECTION_GROUNDS
-from lismore_da_mcp.data.readiness import STATUTORY_CONTENT
-from lismore_da_mcp.data.referrals import CHARACTERISTIC_TRIGGERS
-from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS
-from lismore_da_mcp.data.referrals import is_external
+from lismore_da_mcp.data.checklists import DA_CHECKLISTS, UNIVERSAL_DOCUMENTS
+from lismore_da_mcp.data.definitions import LAND_USE_DEFINITIONS
 from lismore_da_mcp.data.flood import LEP_FLOOD_CLAUSES
+from lismore_da_mcp.data.readiness import DUTY_PLANNER_QUESTIONS, REJECTION_GROUNDS, STATUTORY_CONTENT
+from lismore_da_mcp.data.referrals import CHARACTERISTIC_TRIGGERS, REFERRAL_REQUIREMENTS, is_external
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.flood import is_sensitive_or_hazardous
-from lismore_da_mcp.landuse import NOT_A_LAND_USE
-from lismore_da_mcp.landuse import canonical_use
-from lismore_da_mcp.landuse import classify_land_use
-from lismore_da_mcp.data.definitions import LAND_USE_DEFINITIONS
-from lismore_da_mcp.vocabulary import CHECKLIST_SYNONYMS
-from lismore_da_mcp.vocabulary import DEFINITION_SYNONYMS
-from lismore_da_mcp.vocabulary import DOCUMENT_SYNONYMS
-from lismore_da_mcp.vocabulary import resolve
+from lismore_da_mcp.landuse import NOT_A_LAND_USE, canonical_use, classify_land_use
+from lismore_da_mcp.vocabulary import CHECKLIST_SYNONYMS, DEFINITION_SYNONYMS, DOCUMENT_SYNONYMS, resolve
 
 
 @dataclass
@@ -207,10 +197,9 @@ def _expand(claim: str) -> str:
 
 
 # Words that open a requirement's name without saying what it is about — "Details
-# of operating hours, staff numbers and deliveries". The first-word rule below
-# compared an applicant's "operating hours" against "details" and reported the
-# document missing (SCENARIOS.md run 2, R7). Dropped from the front of either
-# side, and only from the front: in "Signage details" the subject comes first.
+# of operating hours, staff numbers and deliveries". Dropped from the front of
+# either side before the first-word rule below, and only from the front: in
+# "Signage details" the subject comes first.
 _LEADING_FILLER = {"detail", "description"}
 
 
@@ -224,13 +213,10 @@ def _subject_words(text: str) -> list[str]:
 def _claims(claim: str, requirement: str) -> bool:
     """Does this claim refer to this requirement, as typed or as its synonym?
 
-    Both forms are tried. `DOCUMENT_SYNONYMS` maps a counter name onto one
-    checklist's wording, and the checklists do not agree: "access report"
-    became "access upgrade assessment" for the change-of-use list, and could
-    then no longer match the commercial list's "Access report" — so a document
-    named exactly as the requirement was reported missing (SCENARIOS.md run 2,
-    R7). The as-typed form goes through the same strict rules, so trying it
-    adds only real matches.
+    Both forms are tried, because `DOCUMENT_SYNONYMS` maps a name onto one
+    checklist's wording and the checklists do not agree (a synonym for "access
+    report" would stop it matching a list that says "Access report"). The
+    as-typed form goes through the same strict rules, so it adds only real matches.
     """
     expanded = _expand(claim)
     return any(_claims_one(form, requirement)
@@ -252,12 +238,9 @@ def _claims_one(claim: str, requirement: str) -> bool:
     if not claim_tokens or not name_tokens:
         return False
     # A subset still has to agree on the *first* word — what the document is
-    # about. Without that, a bare "management plan" is a subset of both "waste
-    # management plan" and "stormwater management plan" and cleared them both,
-    # short-circuiting the very check below that exists to keep those two apart.
-    # "site plan" ⊆ "site plan (1:100 or 1:200 scale)" still passes, because the
-    # subset drops trailing detail rather than the distinguishing word.
-    # SCENARIOS.md D12.
+    # about — or a bare "management plan" would clear both "waste management
+    # plan" and "stormwater management plan". "site plan" ⊆ "site plan (1:100
+    # or 1:200 scale)" still passes: the subset drops only trailing detail.
     if claim_tokens <= name_tokens or name_tokens <= claim_tokens:
         return claim_words[0] == name_words[0]
     # Both ends have to agree: the head noun says what the document *is*, and
@@ -305,7 +288,7 @@ def _permissibility(p: Proposal) -> list[dict]:
         wrong here — "you may not need an application".
         """
         match = resolve(term, LAND_USE_DEFINITIONS, DEFINITION_SYNONYMS)
-        return match.key if match else canonical_use(term)
+        return match.key or canonical_use(term)
 
     if canonical_use(p.proposed_use) in _PROCESS_WORDS:
         return [{
@@ -342,15 +325,9 @@ def _permissibility(p: Proposal) -> list[dict]:
 
     classified = classify_land_use(p.proposed_use, zone, p.zone_code.upper())
 
-    # Same defined term in and out. A shop becoming a shop is not a change of
-    # use in the land use table's terms at all, and this used to return the full
-    # fourteen-document "not ready" workup without once suggesting the
-    # application might not be needed. It is the one finding that can delete the
-    # whole exercise, so it goes first. SCENARIOS.md D12.
-    # Compared on the *defined term*, not on the land use table row they match.
-    # E2's table lists only "Commercial premises", so a shop and a café both
-    # resolve to it through the hierarchy — comparing the matched row said a
-    # shop becoming a café was no change of use, which is exactly wrong.
+    # Same defined term in and out is not a change of use at all, and may mean
+    # no application is needed, so it goes first. Compared on the defined term,
+    # not the table row: in E2 a shop and a café both match "Commercial premises".
     if p.existing_use and p.proposed_use:
         if _defined_term(p.existing_use) == _defined_term(p.proposed_use):
             return [{
@@ -409,9 +386,8 @@ def _statutory(p: Proposal, approval_names: list[str]) -> list[dict]:
         "finding": "The application must list the other approvals this development needs, "
                    "whether or not you have them yet.",
         "why": STATUTORY_CONTENT["list_of_approvals"]["plain"],
-        # s25(b) only. The rejection ground reads "for an application for
-        # integrated development" and citing it here made every proposal look
-        # rejectable over a blank field. SCENARIOS.md D12.
+        # s25(b) only: the rejection ground applies to integrated development,
+        # so citing it here would make every proposal look rejectable.
         "source": STATUTORY_CONTENT["list_of_approvals"]["clause"],
         "applies_to": STATUTORY_CONTENT["list_of_approvals"]["applies_to"],
         "do_this": "List these, at least: " + ", ".join(approval_names)
@@ -667,14 +643,10 @@ def referral_triggers(p: Proposal) -> dict:
     heritage layer is not necessarily on the State Heritage Register, and only
     the State Register brings in the Heritage Council — so a derived trigger
     produces Council's own cl 5.10 assessment and a question about integrated
-    development, never an assertion that the application is integrated. Until
-    2026-09-25 it produced the Heritage Council referral itself, documents and
-    all, with the caveat in a string beside it (SCENARIOS.md run 2, R3).
+    development, never an assertion that the application is integrated.
 
-    Every matching trigger is collected, as check_referrals does. Taking the
-    first was harmless while each word reached one body, but 'state_heritage'
-    now reaches two — Council's assessment and the Heritage Council's — and the
-    first hit alone would drop the one that makes the DA integrated.
+    Every matching trigger is collected, as check_referrals does: 'state_heritage'
+    reaches both Council's assessment and the Heritage Council's.
     """
     triggered: dict[str, str] = {}
     unrecognised = []
@@ -707,8 +679,8 @@ def referral_triggers(p: Proposal) -> dict:
         # Whether integrated development is even in question. An external referral
         # raises it. So does a heritage item not known to be on the State Register,
         # stated or mapped, because that is the one fact that would make it
-        # integrated and nothing here can settle it. Council's own flood assessment
-        # does not, and used to raise it anyway.
+        # integrated and nothing here can settle it. Council's own flood
+        # assessment does not.
         "integrated_in_question": (
             any(is_external(key) for key in triggered)
             or "council_heritage_assessment" in triggered
@@ -802,11 +774,8 @@ def assess(p: Proposal, has_parking_shortfall: bool | None = None) -> dict:
         "blocking": bool(blocking),
     }
 
-    # Severity order is honest — "you may not need this application" is not a
-    # blocker and must not be dressed as one — but honest ordering buried it
-    # under fourteen documents, which is the finding a business would most want
-    # first. Lifting it to the top level says it without inflating its severity.
-    # SCENARIOS.md D12.
+    # "You may not need this application" is not a blocker, so severity order
+    # buries it; surface it at the top level without inflating its severity.
     same_term = [f for f in findings if "may not need development consent" in f["finding"]]
     if same_term:
         result["before_you_read_any_of_this"] = same_term[0]["finding"] + " " + same_term[0]["do_this"]

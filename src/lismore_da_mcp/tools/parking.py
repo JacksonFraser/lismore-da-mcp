@@ -4,26 +4,28 @@ import json
 
 from mcp.types import TextContent
 
-from lismore_da_mcp.data.parking import CBD_FIXED_RATE
-from lismore_da_mcp.data.parking import COUNTABLE
-from lismore_da_mcp.data.parking import COUNTABLE_DESCRIPTIONS
-from lismore_da_mcp.data.parking import DISABILITY_PARKING
-from lismore_da_mcp.data.parking import PARKING_RATES
+from lismore_da_mcp.data.parking import (
+    CBD_FIXED_RATE,
+    COUNTABLE,
+    COUNTABLE_DESCRIPTIONS,
+    DISABILITY_PARKING,
+    PARKING_RATES,
+)
 from lismore_da_mcp.interpretations import cite_all
-from lismore_da_mcp.registry import tool
 from lismore_da_mcp.parking import cbd_location as _location
-from lismore_da_mcp.parking import cbd_spaces
-from lismore_da_mcp.parking import estimate_spaces
-from lismore_da_mcp.parking import resolve_parking_use
-from lismore_da_mcp.parking import shortfall_options
-from lismore_da_mcp.parking import uses_schedule_1_in_cbd
+from lismore_da_mcp.parking import (
+    cbd_spaces,
+    estimate_spaces,
+    resolve_parking_use,
+    shortfall_options,
+    uses_schedule_1_in_cbd,
+)
+from lismore_da_mcp.registry import tool
 from lismore_da_mcp.vocabulary import unresolved_error
 
 # The countables, as schema properties, generated from the same dict the
-# estimator reads. Ten of the twelve had no argument at all, so a rate that
-# counted practitioners or children could never be given them — see the note on
-# COUNTABLE. Generating these means adding a countable to a rate cannot silently
-# fail to be askable. ROADMAP.md S3.
+# estimator reads, so adding a countable to a rate cannot silently fail to be
+# askable. See the note on COUNTABLE.
 _COUNTABLE_PROPERTIES = {
     argument: {
         'type': 'number' if argument.endswith('_sqm') else 'integer',
@@ -61,12 +63,8 @@ def _cbd_arguments_not_applied(arguments: dict, in_cbd: bool | None,
     """The CBD-only arguments that were supplied and had no effect, and why.
 
     `existing_gfa_sqm` and `existing_spaces_on_site` feed the §7.7.3.4 credit and
-    nothing else. They were accepted everywhere and dropped in silence wherever
-    that credit does not run — outside the CBD above all, where a business
-    changing the use of a building with spaces on it passed them and saw no
-    sign they had gone nowhere (SCENARIOS.md run 2, R6). A supplied argument
-    with no effect reads exactly like one that was applied, which is the
-    declared-but-unenforced failure CLAUDE.md describes, one layer down.
+    nothing else. Where that credit does not run, say so: a supplied argument
+    with no effect otherwise reads exactly like one that was applied.
     """
     supplied = {name: arguments.get(name) for name in ("existing_gfa_sqm", "existing_spaces_on_site")
                 if arguments.get(name) is not None}
@@ -138,7 +136,7 @@ def get_parking_rates(arguments: dict):
     requested = arguments.get("development_type", "")
     in_cbd = _location(arguments.get("location"))
     match, derivation, refusal = resolve_parking_use(requested)
-    if match:
+    if match and match.key:
         dev_type = match.key
         result = PARKING_RATES[dev_type]
         response = {
@@ -161,9 +159,8 @@ def get_parking_rates(arguments: dict):
 
         # Which rate even applies. Schedule 1 is the rate *outside* the CBD
         # (§7.7.2); inside it a fixed 3.3/100m² replaces it for everything
-        # except residential and tourist accommodation (§7.7.3.1). Answering a
-        # CBD business off Schedule 1 overstates its requirement several times
-        # over, which is what this tool did until now.
+        # except residential and tourist accommodation (§7.7.3.1). Schedule 1
+        # would overstate a CBD business's requirement several times over.
         floor_area = arguments.get("floor_area_sqm") or None
         schedule_1_applies_anyway = uses_schedule_1_in_cbd(dev_type)
 
@@ -210,13 +207,8 @@ def get_parking_rates(arguments: dict):
             # wrong number in a business's plans.
             #
             # Emitted whenever the location is open, whether or not either side
-            # can be calculated. It used to require both figures, so once S3 let
-            # Schedule 1 decline for want of a staff count, a café that had not
-            # said where it was got the Schedule 1 formula alone — the CBD rate,
-            # three spaces against Schedule 1's twelve-plus, was never mentioned,
-            # and `applies` pointed at this key while it was absent (SCENARIOS.md
-            # run 2, R2). The question that changes the answer most is the one
-            # that must not depend on the others being answered first.
+            # can be calculated: the question that changes the answer most must
+            # not depend on the others being answered first.
             response["which_rate_applies"] = {
                 "unresolved": "You have not said whether the site is inside the Lismore CBD, "
                               "and the two rates give different answers. Neither figure below "

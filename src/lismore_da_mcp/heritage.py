@@ -257,7 +257,7 @@ _PLURAL_TYPES = {"streets": "street", "roads": "road"}
 
 def _words(text: str) -> list[str]:
     text = text.lower().replace("’", "'").replace("'", "")
-    return [STREET_TYPES.get(w, w) for w in re.findall(r"[a-z0-9]+(?:/[0-9a-z]+)?|[–-]", text)]
+    return [STREET_TYPES.get(w) or w for w in re.findall(r"[a-z0-9]+(?:/[0-9a-z]+)?|[–-]", text)]
 
 
 def parse_address(address: str) -> dict | None:

@@ -126,7 +126,7 @@ def parse_listing(text: str) -> list[dict]:
     for i, m in enumerate(starts):
         block = body[m.end(): starts[i + 1].start() if i + 1 < len(starts) else len(body)]
 
-        def field(label: str) -> str | None:
+        def field(label: str, block: str = block) -> str | None:
             hit = re.search(rf"{re.escape(label)}\s*\n+(.+)", block)
             return hit.group(1).strip() if hit else None
 
@@ -319,8 +319,8 @@ def council_facts(number: str) -> dict:
         block = text[max(0, table.start() - 300): table.start() + 900]
         lines = re.findall(r"(Lismore Water|Rous County Council|Lismore Sewer) "
                            r"([\d.]+) ?\$ ?([\d,]+\.\d\d)", block)
-        facts["s64_lines"] = [{"levy": l, "ets": float(e), "per_et": _money(r)}
-                              for l, e, r in lines]
+        facts["s64_lines"] = [{"levy": levy, "ets": float(e), "per_et": _money(r)}
+                              for levy, e, r in lines]
         # Where a policy reduces the charge the table prints two totals: levied, then payable.
         tot = re.search(r"Total \$ ?([\d,]+\.\d\d)(?: \$ ?([\d,]+\.\d\d))?", block)
         facts["s64_total"] = _money(tot.group(1)) if tot else None

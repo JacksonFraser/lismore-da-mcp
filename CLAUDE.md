@@ -10,13 +10,12 @@ This file has two halves:
   Do not delete it when editing this file.
 
 **Who this is for: local businesses in the Lismore LGA going through a DA** — opening, changing
-use, fitting out or expanding — where the friction is between the business and Council. Not
-primarily householders, though the server was largely built as though it were: the SEE form tooling,
-residential standards and setback tools all target R zones, while a business is usually doing a
-**change of use** in E1–E4, MU1 or RU5. See **`PLAN.md`** for what that reframing implies and what
-is being done about it; read it before picking up work, because the previous plan
-(`IMPROVEMENT_PLAN.md`, deleted — `git show 4ded0a8:IMPROVEMENT_PLAN.md`) kept generating
-engineering work that is no longer the constraint.
+use, fitting out or expanding. A business is usually doing a **change of use** in E1–E4, MU1 or
+RU5, while much of the older tooling (SEE form, residential standards, setbacks) targets R zones.
+Read **`PLAN.md`** before picking up work.
+
+History — why a rule exists, which bug it came from — belongs in commit messages and PRs, not in
+code comments or this file. Keep comments to what the code does and the constraint it must keep.
 
 ---
 
@@ -25,15 +24,29 @@ engineering work that is no longer the constraint.
 ## Commands
 
 ```bash
-uv sync                                   # install deps into .venv (Python >=3.14)
+uv sync --extra dev                       # install deps into .venv (Python >=3.14)
 uv sync --extra scraping                  # + httpx/playwright, only for scripts/fetch_*.py
-# uv is not installed on every machine that runs this. The stdlib equivalent,
-# and how the current .venv was built (Homebrew python@3.14, 2026-08-02):
+# Without uv:
 python3.14 -m venv .venv && .venv/bin/python -m pip install -e ".[dev]"
+
+.venv/bin/python -m pytest                # tests (~3.5 min; the index parity tests are the slow ones)
+.venv/bin/ruff check src tests scripts    # lint, incl. a complexity ceiling (see pyproject.toml)
+.venv/bin/pyright --pythonpath .venv/bin/python   # type check (basic mode, src/ only)
+
 .venv/bin/python -m lismore_da_mcp.server # run the server over stdio (what .mcp.json launches)
 MCP_TRANSPORT=http PYTHONPATH=src PORT=8080 \
   .venv/bin/python -m lismore_da_mcp.server   # run the public HTTP transport locally
 curl localhost:8080/health                # → "ok"
+```
+
+CI runs pytest, ruff and pyright; all three must pass. To try a tool without an MCP client, import
+`call_tool` and call it directly:
+
+```bash
+.venv/bin/python -c "
+import asyncio
+from lismore_da_mcp.server import call_tool
+print(asyncio.run(call_tool('get_parking_rates', {'development_type': 'restaurant'}))[0].text)"
 ```
 
 ## Repo tooling (`.claude/`, committed on purpose)
@@ -41,545 +54,284 @@ curl localhost:8080/health                # → "ok"
 | | |
 |---|---|
 | `/check-documents` | Validates `documents/`: real PDFs, no error pages, right LEP edition, indexed, in a searched category. Also runs in CI. |
-| `/smoke` | Drives the server with a real MCP client over **both** transports. The unit tests call handlers directly and CI only imports the HTTP app — neither opens a session, and two shipped bugs were visible only to a real client. |
-| `planning-data-reviewer` agent | Checks transcribed data in `data/` against the source documents. The repo's core risk is that this data is hand-copied and nothing verifies it; the tests pin that it has not *changed*, not that it is *right*. |
-| `scripts/audit_parking_rates.py` | Checks every parking requirement in `data/parking.py` still appears verbatim in DCP Chapter 7. Schedule 1 is a three-column PDF table that cannot be diffed structurally, so the rates are stored verbatim and presence-checked. All 22 entries were wrong before 2026-08-02. |
-| `scripts/audit_zone_tables.py` | Diffs every zone land use table against `documents/lep/lep-2012-nsw-full.txt`. All 21 match as of 2026-08-02; `tests/test_zone_transcription.py` keeps it that way. Known defects in the *scraped source text* — three lost semicolons — are listed in `SOURCE_TEXT_DEFECTS` rather than silently tolerated. |
-| `scripts/audit_timing.py` | Checks the assessment-period quotes in `data/timing.py` against `documents/legislation/epa-regulation-2021-assessment-periods.txt`, and that each stored figure matches its own quote. Unlike the others this guards against **the law changing**, not a transcription slipping — that text is a fetched snapshot of legislation.nsw.gov.au, so a mismatch means an amendment. It also reads every subsection of Part 4 Division 4 (ss91–95) off the source and fails on any neither quoted nor named in `DIVISION_4_NOT_CARRIED` — a presence check cannot see a period an amendment **inserts**, which is the amendment this audit exists for — and checks each quote sits in the subsection its `clause` names. |
-| `scripts/audit_approvals.py` | Checks every dollar figure quoted in `data/approvals.py` still appears in Council's fees schedule, and that `SEQUENCE`/`BY_ACTIVITY` resolve. These are prose, not verbatim quotes, so the figures are what can be checked — and Council reissues the schedule every July, a refresh this repo has already missed twice. |
-| `scripts/audit_readiness.py` | Checks the lodgement and rejection provisions in `data/readiness.py` against the fetched EP&A Regulation text, reusing `audit_timing.py`'s comparison. It also checks every paragraph of s39(1) is carried, reading the letters off the source rather than a hardcoded list — a list of five rejection grounds out of six reads as complete and is not. Like `audit_timing.py` it guards against **the law changing**. |
-| `scripts/audit_signage.py` | Checks every DCP Chapter 9 definition, standard and general provision in `data/signage.py` still appears verbatim in the chapter, and reports any sign type §9.3 defines that the data does not carry. That last check found `business identification sign` and `building identification sign` missing — the two the §9.2 heritage exception turns on. |
-| `scripts/audit_contributions.py` | Checks the Section 7.11 rates two ways: every figure still appears in the plan PDF, **and** all 30 cells of Table E2 rebuild from Table E1's components. The derivation catches a transposed digit that a presence check cannot, and it found one real discrepancy in the published table (`KNOWN_TABLE_DISCREPANCIES`). Prefer this shape wherever a source table has recoverable internal arithmetic. It also reads Table E2's development type column off the PDF and fails on a row neither carried nor named in `UNCARRIED_TABLE_E2_ROWS`, so a type the next plan review adds cannot go silently uncharged. |
-| `scripts/audit_standards.py` | Checks every DCP Chapter 1 quote in `data/standards.py` against the chapter, and reads the Acceptable Solution labels (A1.1, A26.3, …) off the document to report any the data does not carry. It also runs the check the others cannot: that the figures recorded in `NOT_SET_BY_THIS_CHAPTER` really are **absent**. A presence check only looks at what is stored, so it is structurally blind to invention — which is how this file came to assert a side setback, a site coverage maximum and a deep soil percentage that Chapter 1 does not contain. |
-| `scripts/audit_flood.py` | Checks all 40 flood controls in `data/flood.py` against DCP Chapter 8 and the LEP text. Two checks beyond presence: the derived constants must agree with the quotes they were read from (the freeboard was wrong by 200mm and nothing noticed), and every numbered control in §8.4–§8.8 is counted off the document, so a requirement nobody transcribed is reported rather than invisible. |
-| `scripts/audit_definitions.py` | Checks all 36 land use definitions in `data/definitions.py` against the LEP Dictionary, plus the clause 5.4 controls each carries. Beyond presence it checks each quote **opens with its own term** (verbatim LEP text lifted from the wrong entry passes a presence check), that `land_use_table_term` really is how `data/zones.py` spells the use, that `LAND_USE_HIERARCHY`'s first links agree with the LEP's own "X is a type of Y" notes — which caught `office premises` recorded as a type of business premises — and, like `audit_standards.py`, that the recorded inventions are still **absent**. |
-| `scripts/audit_landuse_matching.py` | The only audit that checks a **tool** rather than a data file: it asks `check_permissibility` about all 991 land use rows in both the table's spelling and the LEP Dictionary's, and grades the answer against the table. Every other audit here would pass with the matching layer completely broken, which is how ROADMAP.md S1's defect survived 1,346 tests. The singular↔plural pairing is read off the Dictionary in the document, never computed — a candidate spelling the document does not confirm is discarded, so the audit can never grade the tool against a word that is not a land use. It also audits `LAND_USE_TABLE_SPELLINGS` itself, since S1's fix turned that pairing into stored data: every pair must be one the document yields, every pair the document yields must be stored, and every table spelling must appear verbatim in `data/zones.py` — a pair whose right-hand side is not a real table entry resolves onto nothing and reads exactly like one that works. **Since 2026-09-25 it also asks about every use the Dictionary places under a parent** (108 "is a type of" notes × 21 zones), graded through the chain of parents read off the document — the first pass asked only about terms a table names, and passed clean while 161 answers like *medical centre in E4* were a wrong "yes" (SCENARIOS.md run 2, R1). It audits `LEP_TYPE_OF` against the notes both ways, too. |
-| `scripts/audit_parking_rates.py` **completeness** | Added 2026-08-20. The rates were only ever presence-checked, and the docstring claimed a completeness check that **did not exist** — so "27 entries checked, 0 not matching" printed while `Shop top housing` was absent from `data/parking.py` entirely. Schedule 1's land use column is now isolated from the PDF by x-position (the rate columns still cannot be diffed, which is why rates stay verbatim), every row is either carried or named in `UNCARRIED_SCHEDULE_1_USES`, and the hand-read list is itself checked against the document so it cannot drift into fiction. |
-| `scripts/audit_heritage.py` | Checks the LEP cl 5.10 provisions in `data/heritage.py` against the LEP text, and — since ROADMAP.md C1 — all 223 DCP Chapter 12 quotes against the chapter, in both directions: every stored string is in the chapter, and every bullet (164), PREFERRED / NOT ENCOURAGED heading, numbered objective, conservation area heading and figure with a unit in the chapter is carried, plus every conservation area against its LEP Schedule 5 Part 2 row, and (ROADMAP.md C2) all 113 heritage items and 18 archaeological sites in `data/heritage_items.py` row for row against Schedule 5 Parts 1 and 3, both ways. It also runs the check that matters more: that DCP **Chapter 12 still requires no heritage document**. Nine places asserted "a Heritage Impact Statement is required (DCP Chapter 12)" and both halves were wrong, so the correction rests on a negative — which a presence check is structurally blind to. It also pins the *modality*: if cl 5.10(5) ever stops saying "may", every hedge this repo now carries is wrong in the other direction. |
-| `scripts/run_scenarios.py` | Runs `SCENARIOS.md` against the real handlers with fixed calls and keeps every answer verbatim; `--compare` lists what changed since an earlier run. It does not judge — verdicts need a reading of the source — but an unchanged answer keeps its verdict, so a run costs the changed scenarios only. Run it after every phase: run 2 found a wrong "yes" 161 answers wide that every audit passed. |
-| `scripts/audit_interpretations.py` | Checks every provision quoted in `data/interpretations.py` — the register of readings this repo takes where a source admits more than one — appears verbatim in its source, **on the PDF page the entry names**, so a reviewer can turn straight to it and a phrase lifted from the wrong section fails. Also checks each entry carries what the planner review needs and that its `duty_planner_question` and `relied_on_by` links resolve. It cannot audit the readings themselves — that is ROADMAP.md B2, and `scripts/render_interpretations.py` prints the register as the review packet. |
-| `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. **Exit codes are a contract**: 0 clean, 1 drift, 3 *unverified* (something could not be fetched and nothing else was wrong), 4 the verifier itself failed, 2 usage. `--json` / `--issue-body` write the same verdict for the workflow. A download that is not a PDF counts as not fetched, never as a changed document — a bot-challenge page saved under a PDF's name would otherwise read as every figure gone. |
-| `/validate-tracker`, `tracker-validator` agent, `scripts/validate_against_tracker.py` | The only check graded by someone other than us: real business DAs from Council's DA Tracker, graded against the Notices of Determination (ROADMAP.md Phase T). `harvest` finds new DAs, `fetch --update` reads Council's figures into `tests/fixtures/tracker_cases.json`, `grade` scores the tools, `freeze` records a prediction for an undetermined DA — the only cases graded without hindsight. Inputs come from what the applicant knew at lodgement, never the consent. Notices carry names and emails, so downloads stay in `tracker-cache/`, which is gitignored and hook-blocked. Needs the `scraping` extra, and it is live — the tracker and the address services. |
-| `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/`, `_quarantined/` or `tracker-cache/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
-| `.github/workflows/verify-against-council.yml` | Runs `verify_against_council.py` quarterly (3 Feb/May/Aug/Nov — August catches Council's July fees reissue) and on `workflow_dispatch`. Opens or comments on a `council-drift` issue on drift, and a **separate** `council-verify-blocked` issue when Council could not be reached or the script failed, because Council may refuse CI runners and a block must read as neither drift nor clean. Holds only the default token with `contents: read` / `issues: write`, checks out without credentials, and fails if `documents/` changed. Its first run already paid for itself in review: `normalise()` had lost its curly-apostrophe handling, so two parking rates would have opened a false drift issue. |
-| `scripts/audit_nimbin.py` | Checks `data/nimbin.py` against DCP Part B Chapter 6 (Nimbin Village) in four directions, because it is a fresh transcription: every quote is present; every numbered section heading, every precinct's **Preferred land uses** list (item for item, both ways), every Live / Work criterion label and every figure the chapter prints with a unit is read **off the document** and must be carried or named with a reason; no figure in the data's guidance text is one the chapter does not print; and the recorded absences (no height in metres, no parking rate, no site coverage, no side or rear setback figure) are still absent. `tests/test_nimbin.py` shows each direction failing. |
-| `scripts/audit_commercial.py` | Checks every DCP Chapter 2 quote and figure in `data/commercial.py` against the chapter, and the reading rule against the DCP Introduction. Completeness is read off the chapter's **typography** — bold 12pt sections, bold italic subheadings, bold 10pt Table B1 labels — so every section, subheading and P/A label must be carried or named in `DESCRIPTIVE_SECTIONS`, and the data may claim none the chapter lacks. Like `audit_standards.py` it asserts the absences, one of which is load-bearing: the chapter **never mentions a change of use**. Written before the data (ROADMAP.md D1), and it caught one of its own absences being wrong on the first run. |
-| `scripts/audit_waste.py` | Checks every DCP Chapter 15 quote and figure in `data/waste.py`, and runs two structural checks. It reads the 27 numbered sections and 8 appendices off the PDF's bold spans and **counts the numbered requirements** in each section that sets them against what is carried — so a fifteenth criterion nobody transcribed (in §4.3 it is the food waste rule) cannot go missing silently. And it **rebuilds Appendix C from line geometry** — the generation-rate table is three columns that extract out of order — comparing all 16 rows cell by cell in both directions, because a real rate filed against the neighbouring premises type passes a presence check. Written before the data (ROADMAP.md D2). |
+| `/smoke` | Drives the server with a real MCP client over **both** transports. Unit tests call handlers directly and never open a session. |
+| `planning-data-reviewer` agent | Checks transcribed data in `data/` against the source documents. Tests pin that the data has not *changed*, not that it is *right*. |
+| `protect-private-paths.py` hook | Blocks `git add`/`commit` touching `documents/output/`, `my-application/`, `_quarantined/` or `tracker-cache/`, including with `-f`. |
+| `scripts/audit_*.py` | Check the hand-transcribed data in `data/` against the source documents in `documents/`. See below. |
+| `scripts/verify_against_council.py` | Checks the PDFs in `documents/` are still what Council publishes: re-downloads, compares, re-verifies figures, crawls for new documents. Needs the `scraping` extra. Never writes to `documents/`. **Exit codes are a contract:** 0 clean, 1 drift, 3 unverified (something could not be fetched, nothing else wrong), 4 the verifier failed, 2 usage; `--json` / `--issue-body` carry the same verdict. A download that is not a PDF counts as not fetched, never as a changed document. |
+| `.github/workflows/verify-against-council.yml` | Runs the verifier quarterly (3 Feb/May/Aug/Nov — August follows Council's July fees reissue) and on `workflow_dispatch`. Drift opens or comments on a `council-drift` issue; a block or verifier failure goes to a **separate** `council-verify-blocked` issue, so a block reads as neither drift nor clean. Default token only (`contents: read`, `issues: write`), no credentials persisted, fails if `documents/` changed. |
+| `/validate-tracker`, `tracker-validator` agent, `scripts/validate_against_tracker.py` | The only check graded by someone other than us: real business DAs from Council's DA Tracker, graded against the Notices of Determination. `harvest` / `fetch --update` / `grade` / `freeze` (a prediction for an undetermined DA). Inputs are what the applicant knew at lodgement. Notices carry names and emails, so downloads stay in `tracker-cache/` (gitignored and hook-blocked). Live, and needs the `scraping` extra. |
+| `scripts/run_scenarios.py` | Runs `SCENARIOS.md` against the real handlers with fixed calls and keeps every answer verbatim; `--compare` lists what changed since an earlier run. It does not judge; an unchanged answer keeps its verdict. Run it after every phase. |
 
-`.claude/settings.local.json` stays out of git (per-machine permissions); everything else in
-`.claude/` is shared, because a guardrail only one person has is not a guardrail.
+The audits, one per data file:
 
-There is no linter or formatter configured. Changes are verified by calling the
-tools through an MCP client (the local `lismore-da` server from `.mcp.json`, or the deployed
-`lismore-da-public`), or by importing `lismore_da_mcp.server` and calling handlers directly:
+| Script | Checks |
+|---|---|
+| `audit_zone_tables.py` | Every zone land use table against the LEP text. Known defects in the scraped source are listed in `SOURCE_TEXT_DEFECTS`. |
+| `audit_landuse_matching.py` | The only audit of a **tool**: asks `check_permissibility` about every land use row (both spellings) and every Dictionary "is a type of" note in every zone, and grades the answers against the table. Also audits `LAND_USE_TABLE_SPELLINGS` and `LEP_TYPE_OF` against the Dictionary. |
+| `audit_definitions.py` | Land use definitions against the LEP Dictionary: each quote opens with its own term, `land_use_table_term` matches `data/zones.py`, hierarchy links agree with the LEP, recorded inventions stay absent. |
+| `audit_parking_rates.py` | Every rate appears verbatim in DCP Chapter 7, and every Schedule 1 row is either carried or listed in `UNCARRIED_SCHEDULE_1_USES`. |
+| `audit_contributions.py` | Section 7.11 figures appear in the plan, **and** Table E2 rebuilds from Table E1's components (catches transpositions a presence check cannot), and every Table E2 row read off the PDF is carried or named in `UNCARRIED_TABLE_E2_ROWS`. |
+| `audit_standards.py` | DCP Chapter 1 quotes, missing Acceptable Solution labels, and that `NOT_SET_BY_THIS_CHAPTER` figures are really absent. |
+| `audit_flood.py` | All flood controls against DCP Chapter 8 and the LEP; derived constants agree with their quotes; every numbered control is counted. |
+| `audit_heritage.py` | cl 5.10 provisions against the LEP; every Chapter 12 quote against the chapter, and every bullet, PREFERRED / NOT ENCOURAGED heading, objective, conservation area and figure in the chapter is carried; all Schedule 5 items and archaeological sites in `data/heritage_items.py` row for row, both ways; that Chapter 12 still requires no heritage management document; and that cl 5.10(5) still says "may". |
+| `audit_commercial.py` | DCP Chapter 2 quotes and figures; every section, subheading and Table B1 label read off the chapter's typography is carried or named in `DESCRIPTIVE_SECTIONS`; recorded absences, including that the chapter never mentions a change of use. |
+| `audit_waste.py` | DCP Chapter 15 quotes and figures; the numbered requirements in each section are counted against what is carried; Appendix C's generation rates are rebuilt from line geometry and compared cell by cell, both ways. |
+| `audit_nimbin.py` | DCP Part B Chapter 6 (Nimbin) quotes; section headings, every precinct's preferred-use list (item for item), the Live/Work labels and every figure with a unit read off the document; no figure in the guidance text the chapter does not print; recorded absences. |
+| `audit_signage.py` | DCP Chapter 9 definitions and standards, plus any sign type §9.3 defines that the data lacks. |
+| `audit_timing.py`, `audit_readiness.py` | Assessment periods and lodgement/rejection provisions against the fetched EP&A Regulation. A mismatch means **the law changed**. Both read the provisions off the source — every subsection of Part 4 Division 4 must be quoted or named in `DIVISION_4_NOT_CARRIED`, every s39(1) paragraph carried — so an amendment that *inserts* one is caught. |
+| `audit_interpretations.py` | Every provision quoted in `data/interpretations.py` appears verbatim on the PDF page the entry names, and its `duty_planner_question` / `relied_on_by` links resolve. It cannot audit the readings themselves; `render_interpretations.py` prints the register for a planner to review. |
+| `audit_approvals.py` | Dollar figures in `data/approvals.py` still appear in Council's fees schedule (reissued every July). |
 
-```bash
-.venv/bin/python -c "
-import asyncio, json
-from lismore_da_mcp.server import call_tool
-print(asyncio.run(call_tool('get_parking_rates', {'development_type': 'restaurant'}))[0].text)"
-```
+A presence check is blind to invention. Where a source says something is *not* required or *not*
+set, the audit asserts the absence too; where a table has internal arithmetic, rebuild it.
 
 ## Architecture
 
-`src/lismore_da_mcp/server.py` is ~190 lines of wiring: it registers the SDK adapters, dispatches
-tool calls, and re-exports much of the package so older `from lismore_da_mcp.server import X`
-imports keep working. It is not where the code lives. Find things by module:
+`server.py` is wiring: SDK adapters, dispatch, and re-exports for older
+`from lismore_da_mcp.server import X` imports. Import from the owning module in new code.
 
 | Layer | Where | What |
 |---|---|---|
-| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`, `interpretations`, `heritage`, `heritage_items`, `nimbin`, `commercial`, `waste`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `interpretations.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py`, `heritage.py`, `villages.py`, `commercial.py`, `waste.py` | Applies the facts. Handler-free and directly unit-testable. |
-| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`, `heritage`, `villages`, `commercial`, `waste`), each a thin handler carrying its own schema. |
+| Facts | `data/` | Hand-transcribed source content: zones, parking, contributions, fees, definitions, standards, referrals, flood, heritage, heritage items, commercial, waste, nimbin, signage, timing, readiness, interpretations, … |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `heritage.py`, `commercial.py`, `waste.py`, `villages.py`, `interpretations.py`, `landuse.py`, `addresses.py`, `search.py`, `index.py`, `vocabulary.py` | Computation over the facts. |
+| Tools | `tools/` | One module per domain. Handlers format; they do not compute. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
 
-A handler should stay thin: if it computes rather than formats, the computation belongs one layer
-down, where it can be tested and reused. `generate_see_draft` is the cautionary example — it
-hand-rolled a parking calculation instead of calling `parking.estimate_spaces`, and told an 80m²
-café with no on-site parking that its parking was adequate against a real requirement of 14 spaces.
+**Keep handlers thin.** If a handler computes rather than formats, move the computation one layer
+down where it can be tested and reused — e.g. every parking figure comes from
+`parking.estimate_spaces`, so the parking tool, the SEE draft and the Council form agree.
 
-**A schema that cannot express an input is a wrong answer waiting to happen, not a missing
-feature.** The handler still computes — from whatever it did get — and the shortfall goes in a
-caveat nobody reads. Three instances of this, all fixed under ROADMAP.md S3, and each was invisible
-because the tool answered rather than erroring:
+**A tool is one decorated function that carries its own schema** (`@tool` in `registry.py`).
+Adding a tool means writing the function and updating the tool table in `README.md`.
 
-- **A countable with no argument.** `data/parking.py` recognises twelve; `get_parking_rates` offered
-  two. A medical centre charged *"4 per practitioner, plus 1 per employee"* answered **5** spaces
-  for 5 employees — against 17 for three practitioners — with `not counted: practitioners` three
-  levels down in `calculation.basis`. The schema's countables are now generated from `COUNTABLE`, so
-  a rate that starts counting something new cannot fail to be askable.
-- **A correction with no argument.** `estimate_contribution` accepted `existing_counts` from the
-  first commit and nothing ever passed it, so a change of use assumed the previous use occupied the
-  same floor area — and the answer's own advice, *"supply the previous floor area if it differed"*,
-  named an argument that did not exist. A restaurant expanding 100m² → 140m² netted to **$0**
-  against a real **$8,040**.
-- **Zero with no way to say it.** `estimate_spaces` filtered falsy counts and every caller passed
-  `arguments.get(...) or 0`, so `num_employees: 0` and "nobody said" were the same value. An
-  owner-operated café could not state that it has no staff. **`None` means not supplied; `0` means
-  zero** — keep that distinction when adding a countable. It broke again one argument over:
-  `existing_gross_floor_area_m2: 0`, the caller saying "this area is new", was dropped by `if
-  arguments.get(...)`, and a pub's new bar area came back $0 against Council's real $2,805.67
-  (ROADMAP.md T1, found by `/validate-tracker`). Write `is not None`; never test a count for
-  truthiness.
+**`validate_arguments()` is the only gate on arguments** — the SDK does not validate. It rejects
+unknown arguments, missing/empty required ones, wrong types (including array elements), non-finite
+numbers, and values outside `minimum`/`maximum`. Values are refused, never coerced or clamped.
+Every numeric property declares a `minimum` (a test enforces it), because the dangerous values are
+well-typed: a negative floor area is a valid float that silently shrinks a total.
+`_ENFORCED_KEYWORDS` is the set of schema keywords the gate honours, and a test fails on any other —
+**to use a new keyword in a schema, teach `validate_arguments` to enforce it first.**
 
-**And a partial sum is never reported as the answer — but it is a floor, and it says so.** Where a
-rate has a term that was not supplied, `estimate_spaces` returns `spaces_required: None` with
-`supply` naming the argument, and `at_least` — the ceiling of what *was* counted. Every Schedule 1
-rate is positive terms combined by adding and taking the greater, so a missing term can only raise
-the requirement, and a test checks that against completed answers. (This paragraph used to say "a
-part of the sum is not a lower bound", which was false, and the floor was withheld — SCENARIOS.md
-run 2, R5.) The floor stays out of `spaces_required` because 5 is a floor and 17 is the answer, and
-a shortfall against it is `shortfall_at_least`, never `shortfall`. Callers must branch on that: `readiness.py` reports it as an unanswered question
-rather than a shortfall of zero, and the SEE draft leaves the figure blank. This is the same
-discipline as the contributions catchment and `flood_area` — an input that changes the number is
-never assumed.
+**Known aliases are renamed before the gate, and only known ones.** `resolve_aliases()` runs first
+in `call_tool` and renames the spellings callers use (`floor_area`, `cost_of_works`, `zone`,
+`parking_spaces`, `address`, `use`) to the argument each tool declares, from `ARGUMENT_CONCEPTS`.
+A tool's own argument is never rewritten, two names with different values are refused, and
+anything not in the table is refused by the gate as before. **Do not add an alias whose meaning
+differs between tools** — `area_sqm`, `existing_spaces_on_site` and `development_type` are left
+out on purpose, and a test pins that.
 
-**Two transports, one server object.** `main()` branches on `MCP_TRANSPORT`: unset/`stdio` →
-`stdio_server()` for local `.mcp.json` use; `http` → a Starlette app (`build_http_app()`) mounting
-`StreamableHTTPSessionManager(stateless=True)` at `/mcp`, with `/health` and an in-process per-IP
-rate limiter (`_RateLimitMiddleware`, 30 req/60s). `render.yaml` deploys the HTTP mode to
-https://lismore-da-mcp.onrender.com as an **open, unauthenticated** endpoint.
+**A schema that cannot express an input produces a wrong answer, not an error.** If a rate or
+formula depends on a quantity, the schema must be able to take it (the parking countables are
+generated from `COUNTABLE` for this reason). **`None` means not supplied; `0` means zero** — write
+`is not None`; never test a count for truthiness.
 
-**`PUBLIC_MODE` is a privacy switch, not just a transport flag.** It is `True` iff
-`MCP_TRANSPORT=http`. **Since 2026-09-27 the tools that take an applicant's name are not offered in
-that mode at all** (ROADMAP.md A4): `generate_see_draft`, `preview_see_form` and `fill_see_pdf` are
-registered with `@tool(..., local_only=True)`, so `list_tools` omits them and `call_tool` refuses
-them — before argument validation, so nothing the caller sent is examined — with
-`not_available_on_the_public_server` and a pointer to running locally. The refusal logs as its own
-outcome, `local_only`, not `invalid_arguments`: a count of it is the evidence that would justify
-exposing them. The endpoint is open and unauthenticated with no terms and no privacy policy, and
-none of the three had ever been called by anyone real, so switching them off closed the only place
-applicant PII could enter at no cost. `preview_see_form` went with them although it writes no file:
-it requires the same name and address, echoes the name back, and exists only to precede
-`fill_see_pdf`. **A new tool taking `applicant_name` must be `local_only`** —
-`tests/test_local_only_tools.py` fails otherwise. `fill_see_pdf`'s own public-mode branch
-(per-request temp dir, PDF returned inline as base64, then deleted — never the shared
-`documents/output/` tree) stays as defence in depth, and any new tool that writes files must still
-respect this switch.
+**A partial sum is never reported as the answer.** When a parking term was not supplied,
+`estimate_spaces` returns `spaces_required: None`, `supply` naming the missing argument, and
+`at_least` (a true floor, since every Schedule 1 rate only grows as terms are added). A shortfall
+against it is `shortfall_at_least`, never `shortfall`. The same discipline applies to the
+contributions catchment and `flood_area`: an input that changes the number is never assumed.
 
-**A tool is one decorated function that carries its own schema.** `registry.py` holds the `@tool`
-decorator and the registry; `tools/` holds the handlers, one module per domain. Adding a tool means
-writing the decorated function and updating the tool table in `README.md` — nothing else. (The old
-shape, a `TOOLS` list plus a 1,000-line `if/elif` chain in `call_tool`, is gone.)
+**Two transports, one server object.** `MCP_TRANSPORT` unset/`stdio` → `stdio_server()`;
+`http` → a Starlette app (`build_http_app()`) with `StreamableHTTPSessionManager(stateless=True)`
+at `/mcp`, `/health`, and an in-process per-IP limiter (`_RateLimitMiddleware`, 30 req/60s,
+`/health` exempt). Behind a proxy the limiter keys on the X-Forwarded-For entry the proxy appended,
+counted from the right (`LISMORE_TRUSTED_PROXY_HOPS`, default 1); never the left-most entry, which
+the client controls. The first proxied request logs `event=proxy_chain` with the entry count.
+Deployed to https://lismore-da-mcp.onrender.com as an **open, unauthenticated** endpoint; CI
+deploys on push to main after tests pass (see `render.yaml` for why the dashboard, not the
+Blueprint, holds the build commands).
 
-**`validate_arguments()` is the only gate on arguments.** It checks each call against that tool's
-own schema — rejecting unknown arguments, missing/empty required ones, wrong types (including array
-element types), non-finite numbers, and values outside `minimum`/`maximum` — rather than letting
-handlers `.get()` a default and answer confidently wrong. An empty `land_use` once returned
-"permitted without consent", and a string where a number belonged reached `float()` and surfaced as
-a raw `MCPError` reading "could not convert string to float". **The SDK does not validate
-arguments; nothing checks them but this function.**
+**`PUBLIC_MODE` is a privacy switch.** True iff `MCP_TRANSPORT=http`. **The tools that take an
+applicant's name are not offered in that mode**: `generate_see_draft`, `preview_see_form` and
+`fill_see_pdf` are `@tool(..., local_only=True)`, so `list_tools` omits them and `call_tool`
+refuses them before argument validation (nothing the caller sent is examined), logging outcome
+`local_only`. A new tool taking `applicant_name` must be `local_only`; a test fails otherwise.
+As defence in depth, `fill_see_pdf` in that mode still writes to
+a temp dir that is removed however the call ends, and returns the PDF as an `EmbeddedResource`
+(not base64 in the JSON) — never into `documents/output/`,
+because a SEE carries a named applicant's address. Any new tool that writes files must do the same.
+Applicant data never reaches a log line: `record_tool_call()` has no parameter that could carry it.
 
-**Known aliases are renamed before the gate, and only known ones.** `resolve_aliases()` runs first in `call_tool` and renames the spellings callers actually use — `floor_area`, `cost_of_works`, `zone`, `parking_spaces`, `address`, `use` — to the argument each tool declares, from `ARGUMENT_CONCEPTS` in `registry.py` (ROADMAP.md A1; run 2 of the scenarios refused five natural spellings out of five). A tool's own argument is never rewritten, two names with different values are refused, and anything not in the table is refused by `validate_arguments` exactly as before. **Do not add an alias whose meaning differs between tools** — `area_sqm` (a sign's area), `existing_spaces_on_site` (the CBD credit) and `development_type` (the use in two tools, the kind of work in the rest) are left out on purpose, and a test pins that.
+**The SDK's shape is confined to one seam.** `call_tool(name, arguments)` and `list_tools()` stay
+plain functions; `_on_call_tool` / `_on_list_tools` adapt them to the SDK. Tests call the plain
+functions. The schema attribute is `Tool.input_schema`.
 
-**A type check alone is not enough, because the dangerous values are the well-typed ones.**
-`gross_floor_area_m2: -80` is a perfectly good float, and it returned a budget of **$420** where
-`+80` returned **$16,501** — a sign flip silently deleting the largest charge in the answer while
-the total went on reading like a total. `development_cost: inf` raised an uncaught `OverflowError`
-and `nan` an uncaught `UnboundLocalError` (every bracket comparison against NaN is false, so the
-loop assigned nothing), and `json.loads` accepts both, so they were reachable over the wire. Every
-numeric property therefore declares a `minimum`, and a test fails if one does not.
+**Handlers are synchronous and run on a worker thread** (`asyncio.to_thread`). That is safe only
+because nothing is shared: SQLite connections and PDF documents are opened per call, data dicts are
+read-only, and `fill_see_pdf` stages output and `os.replace`s it. A handler that caches a
+connection, an open `Document` or mutable module state breaks this, and the symptom is corrupted
+output under load — `tests/test_concurrency.py` guards it.
 
-**The set of checks in that function is the set of constraints a schema may express.** Anything the
-schema can express that the gate does not check is unenforced, and a declared-but-unchecked keyword
-is worse than an absent one: it documents itself to the caller as a constraint and is worth
-nothing. That is exactly how `items` came to sit on all five array arguments enforcing nothing,
-until `documents_prepared: ["site plan", 5, None]` surfaced as an uncaught `AttributeError`.
-`_ENFORCED_KEYWORDS` pins this both ways — **to add a keyword to any schema, teach
-`validate_arguments` to honour it first.**
-
-**The SDK's shape is confined to one seam.** Handlers are registered by method name and take
-`(context, params)`, returning typed results. `server.py` keeps `call_tool(name, arguments)` and
-`list_tools()` as plain functions and wraps them in `_on_call_tool` / `_on_list_tools` adapters
-registered via `add_request_handler`. Tests and `conftest` call the plain functions, so the next
-SDK break lands in two adapters rather than across 800+ tests. Note the schema attribute is
-`Tool.input_schema` (the wire format is unchanged — it is a pydantic alias), and handlers are
-read back with `server.get_request_handler(method)`.
-
-**Handlers are synchronous and run on a worker thread** — `call_tool` dispatches through
-`asyncio.to_thread`. Every handler blocks (PDF extraction, SQLite, and HTTPS with an 8s timeout in
-the address tools), so called inline each one held the single event loop thread for its whole
-duration: the public deployment served one caller at a time and `/health` stalled behind whatever
-tool was running. Five concurrent calls to a 0.3s handler took 1.51s before, 0.30s after.
-`to_thread` beats making 23 handlers async because they are blocking by nature — `fitz` and
-`sqlite3` have no async API. **This is safe only because nothing is shared:** `sqlite3.connect` and
-`fitz.open` happen per call and never cross threads, the data dicts are read-only, and
-`fill_see_pdf` stages its output beside the target and `os.replace`s it into place so two
-concurrent fills to the same filename cannot interleave into a half-written PDF. If you add a
-handler that caches a connection, an open `Document`, or any mutable module state, that assumption
-breaks and the symptom will be corrupted output under load rather than an exception —
-`tests/test_concurrency.py` guards it.
-
-**Knowledge lives in module-level dicts, not in the PDFs.** `ZONES`, `PARKING_RATES`,
-`LAND_USE_DEFINITIONS`, `RESIDENTIAL_STANDARDS`, `REFERRAL_REQUIREMENTS`, `FLOOD_PLANNING`,
-`SEE_TEMPLATES`, `CONTACT_INFO` are hand-transcribed from the source documents. The zone land use
-tables are transcribed verbatim from `documents/lep/lep-2012-nsw-full.txt` and are the
-authoritative answer for permissibility — prefer them over the prose summaries in Part 2.
+**Knowledge lives in module-level dicts, not in the PDFs.** The zone land use tables are verbatim
+from `documents/lep/lep-2012-nsw-full.txt` and are the authoritative answer for permissibility —
+prefer them over the prose in Part 2.
 
 **Document access is two-tier.** Structured tools answer from the dicts; `search_dcp` /
-`read_dcp_section` / `list_documents` fall back to the files under `documents/`. Scope is
-centralised in `DOC_CATEGORIES` (dcp, lep, forms, fees, exempt-development, business, legislation) and
-`SEARCHABLE_SUFFIXES` / `LISTABLE_SUFFIXES` — extend those rather than re-globbing in a handler.
-`_score_lines()` scores lines by how many distinct query tokens they contain (stopwords dropped,
-exact-phrase is only a ranking bonus) so partial concept matches still surface; `search_document()`
-and `extract_document_section()` dispatch PDF vs `.txt` behind it. PDFs are addressed by page,
-`.txt` extracts by line, and search results carry a `location` string that `read_dcp_section`
-accepts either way.
+`read_dcp_section` / `list_documents` fall back to `documents/`. Scope is set by `DOC_CATEGORIES`,
+`SEARCHABLE_SUFFIXES` and `LISTABLE_SUFFIXES` — extend those rather than globbing in a handler.
+`_score_lines()` scores lines by distinct query tokens; PDFs are addressed by page, `.txt` by line.
+The FTS5 index (`index.py`) only narrows which segments are scored, so results equal a full scan.
 
-**`addresses.py` is the only thing here that touches the network.** `lookup_zone_by_address`
-geocodes an address via NSW Spatial Services and reads the zone off the NSW ePlanning Land Zoning
-Map — the two free unauthenticated APIs behind the Planning Portal. Everything else answers
-offline. Three rules hold it together: nothing in the module raises (every failure returns a
-payload with `error` and a `fallback` telling the caller to read the zone off the Planning Portal
-by hand, so an outage restores the server's previous behaviour rather than breaking a tool);
-`LISMORE_ADDRESS_LOOKUP=off` disables it entirely; and **the geocoder's answer is verified, not
-trusted**. It matches loosely and silently — `99999 Keen Street` comes back as `387 Keen Street`,
-and a wrong suburb is ignored — both as `numRecs: 1`. `_verify_match()` re-checks number, road and
-suburb against the response, because a zone for the wrong property flows straight into
-`check_permissibility` and then into an SEE. Note it is a *point* query: a lot straddling a zone
-boundary reports only the zone under its address point, which the result's caveat states. Tests
-never hit the network — `tests/conftest.py` has an autouse fixture with canned responses; the live
-checks in `tests/test_addresses.py::TestLive` are opt-in via `LISMORE_LIVE_TESTS=1` and should be
-run after any change to the URLs or response fields.
+**`addresses.py` is the only code that touches the network** (NSW Spatial Services geocoder and
+ePlanning map layers). Nothing in it raises: every failure returns `error` plus a `fallback`.
+`LISMORE_ADDRESS_LOOKUP=off` disables it. **The geocoder's answer is verified, not trusted** — it
+matches loosely and silently (`99999 Keen Street` → `387 Keen Street`), so `_verify_match()`
+re-checks number, road and suburb. Lookups are point queries. Tests never hit the network
+(`conftest.py` stubs it); `LISMORE_LIVE_TESTS=1` runs the live checks.
 
-`lookup_site_constraints` queries the sibling layers at the same point — Height of Buildings (14),
-Minimum Lot Size (22), EPI Heritage (16), Bushfire Prone Land (Hazard 229) and Flood Planning
-(Hazard 230) — concurrently, since handlers run inline in the async dispatcher and five serial
-round trips would block it. One layer failing does not take the others with it. **The trap it
-exists to avoid: an empty layer result means either "not affected" or "this dataset does not cover
-this council", and those are opposite.** The state Flood Planning Map contains *zero features for
-the entire Lismore LGA*, so a naive reading reports the CBD — inundated in 2022 — as not flood
-affected. So an empty result triggers a per-layer coverage check (`LGA_NAME='LISMORE'`, cached per
-process), and an uncovered layer answers `unknown` with an explicit "this is not evidence the site
-is unaffected". Flood additionally always carries a Lismore-specific warning unless the site is
-positively flagged. Bushfire Prone Land has no `LGA_NAME` column, so its coverage was verified by
-hand instead (6,877 features across a Lismore bounding box, 2026-08-01). If you add a layer, add
-its coverage semantics too — reporting a mapping gap as an absence of constraint is the failure
-mode that matters here.
+`lookup_site_constraints` queries height, lot size, heritage, bushfire and flood layers
+concurrently. **An empty layer result means either "not affected" or "no data for this council",
+and those are opposite** — the state Flood Planning Map has zero features for the Lismore LGA. So
+an empty result triggers a coverage check, and an uncovered layer answers `unknown`. If you add a
+layer, add its coverage semantics too.
 
-**SEE PDF filling discovers geometry instead of hardcoding coordinates.** The Lismore template has
-no AcroForm fields, so `see_layout()` finds answer boxes (white-filled rects) and tick boxes
-(Wingdings glyphs U+F0A8 / U+F071) at fill time and sorts them into reading order.
-`SEE_FORM_FIELDS` addresses them as `{page, box|check: index}`. `SEE_LAYOUT_EXPECTED` asserts the
-per-page box/checkbox counts so a reissued form fails loudly rather than silently writing text
-into the wrong place. `_draw_single_line`/`_draw_wrapped` shrink text to `MIN_FONTSIZE` (6.5pt) and
-report overflow; overflowed fields auto-tick the page-1 "supporting information attached" box.
-`preview_see_form` renders what would be written; `fill_see_pdf` produces the file. The template
-only covers **Minor Development** — `SEE_TEMPLATE_SCOPE` gates this, and out-of-scope proposals
-must use `generate_see_draft` (free-form EP&A Schedule 1 headings) instead.
+**SEE PDF filling discovers geometry.** The template has no form fields, so `see_layout()` finds
+answer boxes and tick-box glyphs at fill time; `SEE_LAYOUT_EXPECTED` asserts per-page counts so a
+reissued form fails loudly. Overflowing text is shrunk to 6.5pt, then reported and continued on an
+attachment. The template covers **Minor Development** only (`SEE_TEMPLATE_SCOPE`); anything else
+uses `generate_see_draft`.
+
+**Costs.** The lodgement fee is a small part of what a DA costs; the Section 7.11 contribution is
+usually the large part. `calculate_da_fees` composes everything quantifiable into
+`budget_at_least`. Three rules: **the catchment is never assumed** (rural is charged more than
+urban); **a change of use is charged only on the increase over the existing lawful use** (plan
+§2.7 — call it the "allowance", not the "credit"); and **Section 64 water/wastewater is named but
+never quantified** — unsourceable charges go in `UNQUANTIFIED_CHARGES`. Fees are on the 2026-27
+schedule and need a July refresh; `schedule_status()` warns only when the scale is actually behind.
+
+**The July ritual**, once Council publishes the new schedule (one PDF, new URL each year):
+
+1. **Get the PDF** from https://www.lismore.nsw.gov.au/Households/Rates-and-water-information/Fees-and-charges
+   (the site 403s plain HTTP: use a browser, or add it to `scripts/council_sources.py` and run
+   `scripts/fetch_council_documents.py`). Save as `documents/fees/fees-and-charges-YYYY-YY.pdf`,
+   **open it**, run `/check-documents`, add it to `documents/DOCUMENT_INDEX.md`.
+2. **Point everything at it:** `data/instruments.py` (`CURRENT_FEE_SCHEDULE`, last year's into
+   `SUPERSEDED_FEE_SCHEDULES`, `FEE_SCHEDULE_COLUMNS_NOTE`); `scripts/audit_approvals.py`
+   `SCHEDULE` and the `data/fees.py` docstring; `scripts/council_sources.py` `DOCUMENTS` and the
+   matching key in `verify_against_council.py` `FIGURE_CHECKS`.
+3. **Re-transcribe from the right-hand column.** The schedule prints last year's figure first, so
+   `audit_approvals.py` and the verifier's fee check **still pass on last year's figures** after
+   the swap. Read each off the right-hand column: `data/fees.py` (`DA_FEE_SCHEDULE_YEAR`, the
+   `DA_FEE_BRACKETS` bases after copying the outgoing ones into `PREVIOUS_SCHEDULES`, and the
+   other fee constants and `UNQUANTIFIED_CHARGES` figures); `data/approvals.py` (every `fee`,
+   `fee_source` page, and year-named prose).
+4. **Run** `scripts/audit_approvals.py` and the suite; update failing literals from the new answer.
+5. **Prose that quotes a fee:** this file, `README.md`, `QUICK_REFERENCE.md` — recompute with
+   `calculate_da_fees`.
+6. **After merging**, run `verify-against-council.yml` by hand.
+
+Not part of July: Section 7.11 rates (indexed at payment), Section 64 (never quantified), and the
+Regulation's periods (amendment only, which `audit_timing.py` detects).
+
+**`readiness.py` composes; it knows nothing new.** It runs the checklist, constraints, referrals,
+parking and the Regulation's content requirements against one proposal. It **over-lists** (a
+missing requirement costs more than a spare one), **never reports a document as verified** (it
+matches the applicant's own words conservatively — head noun and first word must agree), and
+**never says "ready"**. Provisions that apply to every application are `confirm_before_lodging`;
+`rejection_risk` is only for something known to be wrong. **If a tool declines to answer
+something, add the question to `DUTY_PLANNER_QUESTIONS`** so the refusal becomes an agenda item.
+
+**`data/interpretations.py` collects the judgements, as `DUTY_PLANNER_QUESTIONS` collects the
+refusals.** Where a tool reads an ambiguous provision one way and computes from it (the CBD parking
+rate replacing Schedule 1, the §8.3 flood exemption reaching a fitout, the s2.7 allowance netted
+as one total), the entry records the provision verbatim with its page, the reading, the
+alternative, why this one, and **what it costs the applicant if Council disagrees**. No presence
+check can catch a wrong reading. **If you take a reading where the source admits another,
+register it here.** Cite it with `interpretations.cite()` inside the answer that turns on it and
+nowhere else, and link its Duty Planner question where one exists.
+
+**`flood.py` selects; `data/flood.py` is the chapter.** Controls differ by flood hazard area
+(Floodway, High Flood Risk, Flood Fringe, Low Flood Risk, CBD Flood Liable, rural). **The area is
+never inferred** — without `flood_area` every area's controls are returned. **A change of use is
+checked against §8.3 first**, which lifts the commercial and industrial controls in two areas.
+**The DCP never goes back alone**: LEP cl 5.21 is a bar on consent and requires climate change to
+be considered.
+
+**`villages.py` selects; `data/nimbin.py` is DCP Part B Chapter 6.** Nimbin is the only village
+with a chapter (Dunoon's and Clunes' were repealed in 2020), so `village` is asked for and **never
+inferred from RU5**. The boundary, precincts, conservation area and flood hazard are drawn on
+images, so each is an argument and an unknown one returns every option (Duty Planner question
+`nimbin_precinct`). Every answer says **"preferred" is not "permissible"**, and that §1.3(b)
+makes this chapter prevail over the rest of the DCP (its 1m freeboard over Chapter 8's).
+
+**`standards.py` answers from DCP Chapter 1, and its hardest job is saying what the chapter does
+not contain.** Every figure is a deemed-to-comply Acceptable Solution, not a limit
+(`HOW_TO_READ_A_FIGURE` rides along). The front setback comes from the **zone**. Chapter 1 sets no
+side setback, rear setback or site coverage maximum for an ordinary lot — `NOT_SET_BY_THIS_CHAPTER`
+says what governs instead.
+
+**`commercial.py` selects from DCP Chapter 2**: Part A (the CBD, Map 1) is design principles, Part B
+(Brewster Street, Map 2) a Performance Criteria table. **The precinct is never inferred** — both maps
+are images, and Chapter 2's Map 1 is not Chapter 7's CBD parking map. **A change of use is not
+given the design rules**: the chapter never mentions one. And Chapter 1's §1.3 does not carry over
+— a miss is a variation under the DCP Introduction, never reported as a failure.
+
+**`waste.py` answers from DCP Chapter 15.** §1.3 covers **change of use**, and §2.1 puts a Site Waste
+Minimisation and Management Plan in the SEE, so a café taking over a shop needs one. Grease and
+liquid trade waste are outside the chapter and every answer says so. Appendix C rates apply only to
+a floor area that was given, and "Variable" never becomes a number. Checklist entries keep the
+short name "Waste management plan" before the dash, because `document_gap` matches on it.
+
+**Never add a figure you have not read in the source document**, and prefer recording an absence
+to a plausible guess. Invented figures look researched because they collide with a real number
+elsewhere in the source.
+
+**`data/definitions.py` quotes the LEP Dictionary, never summarises it.** Guidance lives in
+`why_this_matters`. A number in a definition is usually a cl 5.4 control filed in the wrong place
+(`FIGURES_NOT_IN_THE_DEFINITION`). The Dictionary term is not always the table term —
+`land_use_table_term` carries the table's spelling.
+
+**Heritage: never state a discretion as a rule.** DCP Chapter 12 requires no document; LEP
+cl 5.10(5) says Council *may* require a heritage management document. Never write into a SEE that
+a document accompanies the application. cl 5.10(5)(c) reaches land *in the vicinity of* an item,
+and cl 5.10(10) can permit an otherwise prohibited use in a heritage building — both belong beside
+the SEPP caveat in `check_permissibility`. `tests/test_heritage.py` greps the whole package for the
+wrong phrasing, exempting `data/heritage.py` by path.
+
+**`heritage.py` selects; `data/heritage.py` is Chapter 12 and cl 5.10.** Chapter 12 does ask for
+colour scheme details with a DA for new development and a justification for any departure
+(`WHAT_CHAPTER_12_DOES_ASK_FOR`) — neither is a heritage management document. **Status is never
+inferred**: without `heritage_status` every case comes back side by side, and the state layer can
+confirm a listing but never clear one. **The DCP never goes back alone**: cl 5.10(2), which lists
+works rather than uses, decides whether it applies. **"May" stays "may"**: only policies the
+chapter words as a flat refusal are reported as one, found by phrase. cl 5.10(10) is only for a
+building that is itself a heritage item. `data/heritage_items.py` is LEP Schedule 5, searched
+offline by `address`: a match is evidence and never sets `heritage_status`, and no match clears
+nothing. "State" significance is not State Heritage Register listing.
+
+**`landuse.py` decides which stored fact applies.** Four rules:
+
+- **The singular↔plural pairing is data, not a rule.** `LAND_USE_TABLE_SPELLINGS` carries the
+  LEP's own pairs ("Crematoria" → crematorium). Do not add a pair by inflecting a word.
+- **Anything keyed in the LEP's spelling is looked up in the LEP's spelling**, not canonicalised.
+- **A term the LEP names is never approximated.** Fuzzy matching is only for words the server
+  cannot place at all.
+- **The hierarchy is the LEP's.** `LEP_TYPE_OF` carries the Dictionary's "X is a type of Y" notes
+  and `ancestors()` walks them; `LAND_USE_HIERARCHY` adds everyday words (cafe, gym). **The nearest
+  listed link decides** (cl 2.3(3)(b)), so the chain is walked before the table's sections.
+- **An everyday word reaches an LEP term one way, and every tool uses it.** `lep_term_for()` reads
+  it through `DEFINITION_SYNONYMS` (exact or synonym, never fuzzy); `parking.resolve_parking_use()`
+  then walks the LEP chain to the nearest term Chapter 7 rates, stopping at any use Schedule 1
+  rates on its own row. A synonym that contradicts the LEP's placement fails `audit_definitions.py`.
+
+**The catch-all has two readings.** "Any other development not specified" applies to a use the
+LEP names but this table omits. A term the server cannot identify reports `not_found` /
+`unrecognised` with `permissible: None`, so it can never become a "stop" in readiness or
+"Prohibited" on a SEE. The row is worded two ways — use `_is_catchall()`.
 
 ## Documents and privacy
 
-`documents/` (~69MB of official PDFs) **is committed**; `.gitignore` deliberately excludes
-`documents/output/*` (generated SEEs contain applicant PII), `my-application/` (the repo owner's
-real details), and `_quarantined/`. `_quarantined/README.md` records a third party's real signed
-SEE that was mistaken for a blank template — never restore files from there into `documents/`.
-Treat any new document added under `documents/` as published: check it is genuinely blank/public
-before committing, and record it in `documents/DOCUMENT_INDEX.md`.
+`documents/` (~69MB of official PDFs) **is committed**; `.gitignore` excludes `documents/output/*`
+(generated SEEs contain applicant PII), `my-application/` and `_quarantined/`. Never restore files
+from `_quarantined/` — it holds a third party's real signed SEE. Treat anything added under
+`documents/` as published: check it is genuinely public and record it in
+`documents/DOCUMENT_INDEX.md`.
 
-The `scripts/fetch_*.py` scripts are one-off Playwright scrapers (legislation.nsw.gov.au,
-austlii, planning.nsw.gov.au all return 403 to plain HTTP fetches). They are never imported by the
-server and their deps stay in the `scraping` extra so Render doesn't ship browser binaries. **These
-scripts save whatever the server returned, including 403/404 bodies and Cloudflare challenge
-pages** — 15 such files were committed to `documents/lep/` under names promising real content and
-had to be deleted (see `documents/DOCUMENT_INDEX.md`). Open anything a scraper produces before
-committing it; the document tools now search `.txt`, so junk extracts surface as answers.
-
-Fee figures are on the **2026-27** statutory schedule (`calculate_da_fee()`), transcribed from
-`documents/fees/fees-and-charges-2026-27.pdf` p30. They need a July refresh every year — and that
-refresh had been missed twice before 2026-08-01, so the tool quoted figures ~6.5% low while a
-standing "confirm this figure" caveat sat on every answer. A caveat that is always present carries
-no information; `schedule_status()` now adds a loud warning **only** when the scale is actually
-behind, and `TestScheduleCurrency` fails once it is two years behind. `calculate_da_fees` is the source of truth for a number — the tables
-in Part 2 and `QUICK_REFERENCE.md` are indicative only.
-
-### The July ritual — do this every year once Council publishes the new schedule
-
-The statutory DA fee scale and Council's own fees schedule both reset on 1 July, and Council
-publishes one PDF carrying both, at a **new URL** each year. `schedule_status()` starts warning in
-every fee answer from 1 July, and the August run of `verify-against-council.yml` is timed to
-follow the reissue, but neither refreshes anything. Steps, in order (`YYYY-YY` is the new year,
-e.g. `2027-28`):
-
-1. **Get the PDF.** It is linked from
-   https://www.lismore.nsw.gov.au/Households/Rates-and-water-information/Fees-and-charges. The site
-   403s plain HTTP, so use a browser or add the URL to `scripts/council_sources.py` and run
-   `scripts/fetch_council_documents.py`. Save it as `documents/fees/fees-and-charges-YYYY-YY.pdf`,
-   **open it** (a scraper saves error pages too), run `/check-documents`, and add it to
-   `documents/DOCUMENT_INDEX.md`.
-2. **Point everything at it.** Each of these names the file or its year, and
-   `tests/test_instruments.py::TestFeeSchedules` fails until the first three agree:
-   - `data/instruments.py` — `CURRENT_FEE_SCHEDULE` to the new file; last year's into
-     `SUPERSEDED_FEE_SCHEDULES`; `FEE_SCHEDULE_COLUMNS_NOTE`'s two years (a test reads them off
-     the PDF)
-   - `scripts/audit_approvals.py` `SCHEDULE`, and the `data/fees.py` docstring's filename and page
-   - `scripts/council_sources.py` `DOCUMENTS` (new URL and filename) and the matching key in
-     `scripts/verify_against_council.py` `FIGURE_CHECKS`
-3. **Re-transcribe the figures, from the right-hand column.** The schedule prints two years side
-   by side, last year's first. **That means every presence check here — `audit_approvals.py` and
-   the verifier's fee check — still passes on last year's figures after the PDF is swapped**,
-   because they are still printed in the left column. The audit going green proves nothing until
-   each figure below has been read off the right-hand column:
-   - `data/fees.py` — `DA_FEE_SCHEDULE_YEAR`; the seven `DA_FEE_BRACKETS` bases (row group
-     "Development Application (Lodgement Fee)", p30 in 2026-27 — pages move) after first copying
-     the outgoing bases into `PREVIOUS_SCHEDULES` and checking each new one moved by about one
-     year's indexation; the per-$1,000 increments are fixed and should not change;
-     `DA_FEE_NO_BUILDING_WORK`, `DA_FEE_DWELLING_UNDER_100K`, `NOTIFICATION_FEES`,
-     `PRESCRIBED_NOTICE_FEES`, `INTEGRATED_DEVELOPMENT_FEE`, `DESIGNATED_DEVELOPMENT_FEE`,
-     `DESIGN_REVIEW_PANEL_FEE`, and the dollar figures inside the `UNQUANTIFIED_CHARGES` prose
-   - `data/approvals.py` — every `fee` string, every `fee_source` page number, and the year-named
-     prose in the docstring and `gotcha`s
-4. **Run** `scripts/audit_approvals.py`, then the full test suite. Literals that name the year or a
-   figure will fail and should be updated from the new answer, not from memory:
-   `tests/test_business_path.py` (`fee_schedule_year`), `tests/test_fees.py`,
-   `tests/test_contributions.py`.
-5. **Prose that quotes a fee:** this file (the $370 café example above, the Part 2 fee table and
-   the Council fees URL), `README.md`'s worked example, `QUICK_REFERENCE.md`. Recompute each with
-   `calculate_da_fees`.
-6. **After merging**, run `verify-against-council.yml` by hand (`workflow_dispatch`) so the new
-   manifest URL is checked against what Council serves.
-
-**Not part of July:** the Section 7.11 rates (`data/contributions.py`) are indexed at the date of
-payment and amended by Council on its own cycle — `INDEXATION` already tells the caller to treat
-them as a floor; the Section 64 DSP charges are 2016 dollars and are named, never quantified;
-and the Regulation's assessment periods (`data/timing.py`) change only by amendment, which
-`audit_timing.py` detects.
-
-**The lodgement fee is not what a DA costs, and treating it as though it were was the single
-largest gap in this repo.** For an 80m² café fitout the fee is $370 and the Section 7.11
-contribution is $16,081. `data/contributions.py` carries the contribution rates and
-`contributions.py` applies them; `calculate_da_fees` composes everything quantifiable into
-`budget_at_least` and lists the rest under `what_it_leaves_out` and `not_estimated`. Three rules
-hold it together, and each exists because the alternative puts a wrong number in a business's
-budget: **the catchment is never assumed** (rural retail is charged 20% more than urban, so a
-default to urban understates a village proposal, and without a stated catchment the contribution is
-left out of the total rather than picked); **a change of use is charged on the increase in demand
-over the existing lawful use**, per section 2.7 of the plan, which takes shop → café to nil and
-office → café to $12,310 — call it the "allowance", never the "credit", which is a different
-provision; and **Section 64 water and wastewater is named but never quantified**, because the DSP
-is in 2016 dollars and has no non-residential ET conversion table, so only Council can produce that
-figure. Anything added here that cannot be sourced should follow the last of those and go in
-`UNQUANTIFIED_CHARGES` with its source, not be estimated.
-
-**`readiness.py` composes; it does not know anything new.** `check_da_readiness` and
-`prepare_prelodgement_brief` run the checklist, the constraints, the referrals, the parking rate
-and the Regulation's own content requirements against *one* proposal — the thing no single tool
-did. Three rules hold them together and each inverts a rule that applies elsewhere. It
-**over-lists**, like `approvals.py`, because a wrongly-included requirement costs a sentence of
-reading and a missing one costs the application. It **never reports a document as verified** —
-nothing here can open a file, so `document_gap` echoes the applicant's own words back, matches
-them conservatively (head noun *and* first word must agree, or "waste management plan" is accepted
-as "stormwater management plan"), and reports words that matched nothing rather than dropping
-them. And it **never says "ready"**: the best verdict is that nothing it can check is outstanding,
-which is a much smaller claim.
-
-The severity split matters and is easy to get wrong. Sections 25 and 39(1)(a) apply to *every*
-application, so emitting them as deficiencies made the verdict read "not ready" for every proposal
-ever checked — the same failure as the standing fee caveat in item 0.1, where a warning present on
-every answer carried no information. They are `confirm_before_lodging`; `rejection_risk` is
-reserved for something actually known to be wrong.
-
-**`data/readiness.py`'s second half is the repository's refusals, collected.** Every entry in
-`DUTY_PLANNER_QUESTIONS` is a wall an earlier item hit and correctly declined to guess past — the
-CBD boundary that is a bitmap, the contributions catchment, the Section 64 charge with no
-non-residential conversion table, the contribution-in-lieu rate that cites a repealed Act. Those
-refusals stay. What was missing is that they were scattered across five tools' outputs, so nothing
-assembled them into the one thing they are collectively good for: the agenda for the free
-fifteen-minute Duty Planner session. Each carries what it costs to leave unresolved, because
-fifteen minutes does not fit ten questions and the applicant has to choose. **If you add a tool
-that declines to answer something, add the question here too** — otherwise the refusal is a dead
-end rather than a redirection.
-
-**`data/interpretations.py` is the other half: the repository's judgements, collected.** Where a
-tool does not refuse but reads an ambiguous provision one way and computes from it — the CBD fixed
-parking rate *replacing* Schedule 1 rather than flooring it, the café rate's "(whichever is
-greater)", the §8.3 flood exemption reaching a fitout, the section 2.7 allowance netted as one
-total — the entry records the provision verbatim with its page, the reading, the alternative, why
-this one, and **what it costs the applicant if Council disagrees**. Every figure underneath those
-answers is transcribed correctly and audited, so no presence check can catch a wrong reading: an
-80m² CBD café is 3 spaces on this repo's reading of §7.7.3.1 and 17 on the other. **If you take a
-reading where the source admits another, register it here** — otherwise the judgement is
-invisible and the next person assumes it was the only possibility. Tools cite an entry with
-`interpretations.cite()` inside the answer that turns on it and nowhere else: a citation on an
-answer it does not affect is the standing caveat item 0.1 diagnosed. Link an entry to its
-`DUTY_PLANNER_QUESTIONS` key where one exists; a reading a planner disputes becomes a correction or
-a Duty Planner question.
-
-**`flood.py` selects; `data/flood.py` is the chapter.** DCP Chapter 8 sets its controls per flood
-hazard area, and there are five of them — Floodway, High Flood Risk, Flood Fringe, Low Flood Risk
-and CBD Flood Liable, which §8.3 gives the Flood Fringe's controls — plus rural land. They differ
-enough that answering "commercial" with one requirement, which the old data did, was wrong four
-times out of five: the High Flood Risk Area demands a mezzanine refuge above the 1-in-500 year
-level, the Flood Fringe does not, and the Low Flood Risk Area has no controls at all. Three rules
-hold this together. **The area is never inferred** — Map 1 is a bitmap, the zone is not a proxy,
-and without `flood_area` the tool returns every area's controls rather than picking one, exactly as
-`parking.py` does with the CBD boundary. **A change of use is checked against §8.3 first**, which
-lifts the commercial and industrial controls entirely in the High Flood Risk and Flood Fringe
-areas — the commonest business DA there is, so reporting a 25%-above-FPL requirement against a café
-fitout is this repo's most likely flood-shaped mistake. And **the DCP never goes back alone**: LEP
-cl 5.21(2) is a bar on granting consent rather than a standard to design to, and cl 5.21(3)(a)
-requires climate change to be considered, which the DCP's 2001 modelling predates.
-
-**`villages.py` selects; `data/nimbin.py` is DCP Part B Chapter 6.** RU5 is a business zone
-(`PLAN.md`), and Nimbin is the only village with a chapter of its own — the DCP Introduction
-records that Dunoon's and Clunes' were repealed in July 2020 — so `get_village_requirements`
-asks for `village` and **never infers Nimbin from RU5**; any other village is told the Part A
-chapters apply. Inside Nimbin the chapter draws its boundary, precincts, heritage conservation
-area and flood hazard on Figures 1, 2, 3 and 5, all images, so each is an argument and an
-unknown one returns every option — the CBD-boundary discipline again, and the refusal is a
-Duty Planner question (`nimbin_precinct`). Two things the answer always carries: **"preferred"
-is not "permissible"** (§2 — permissibility is still `check_permissibility`'s, and a
-non-preferred use must show there is no suitable land in its preferred precinct), and **§1.3(b)
-makes this chapter prevail over the rest of the DCP**, so its recommended 1m freeboard sits over
-Chapter 8's. The chapter's own misprints (§3.1.4 cites Figure 4 for the flood map, which is
-Figure 5) are recorded in `SOURCE_TEXT_DEFECTS` and quoted as printed.
-
-**`standards.py` answers from DCP Chapter 1, and its hardest job is saying what the chapter does
-not contain.** Chapter 1 is Performance Criteria with Acceptable Solutions, so §1.3 makes every
-figure a deemed-to-comply safe harbour rather than a limit — reporting "you must have 6m" talks an
-applicant out of an argument the chapter expressly invites, so `HOW_TO_READ_A_FIGURE` rides along
-with every answer. The front setback comes from the **zone** (6m in R1/R2/R3/RU5, 15m in RU1/R5/E3,
-28m on an RMS road), which the old tool never asked for; it asked for storeys, which decide nothing
-here. And **Chapter 1 sets no side setback, no rear setback and no site coverage maximum for an
-ordinary lot** — `NOT_SET_BY_THIS_CHAPTER` answers each with what governs instead, because the old
-file filled all three with figures that are not in the document.
-
-Both files' figures were invented rather than transcribed: 500mm of freeboard against the
-chapter's 300mm, a "CBD Development Exemption Precinct" and a "2090 climate change level" in no
-document here, a side setback that is small lot housing's, a front setback that is a five-storey
-building separation, a "15% deep soil" that is the chapter's *land steeper than 15%*. Each looked
-researched because each collided with a real number somewhere in the source. **Do not add a figure
-to either file that you have not read in the document, and prefer `NOT_SET_BY_THIS_CHAPTER` to a
-plausible guess** — a presence-checking audit cannot catch an invention, which is why
-`audit_standards.py` also asserts the absences.
-
-**`commercial.py` selects from DCP Chapter 2, and the chapter is two documents.** Part A (the CBD, Chapter 2's Map 1) is prose design principles; Part B (Brewster Street in the Health Precinct, Map 2) is a Performance Criteria / Acceptable Solutions table. Three rules. **The precinct is never inferred** — both maps are images, Part B covers only part of the old B3 (now E2) zone, and Chapter 2's Map 1 is not Chapter 7's CBD parking map; without `precinct` both parts come back. **A change of use is not given the design rules**: the chapter is written for new and renovating buildings and never mentions a change of use, so an internal fitout gets that scope plus what external work would bring in. And **Chapter 1's §1.3 does not carry over** — Chapter 2 has no statement that an Acceptable Solution is only one route, so `HOW_TO_READ_THIS_CHAPTER` quotes the DCP Introduction's narrower "Variations to the Plan" instead. A figure is compared, and a miss is a variation to argue, never reported as a failure.
-
-**`waste.py` answers from DCP Chapter 15, and the fact that matters most is its scope.** §1.3 covers **change of use** as well as demolition and building work, and §2.1 puts a Site Waste Minimisation and Management Plan in the SEE — so a café taking over a shop needs one, which the change-of-use checklist used to understate as "waste storage arrangements". §1.3 also excludes grease and liquid trade waste, and the answer says so every time, because a food business told about bins and not about its grease arrestor has been misled by omission. Appendix C's generation rates are applied to a floor area only when one is given, per day unless trading days are given, and "Variable" is never turned into a number. Checklist entries keep the short name "Waste management plan" before the dash, because `document_gap` matches on it.
-
-**`data/definitions.py` quotes the LEP Dictionary, and the same failure had reached it.** Which
-defined term a proposal falls under is the whole assessment — it decides permissibility off the
-land use table, the Chapter 7 parking rate, and whether a change of use owes a contribution at all
-(shop → café is nil, office → café is $12,310). Until 2026-08-08 the file held paraphrases written
-from memory, and said so in its own docstring. `warehouse or distribution centre` read "whether or
-not goods are sold by retail" where the LEP says **"but from which no retail sales are made"**;
-`business premises` invented a "2+ days per week" test that appears nowhere in the LEP and dropped
-the exclusion of a medical centre; `boarding house` omitted the affordable-housing and registered-
-provider paragraphs that are the whole modern definition; `centre-based child care facility`
-excluded out-of-school-hours care, which paragraph (a)(iii) includes.
-
-Three rules hold it together. **Definitions are quoted, never summarised** — anything that is not
-the LEP's words lives in `why_this_matters`, which the tool labels as guidance. **A number in a
-definition is almost always in the wrong place**: the Dictionary defines terms and the figures live
-in clause 5.4, so every invented figure was a real control filed under the wrong provision — a
-neighbourhood shop is **200m²** (cl 5.4(7)), not the 80m² the file asserted, and `FIGURES_NOT_IN_
-THE_DEFINITION` records the four with the clause that really sets each. And **the Dictionary term
-is not always the land use table term** — the table says "Light industries" and "Attached
-dwellings" where the Dictionary defines the singular, so `land_use_table_term` carries the plural
-and the audit checks it against `data/zones.py`.
-
-**`data/heritage.py` exists because one wrong sentence reached nine files.** Every one of them
-asserted *"a Heritage Impact Statement is required (DCP Chapter 12)"*, and both halves are wrong:
-Chapter 12 requires no heritage document — it mentions a heritage impact statement twice, both in its
-definitions, and says it applies whenever consent is required under cl 5.10 — while the
-provision that *does* bite, **cl 5.10(5), says the consent authority *may* require a heritage
-management document**, of which a HIS is one of three forms. Stating a discretion as a rule sends a
-business to buy a consultant's report before anyone has asked for one, and forecloses the
-conversation in which Council says what it actually wants. Same failure as the residential standards
-in item 0.6.
-
-Two subclauses nothing cited before, and each changes who is affected. **cl 5.10(5)(c) reaches the
-neighbours** — the assessment power applies to land *in the vicinity of* an item, so a site
-`lookup_site_constraints` reports as unlisted can still be caught. **cl 5.10(10) is how a café opens
-in an old bank**: a heritage *building* can be approved for a purpose the Plan would otherwise
-prohibit, where the use funds its conservation. That belongs beside the SEPP caveat in
-`check_permissibility` — both are reasons a prohibited land use table result is not a settled
-refusal — and it is offered there now.
-
-Two rules follow. **Never write into a SEE that a document accompanies the application**: the draft
-used to state as fact that a HIS was attached, in text going to Council over the applicant's name.
-And **`tests/test_heritage.py` greps the whole package** rather than pinning nine call sites — the
-failure mode here was propagation, so what is pinned is the phrase's *absence* everywhere, which
-cannot drift the way nine separate assertions did. The grep exempts `data/heritage.py` **by path** —
-there are now three files called `heritage.py`, and a name match would exempt the two that talk most
-about heritage documents.
-
-**`heritage.py` selects; `data/heritage.py` is Chapter 12 and cl 5.10** (ROADMAP.md C1, on the flood
-template). The chapter is real content, not a stub: §12.3 makes its policies binding on Schedule 5
-items *with a variation route*, §12.5 has twelve design guidelines split PREFERRED / NOT ENCOURAGED
-(signage, colours, roof, windows, materials, fences…), and §12.6 has precinct policies for all seven
-conservation areas — Nimbin's are the shopfront ones (stall risers, no large plate glass, shutters
-inside). Reading it whole also showed S4's "requires no document at all" was one clause too strong:
-it asks for **colour scheme details with a DA for new development** and a **justification for any
-departure** (`WHAT_CHAPTER_12_DOES_ASK_FOR`) — neither a heritage management document, so S4 stands.
-Three rules, each flood's. **Status is never inferred**: without `heritage_status` the tool returns
-heritage item / conservation area / both / vicinity / none known side by side, and says the state
-layer can *confirm* a listing but cannot *clear* one (point query, the vicinity is unmapped, a state
-dataset is not the instrument). **The DCP never goes back alone**: Chapter 12 applies "whenever
-development consent is required under clause 5.10", so cl 5.10(2) — which lists *works*, not uses —
-decides whether it applies at all, and cl 5.10(3)–(5) and (10) ride along. **"May" stays "may"**:
-guidelines are reported under the chapter's own labels, and only the policies it words as a flat
-refusal ("will not be approved", "will not be permitted", "should not be approved") are reported as
-one, found by phrase in the stored quotes rather than listed by hand. Two easy mistakes to keep out:
-**cl 5.10(10) is only for "a building that is a heritage item"** — not a building merely inside a
-conservation area, even one Girards Hill's policy says to treat "in a similar manner" to an item —
-and the Heritage Map labels C1–C7 are not accepted as area names, because C1–C3 are zone codes here.
-
-**`data/heritage_items.py` is LEP Schedule 5 Parts 1 and 3, and `address` searches it offline**
-(ROADMAP.md C2). The state layer answers "is the point under this address mapped"; the schedule adds
-what a point query cannot — the instrument itself when no map service is reachable, the *street*
-for the cl 5.10(5)(c) vicinity rule, and what the listing covers (grounds, street trees, an
-interior). It is **positive-only by construction**: a match is evidence and never sets
-`heritage_status` (a Schedule 5 address can be a range, a road reserve or several lots), and no
-match clears nothing, because a conservation area is a map boundary and "vicinity" crosses streets.
-The address matcher reads the LEP's own forms — ranges (`6–10`), unit prefixes (`1/115`, which must
-not make `1 Molesworth Street` listed), shared plural types (`Bridge and Woodlark Streets`), and I49's
-untyped `188 Keen` — and rejects a street name followed by another word (`Leycester Creek`,
-`Eltham Railway Bridge`). "State" in the Significance column is **not** State Heritage Register
-listing; don't let it reach `check_referrals` as though it were.
-
-**`landuse.py` decides which stored fact applies, and until 2026-08-20 nothing checked it.** Every
-audit above passes on data; all 21 zone tables match the LEP verbatim; and `check_permissibility`
-still answered the *opposite* of what they say depending on how the use was spelled — 287 of the
-991 land use rows, 120 of them a confident "permitted" against a table that prohibits the use.
-`audit_landuse_matching.py` is the guard, and ROADMAP.md S1 records the fix. Four rules hold it
-together now.
-
-**The singular↔plural pairing is data, not a rule.** `LAND_USE_TABLE_SPELLINGS` carries the LEP's
-own 105 pairs, read off the Dictionary in the document. No suffix rule reaches "Crematoria" →
-crematorium, "Jetties" → jetty, "Rural workers' dwellings" → rural worker's dwelling (the
-possessive moves rather than disappearing) or "Restaurants or cafes" → restaurant or cafe (both
-sides of the "or" have to move together) — the old `re.sub(r"\b(\w{3,}?)s\b", r"\1", text)`
-produced "facilitie" and "industrie" and met nothing. **Do not add a pair by inflecting a word**;
-if the Dictionary does not define the singular there is no pair, and the audit will say so.
-
-**Anything keyed in the LEP's spelling must be looked up in the LEP's spelling.**
-`LAND_USE_HIERARCHY` was being consulted with a canonicalised term, so `business premises` became
-`busines premise` and took the entire `premises` family with it — which is why E4 answered
-"permitted" for uses it prohibits via `Commercial premises`.
-
-**A term the LEP names is never approximated at.** `match_land_use`'s "approximate" strength is a
-word-boundary containment search, and once the spelling table let `Home industries` canonicalise
-properly, a proposal for `industry` in R2 began matching it. For a recognised use there is nothing
-to approximate towards: it is in this table under its own name, or reaches it through the
-hierarchy, or it is absent and the catch-all decides. Fuzzy matching is only for words this server
-cannot place at all.
-
-**The hierarchy is the LEP's, read off the Dictionary — not a hand-written list.** `LEP_TYPE_OF` carries all 108 "X is a type of Y" notes, and `landuse.ancestors()` walks them as far as they go. Until 2026-09-25 the only chains were `LAND_USE_HIERARCHY`'s 25 hand-written ones, all in the commercial premises family, so every other use the LEP places under a parent — dwelling houses, medical centres, B&Bs, schools — fell through to the catch-all: 161 wrong "yes" answers that S1's audit could not see. `LAND_USE_HIERARCHY` stays for everyday words the Dictionary does not define (cafe, gym, takeaway) and for `contributions.py`; `audit_definitions.py` checks every link of it against the notes. **The nearest listed link decides** (LEP cl 2.3(3)(b)), so the matcher walks the chain before the table's sections — walking sections first let a distant ancestor under "permitted" beat a nearer one under "prohibited".
-
-**An everyday word reaches an LEP term one way, and every tool uses it.** `landuse.lep_term_for()` reads a word the LEP does not name through `DEFINITION_SYNONYMS` — exact or synonym matches only, never fuzzy — and `classify_land_use` answers from that term, so permissibility, readiness and the SEE draft agree with `get_definition`. Parking uses the same step in `parking.resolve_parking_use()`, then walks the LEP chain to the nearest term Chapter 7 rates (ROADMAP.md A2: "hairdresser" was answered by one tool and refused by two). Each answer says whether the LEP's own definition names the word (hairdressers, banks) or only this server's vocabulary does (barber), and **the walk stops at any use Schedule 1 rates on its own row** — `UNCARRIED_SCHEDULE_1_USES`, now in `data/parking.py` — because "Business premises (other than funeral homes)" means a funeral home must not inherit its parent's rate. A synonym that contradicts the LEP's own placement fails `audit_definitions.py`; "cellar door" and "storage" did.
-
-**The catch-all has two readings and only one of them is an answer.** Falling through to "any other
-development not specified" means either *this use is genuinely unlisted here*, which is the LEP's
-own answer and correct — `industry` in R2 is prohibited — or *this server could not identify the
-proposal*, which is not a fact about the LEP at all. `KNOWN_LAND_USES` separates them; an
-unrecognised term reports `not_found` / `unrecognised` with `permissible` left None, so it cannot
-reach `readiness.py` as a "stop" or `see.py` as "Prohibited". One bug producing both 120 wrong
-"yes" answers and 91 wrong "no" ones, purely by which catch-all a zone happened to carry, is what
-that distinction exists to prevent. Note the row is worded two ways — RU2, RU3, SP2 and C1 say "Any
-development not specified" without the "other", so test with `_is_catchall()` rather than against
-`CATCHALL_TERM` as a substring.
+`scripts/fetch_*.py` are one-off Playwright scrapers (the source sites 403 plain HTTP). They are
+never imported by the server. **They save whatever the server returned, including error pages** —
+open anything a scraper produces before committing it, because the document tools search `.txt`.
 
 ---
 

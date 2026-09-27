@@ -23,16 +23,16 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from audit_contributions import (  # noqa: E402
     DERIVATION_TOLERANCE,
-    completeness_problems,
-    derive,
-    table_e2_rows,
-    known_discrepancy,
-    money_on_page,
-    page_text,
     PLAN_PDF,
     TABLE_E1_PAGE,
     TABLE_E2_PAGE,
+    completeness_problems,
+    derive,
     formats,
+    known_discrepancy,
+    money_on_page,
+    page_text,
+    table_e2_rows,
 )
 
 from lismore_da_mcp.contributions import (  # noqa: E402

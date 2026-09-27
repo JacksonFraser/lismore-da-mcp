@@ -29,6 +29,8 @@ scraping = [
 # Test-only. Not installed on Render (requirements.txt is the deploy manifest).
 dev = [
     "pytest>=8.0.0",
+    "pyright>=1.1.400",
+    "ruff>=0.12.0",
 ]
 
 [tool.pytest.ini_options]
@@ -41,3 +43,29 @@ lismore-da-mcp = "lismore_da_mcp.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lismore_da_mcp"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C901", "RUF013"]
+# Long prose strings and verbatim quotes from planning instruments are the norm
+# in data/, and wrapping them would make them harder to diff against the source.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# One-off audit CLIs whose main() is a linear report; splitting it buys nothing.
+"scripts/*" = ["C901"]
+
+[tool.ruff.lint.mccabe]
+# A ceiling, not a target: stops any function growing past the current worst.
+max-complexity = 20
+
+[tool.ruff.lint.isort]
+known-first-party = ["lismore_da_mcp"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.14"
+typeCheckingMode = "basic"

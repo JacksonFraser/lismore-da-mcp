@@ -77,7 +77,7 @@ def _reply(payload: dict):
 def get_waste_requirements(arguments: dict):
     requested = arguments["development_type"]
     found = waste.resolve_development_type(requested)
-    if not found:
+    if not found.key:
         error = unresolved_error(requested, found, "development type", waste.DEVELOPMENT_TYPES)
         error["note"] = ("Chapter 15 has sections for dwellings (4.1), multi dwelling housing "
                          "(4.2), commercial and retail (4.3), mixed use (4.4) and industrial "

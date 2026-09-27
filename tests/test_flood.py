@@ -27,8 +27,14 @@ from audit_flood import chapter_text, normalise  # noqa: E402
 
 from lismore_da_mcp import flood  # noqa: E402
 from lismore_da_mcp.data.flood import (  # noqa: E402
-    ARI_500_OFFSET_M, CHANGE_OF_USE_EXEMPT, DEFINITIONS, FLOOD_AREAS,
-    FREEBOARD_MM, LEP_FLOOD_CLAUSES, SCOPE)
+    ARI_500_OFFSET_M,
+    CHANGE_OF_USE_EXEMPT,
+    DEFINITIONS,
+    FLOOD_AREAS,
+    FREEBOARD_MM,
+    LEP_FLOOD_CLAUSES,
+    SCOPE,
+)
 
 
 @pytest.fixture(scope="module")
@@ -117,9 +123,9 @@ class TestTheAuditCanFail:
 
     def test_the_uncarried_control_scan_finds_a_removed_control(self, chapter):
         """Drop a control from a copy of the data and the scan must notice."""
-        from audit_flood import controls_not_carried
-
         import copy
+
+        from audit_flood import controls_not_carried
         gutted = copy.deepcopy(FLOOD_AREAS)
         gutted["flood_fringe"]["controls"]["commercial"]["requirements"] = []
         missed = controls_not_carried(chapter, gutted, [])

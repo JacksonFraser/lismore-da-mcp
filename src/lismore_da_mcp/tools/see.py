@@ -1,34 +1,27 @@
 """Statement of Environmental Effects: guidance, drafting and the official form."""
 
-from pathlib import Path
 import base64
 import json
-import shutil
 import tempfile
 import textwrap
+from pathlib import Path
+from urllib.parse import quote
 
-from mcp.types import TextContent
+from mcp.types import BlobResourceContents, EmbeddedResource, TextContent
 
-from lismore_da_mcp.parking import resolve_parking_use
-from lismore_da_mcp.config import DOCS_DIR
-from lismore_da_mcp.config import PUBLIC_MODE
-from lismore_da_mcp.config import SEE_TEMPLATE_PATH
+from lismore_da_mcp.config import DOCS_DIR, PUBLIC_MODE, SEE_TEMPLATE_PATH
 from lismore_da_mcp.data.parking import PARKING_RATES
 from lismore_da_mcp.data.see_templates import SEE_TEMPLATES
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.fees import calculate_da_fee
 from lismore_da_mcp.landuse import classify_land_use
-from lismore_da_mcp.parking import cbd_spaces
-from lismore_da_mcp.parking import estimate_spaces
+from lismore_da_mcp.parking import cbd_spaces, estimate_spaces, resolve_parking_use
 from lismore_da_mcp.readiness import site_constraints as _site_constraints
 from lismore_da_mcp.registry import tool
-from lismore_da_mcp.see.fields import PURPOSE_WRITTEN_SEE_HEADINGS, SEE_QUESTIONS
-from lismore_da_mcp.see.fields import SEE_TEMPLATE_SCOPE
+from lismore_da_mcp.see.fields import PURPOSE_WRITTEN_SEE_HEADINGS, SEE_QUESTIONS, SEE_TEMPLATE_SCOPE
 from lismore_da_mcp.see.fill import fill_see_pdf
 from lismore_da_mcp.see.generate import generate_see_form_data
-from lismore_da_mcp.vocabulary import SEE_SECTION_SYNONYMS
-from lismore_da_mcp.vocabulary import resolve
-from lismore_da_mcp.vocabulary import unresolved_error
+from lismore_da_mcp.vocabulary import SEE_SECTION_SYNONYMS, resolve, unresolved_error
 
 
 @tool(
@@ -50,7 +43,7 @@ def get_see_template(arguments: dict):
         }
     else:
         match = resolve(section, SEE_TEMPLATES, SEE_SECTION_SYNONYMS)
-        if match:
+        if match.key:
             result = {
                 "section": match.key,
                 "template": SEE_TEMPLATES[match.key],
@@ -78,12 +71,8 @@ def _flood_section(is_flood, development_type):
             "    Chapter 8 apply.\n"
             "    • [APPLICANT] State the Flood Planning Level for the site and the floor level\n"
             "      of the premises relative to it. Council provides the flood level on request.\n"
-            # "the CBD exemption precinct" was here until 2026-08-20. No such
-            # precinct appears anywhere in DCP Chapter 8, in LEP 2012, or in any
-            # document in this repo — CLAUDE.md recorded it as invented and
-            # deleted on 2026-08-06 and this copy survived, reaching SEE drafts
-            # Council reads. SCENARIOS.md D11. The real distinction is the flood
-            # hazard area, which Map 1 draws and no tool here can derive.
+            # The controls turn on the flood hazard area, which Map 1 draws and
+            # no tool here can derive — so the applicant has to state it.
             "    • [APPLICANT] Address structural soundness, and evacuation. Which controls\n"
             "      apply depends on the flood hazard area the site sits in (Floodway, High\n"
             "      Flood Risk, Flood Fringe, Low Flood Risk, or CBD Flood Liable) — that comes\n"
@@ -136,18 +125,8 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
                      zone_code=None):
     """Parking from the DCP rate, or an honest refusal — never an assumed pass.
 
-    This section used to resolve the rate by hand (`proposed_use.replace(" ", "_")`,
-    with a special case for café) and then read the space count out of the rate's
-    prose with a substring test for "10m". Any rate that was not a plain area
-    rate — the café rule among them — fell through to a "[CALCULATE BASED ON DCP]"
-    placeholder, and the compliance line below it compared the spaces provided
-    against `0`, because a string is not an int. So an 80m² café with no on-site
-    parking was told "the existing parking provision is adequate for the proposed
-    use" against a real requirement of 14 spaces — in a document that goes to
-    Council over the applicant's name.
-
-    `estimate_spaces` is the same estimator get_parking_rates and the Council
-    form use, so all three now agree. Where it declines to produce a figure, so
+    Uses `estimate_spaces`, the same estimator as get_parking_rates and the
+    Council form, so all three agree. Where it declines to produce a figure, so
     does this: an unstated requirement is left to the applicant rather than
     quietly treated as met.
 
@@ -161,7 +140,7 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
     high.
     """
     match = resolve_parking_use(proposed_use or "")[0]
-    entry = PARKING_RATES.get(match.key) if match else None
+    entry = PARKING_RATES.get(match.key) if match and match.key else None
     existing_line = (
         f"Existing Spaces:     {existing_parking}" if existing_parking is not None
         else "Existing Spaces:     [NOT STATED]"
@@ -181,9 +160,8 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
 
     # `estimate_spaces` returns None when the rate has no computable form at all,
     # and a dict with `spaces_required: None` when it has one but a term of it was
-    # not supplied. Both mean no number may be claimed here — a draft that states
-    # a partial figure as the requirement is the failure this whole section
-    # guards against. The second case can say what is missing. ROADMAP.md S3.
+    # not supplied. Both mean no number may be claimed here; the second case can
+    # say what is missing.
     if not estimate or estimate["spaces_required"] is None:
         floor = (estimate or {}).get("at_least")
         lines.append("Required Spaces:     "
@@ -222,12 +200,13 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
     # assessed, and the draft only defers where they actually disagree about the
     # outcome.
     cbd = cbd_spaces(floor_area or None) if zone_code == "E2" else None
-    alternatives = sorted({required, cbd["spaces_required"]}) if cbd else [required]
+    cbd_required = cbd["spaces_required"] if cbd else None
+    alternatives = sorted({required, cbd_required}) if cbd_required is not None else [required]
     ambiguous = len(alternatives) > 1
 
     if ambiguous:
         lines.append(f"Required Spaces:     {required} (DCP Chapter 7 Schedule 1) or "
-                     f"{cbd['spaces_required']} (the fixed CBD rate, clause 7.7.3.1)")
+                     f"{cbd_required} (the fixed CBD rate, clause 7.7.3.1)")
     else:
         lines.append(f"Required Spaces:     {required}")
     lines.append(f"Basis:               {'; '.join(estimate['basis'])}")
@@ -246,7 +225,7 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
         lines.append(
             f"Parking Compliance: the {existing_parking} space(s) provided meet the DCP "
             f"requirement of {required}."
-            + (f" They also meet the fixed CBD rate of {cbd['spaces_required']}, so the "
+            + (f" They also meet the fixed CBD rate of {cbd_required}, so the "
                "conclusion holds whichever rate applies." if ambiguous else "")
         )
     else:
@@ -270,7 +249,7 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
             "    Lismore CBD as defined on Map 1 of DCP Chapter 7. Which rate applies is not\n"
             "    a detail: Schedule 1 applies outside the CBD (clause 7.7.2) and gives\n"
             f"    {required} space(s), while inside it the fixed rate of 3.3 spaces/100m² GFA\n"
-            f"    (clause 7.7.3.1) gives {cbd['spaces_required']}. If the site is in the CBD, a\n"
+            f"    (clause 7.7.3.1) gives {cbd_required}. If the site is in the CBD, a\n"
             "    deemed parking credit for the existing building (clause 7.7.3.4) reduces the\n"
             "    requirement further, and a shortfall may be met by a contribution in lieu\n"
             "    rather than by construction (clause 7.7.3.3). Confirm the site's position on\n"
@@ -335,7 +314,7 @@ def generate_see_draft(arguments: dict):
     property_address = arguments["property_address"]
     zone_code = arguments["zone_code"].upper()
     proposed_use = arguments["proposed_use"]
-    development_type = arguments["development_type"]
+    development_type: str = arguments["development_type"]
     floor_area = arguments["floor_area_sqm"]
 
     lot_dp = arguments.get("lot_dp", "[LOT/DP NOT PROVIDED]")
@@ -348,11 +327,8 @@ def generate_see_draft(arguments: dict):
     employees_line = num_employees if num_employees is not None else "[NOT PROVIDED]"
     customers_line = num_customers if num_customers is not None else "[NOT PROVIDED]"
     estimated_cost = arguments.get("estimated_cost", 0)
-    # Constraints. The caller may assert them; where they have not,
-    # look them up from the address rather than writing a draft that is
-    # silent about the site it is for. PLAN.md 1.2: a café SEE for a CBD
-    # address previously mentioned flood zero times, and a SEE that does
-    # not address flood in Lismore is one Council comes back on.
+    # Constraints the caller did not assert are looked up from the address, so
+    # the draft is not silent about flooding on a Lismore site.
     is_flood, is_heritage, is_bushfire, constraint_note = _site_constraints(
         property_address,
         arguments.get("is_flood_affected"),
@@ -717,10 +693,7 @@ def _see_form(arguments: dict, name: str):
             ticks[label] = "Yes" if value else "No" if value is False else "— unanswered"
 
         return [TextContent(type="text", text=json.dumps({
-            # Present on both paths. This tool used to return success=False when
-            # it refused and omit the key entirely when it worked, so a caller
-            # checking response["success"] saw None on the happy path and could
-            # reasonably read it as failure.
+            # Present on both paths, so callers can check it.
             "success": True,
             "summary": summary,
             "text_fields": {
@@ -752,23 +725,26 @@ def _see_form(arguments: dict, name: str):
     if not output_filename.endswith(".pdf"):
         output_filename += ".pdf"
 
-    tmp_dir: Path | None = None
+    pdf_bytes: bytes | None = None
     if PUBLIC_MODE:
-        tmp_dir = Path(tempfile.mkdtemp(prefix="see_"))
-        output_path = tmp_dir / output_filename
+        # The filled form carries the applicant's details: it exists only inside
+        # this block, and the directory is removed however the fill ends.
+        with tempfile.TemporaryDirectory(prefix="see_") as tmp_dir:
+            output_path = Path(tmp_dir) / output_filename
+            fill_result = fill_see_pdf(form_data, output_path)
+            if fill_result["success"]:
+                pdf_bytes = output_path.read_bytes()
     else:
         output_dir = DOCS_DIR / "output"
         output_dir.mkdir(exist_ok=True)
         output_path = output_dir / output_filename
+        fill_result = fill_see_pdf(form_data, output_path)
 
-    fill_result = fill_see_pdf(form_data, output_path)
     if not fill_result["success"]:
-        if tmp_dir is not None:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
         return [TextContent(type="text", text=json.dumps({
             "success": False,
             "error": fill_result.get("error", "Failed to fill PDF."),
-            "template_path": str(SEE_TEMPLATE_PATH),
+            "template": SEE_TEMPLATE_PATH.name,
         }, indent=2))]
 
     notes = [
@@ -805,16 +781,28 @@ def _see_form(arguments: dict, name: str):
         "notes": notes,
     }
 
-    if tmp_dir is not None:
-        pdf_bytes = output_path.read_bytes()
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        response["pdf_base64"] = base64.b64encode(pdf_bytes).decode("ascii")
-        response["output_filename"] = output_filename
-        notes.insert(0, "PDF returned inline as base64 (pdf_base64) — decode and save it yourself; nothing is kept on the server.")
-    else:
+    if pdf_bytes is None:
         response["output_path"] = str(output_path)
+        return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
-    return [TextContent(type="text", text=json.dumps(response, indent=2))]
+    # Sent as a separate binary resource rather than base64 inside the JSON, so
+    # the PDF does not land in the model's context as text.
+    response["output_filename"] = output_filename
+    notes.insert(0, (
+        "The filled PDF is attached to this result as a separate application/pdf "
+        "resource; nothing is kept on the server."
+    ))
+    return [
+        TextContent(type="text", text=json.dumps(response, indent=2)),
+        EmbeddedResource(
+            type="resource",
+            resource=BlobResourceContents(
+                uri=f"lismore-da://see/{quote(output_filename)}",
+                mime_type="application/pdf",
+                blob=base64.b64encode(pdf_bytes).decode("ascii"),
+            ),
+        ),
+    ]
 
 
 # --- the official form's arguments ------------------------------------------
@@ -874,7 +862,7 @@ _SEE_FORM_PROPERTIES = {
 
 # Only fill writes a file, so only fill takes a filename.
 _FILL_ONLY_PROPERTIES = {
-    'output_filename': {'type': 'string', 'description': "Output filename only — any path component is stripped. When running locally over stdio, saved to documents/output/; when served publicly over HTTP, returned inline as base64 and never written to disk. Default: 'SEE_filled.pdf'"},
+    'output_filename': {'type': 'string', 'description': "Output filename only — any path component is stripped. When running locally over stdio, saved to documents/output/; when served publicly over HTTP, attached to the result as an application/pdf resource and never kept on disk. Default: 'SEE_filled.pdf'"},
 }
 
 

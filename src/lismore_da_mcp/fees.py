@@ -1,7 +1,6 @@
 """What a DA costs — the lodgement fee, and the rest of it.
 
-The lodgement fee alone was the answer here until 2026-08-02 (PLAN.md item 2.1),
-and it is a small and unrepresentative fraction of what a business pays. See
+The lodgement fee is a small fraction of what a business pays. See
 `estimate_total_cost` below for the composition, and `data/contributions.py` for
 the largest part of it.
 """
@@ -9,6 +8,12 @@ the largest part of it.
 import math
 
 from lismore_da_mcp.contributions import estimate_contribution
+from lismore_da_mcp.data.contributions import (
+    DEVELOPMENT_TYPE_RATES,
+    DSP_DOLLARS,
+    SECTION_64_CHARGES,
+    SECTION_64_NOTES,
+)
 from lismore_da_mcp.data.fees import (
     AMENDED_PLAN_FEE_RATE,
     DA_FEE_BRACKETS,
@@ -24,12 +29,6 @@ from lismore_da_mcp.data.fees import (
     PRESCRIBED_NOTICE_FEES,
     UNQUANTIFIED_CHARGES,
     schedule_status,
-)
-from lismore_da_mcp.data.contributions import (
-    DEVELOPMENT_TYPE_RATES,
-    DSP_DOLLARS,
-    SECTION_64_CHARGES,
-    SECTION_64_NOTES,
 )
 
 
@@ -98,9 +97,8 @@ def calculate_da_fee(
     # A nil cost of works with building work still asserted is the shape of a
     # change of use that was priced off the wrong provision. Item 2.1 with $0
     # gives $153; Item 2.7 is a flat $395, and it is the correct one for a
-    # change of use with no fitout. The schema used to *recommend* the cheaper
-    # wrong path, so say it here too — a caller who takes the under-quote into a
-    # budget will not read the schema again. SCENARIOS.md D10.
+    # change of use with no fitout. Said here as well as in the schema, where
+    # the number is read.
     if involves_building_work and development_cost == 0:
         result["check_the_provision"] = (
             f"A nil cost of works was given and this was priced under Schedule 4 Item 2.1 at "
@@ -203,11 +201,7 @@ def estimate_total_cost(
             known_total += payable[catchment]
             included.append("section_7_11_contributions")
             # When the net is what set the total and the previous use's size was
-            # assumed rather than stated, say so *here*, where the number is
-            # read. It used to sit three levels down under
-            # `existing_development_allowance.assumption`, so a restaurant
-            # expanding 100m² -> 140m² showed a $0 contribution in the budget
-            # with the assumption that produced it out of sight. ROADMAP.md S3.
+            # assumed rather than stated, say so here, where the number is read.
             if (existing_use and existing_counts is None
                     and contribution.get("net_contribution")):
                 parts["section_7_11_contributions"]["what_this_total_assumes"] = (
@@ -252,10 +246,7 @@ def estimate_total_cost(
         ),
     }
 
-    # Three figures were transcribed, verified against the fees schedule by the
-    # audit, and reached no output at all — including a $1,532 statutory notice
-    # fee, roughly three times a small café's entire quoted total. A number
-    # nobody can see is not a number this server holds. SCENARIOS.md D12.
+    # Statutory notice fees can be several times a small café's other costs.
     parts["prescribed_notice_fees"] = {
         "amounts": dict(PRESCRIBED_NOTICE_FEES),
         "basis": (

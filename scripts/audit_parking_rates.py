@@ -177,13 +177,15 @@ def check_provisions(chapter: str) -> int:
     are transcribed verbatim for the same reason the rates are, so they get the
     same check.
     """
-    from lismore_da_mcp.data.parking import CBD_EXPANSION_ALLOWANCE
-    from lismore_da_mcp.data.parking import CBD_FIXED_RATE
-    from lismore_da_mcp.data.parking import CBD_PARKING_CREDIT
-    from lismore_da_mcp.data.parking import CBD_REDUCTIONS
-    from lismore_da_mcp.data.parking import COMBINED_USES
-    from lismore_da_mcp.data.parking import DISABILITY_PARKING
-    from lismore_da_mcp.data.parking import ON_STREET_LOSS
+    from lismore_da_mcp.data.parking import (
+        CBD_EXPANSION_ALLOWANCE,
+        CBD_FIXED_RATE,
+        CBD_PARKING_CREDIT,
+        CBD_REDUCTIONS,
+        COMBINED_USES,
+        DISABILITY_PARKING,
+        ON_STREET_LOSS,
+    )
 
     quotes = {
         "7.7.3.1 fixed CBD rate": CBD_FIXED_RATE["verbatim"],

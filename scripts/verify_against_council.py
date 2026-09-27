@@ -514,7 +514,7 @@ async def crawl(args) -> dict:
 
     if unlisted:
         print(f"\n  {len(unlisted)} current document(s) with no local counterpart:")
-        for name, (href, title) in sorted(unlisted.items()):
+        for _name, (href, title) in sorted(unlisted.items()):
             print(f"    {title[:72]}")
             print(f"      {href}")
         print("\n  Not downloaded. Check each against SCRAPER.md §8 before "
@@ -527,7 +527,7 @@ async def crawl(args) -> dict:
         print(f"\n  {len(superseded)} LEP 2000 edition(s) published but not carried, "
               f"which is the\n  policy — pass --show-superseded to list them.")
         if args.show_superseded:
-            for name, (href, _title) in sorted(superseded.items()):
+            for _name, (href, _title) in sorted(superseded.items()):
                 print(f"    {href}")
 
     if matched:

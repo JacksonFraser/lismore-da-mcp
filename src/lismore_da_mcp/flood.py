@@ -63,10 +63,8 @@ DEVELOPMENT_SYNONYMS = {
     "medical centre": "commercial",
     "childcare": "commercial",
     "child care": "commercial",
-    # `childcare centre` — the phrasing an applicant actually types — resolved
-    # to nothing and the tool errored with only [commercial, industrial,
-    # residential] and no redirect. It is a commercial building for Chapter 8,
-    # and it is also exactly the use LEP cl 5.22 exists for. SCENARIOS.md D12.
+    # The phrasing an applicant actually types. A commercial building for
+    # Chapter 8, and exactly the use LEP cl 5.22 exists for.
     "childcare centre": "commercial",
     "child care centre": "commercial",
     "childcare facility": "commercial",
@@ -177,13 +175,8 @@ def controls_for(area_key: str, development_type: str, is_change_of_use: bool = 
         "flood_area": area["name"],
         "section": f"DCP Chapter 8 §{area['section']}",
         "definition_verbatim": area["definition_verbatim"],
-        # An area summary, not an answer about the development type asked for.
-        # Under the old key `headline` it read as the latter and was returned
-        # unchanged for every type — so an industrial proposal in the High Flood
-        # Risk Area was told "commercial buildings need a mezzanine refuge" while
-        # its own requirements list, correctly, included one; and a residential
-        # proposal was told the same thing while its list, correctly, did not.
-        # SCENARIOS.md D12. `requirements` below is the type-specific answer.
+        # An area summary, not an answer about the development type asked for;
+        # `requirements` below is the type-specific answer.
         "about_this_flood_area": area["headline"],
     }
 
@@ -281,12 +274,8 @@ def controls_for(area_key: str, development_type: str, is_change_of_use: bool = 
         answer["why_industrial_is_split"] = control["reasoning"]
     answer["all_development_controls"] = list(area.get("all_developments", []))
     if "all_developments_exemption" in area:
-        # The wire key used to read `all_development_controls_exemption`, which
-        # promises far more than the constant delivers: §8.6.4(2) exempts small
-        # works from the *certificate of structural adequacy* only, not from the
-        # floor-level survey or the flood-compatible materials beside it. Naming
-        # it after the section it exempts from stops it being read as a general
-        # let-off. SCENARIOS.md D12.
+        # §8.6.4(2) exempts small works from the certificate of structural
+        # adequacy only, not the other controls, so the key names exactly that.
         answer["structural_adequacy_certificate_exemption"] = area["all_developments_exemption"]
     if "boundary_variation_verbatim" in area:
         answer["disputing_the_area"] = {
@@ -373,11 +362,9 @@ def requirements(development_type: str, flood_area: str | None = None,
             "at all. Settle the area before designing to any of them."
         )
 
-    # cl 5.22 was in the data and reached no output that named it. It is the
-    # provision that catches a use *outside* the flood planning area — between
-    # it and the probable maximum flood — and the uses it catches are businesses
-    # a shop is not: childcare, schools, boarding houses, caravan parks. Being
-    # one item in the `lep_2012` blob is not raising it. SCENARIOS.md D12.
+    # cl 5.22 catches sensitive uses *outside* the flood planning area — between
+    # it and the probable maximum flood — such as childcare, schools, boarding
+    # houses and caravan parks, so it is raised explicitly for them.
     if is_sensitive_or_hazardous(asked_about or development_type):
         answer["also_clause_5_22"] = {
             "why_it_applies": (

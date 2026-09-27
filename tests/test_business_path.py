@@ -12,7 +12,6 @@ These pin the fixes at the level a business experiences them, rather than at
 the level of the functions underneath.
 """
 
-import json
 import re
 
 import pytest

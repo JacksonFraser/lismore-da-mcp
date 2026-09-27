@@ -20,13 +20,20 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from audit_waste import (  # noqa: E402
-    chapter_text, completeness, figure_problems, generation_rates_from_document, headings,
-    normalise, numbered_items_in, rate_table_problems, section_slices)
+    chapter_text,
+    completeness,
+    figure_problems,
+    generation_rates_from_document,
+    headings,
+    normalise,
+    numbered_items_in,
+    rate_table_problems,
+    section_slices,
+)
 
 from lismore_da_mcp import waste  # noqa: E402
 from lismore_da_mcp.data.checklists import DA_CHECKLISTS  # noqa: E402
-from lismore_da_mcp.data.waste import (  # noqa: E402
-    FIGURES, GENERATION_RATES, NOT_SET_BY_THIS_CHAPTER, SCOPE, SECTIONS)
+from lismore_da_mcp.data.waste import FIGURES, GENERATION_RATES, NOT_SET_BY_THIS_CHAPTER, SCOPE, SECTIONS  # noqa: E402
 from lismore_da_mcp.readiness import _claims  # noqa: E402
 from lismore_da_mcp.server import call_tool  # noqa: E402
 

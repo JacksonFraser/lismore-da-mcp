@@ -3,6 +3,7 @@
 
 import asyncio
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "documents" / "lep"
