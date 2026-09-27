@@ -61,6 +61,10 @@ def configure_logging() -> logging.Logger:
 OUTCOME_OK = "ok"
 OUTCOME_INVALID_ARGUMENTS = "invalid_arguments"
 OUTCOME_ERROR = "error"
+# A local-only tool called on the public server (ROADMAP.md A4). Its own
+# outcome rather than invalid_arguments, which is the usability signal: a count
+# here is the evidence that would justify exposing those tools publicly.
+OUTCOME_LOCAL_ONLY = "local_only"
 
 
 def record_tool_call(

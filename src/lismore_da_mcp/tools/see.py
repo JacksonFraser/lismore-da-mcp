@@ -325,6 +325,7 @@ def _bushfire_section(is_bushfire):
         'applicant_name': {'type': 'string', 'description': 'Name of the applicant'},
     },
     required=['property_address', 'zone_code', 'proposed_use', 'development_type', 'floor_area_sqm'],
+    local_only=True,
 )
 def generate_see_draft(arguments: dict):
     # property_address, zone_code, proposed_use, development_type and
@@ -882,6 +883,7 @@ _FILL_ONLY_PROPERTIES = {
     description='Preview exactly what will be written into the official Lismore SEE PDF, including every tick. Shows the questions still unanswered and any issue that blocks the form being generated. Review this before calling fill_see_pdf.' + _SEE_FORM_NOTE,
     properties=dict(_SEE_FORM_PROPERTIES),
     required=_SEE_FORM_REQUIRED,
+    local_only=True,
 )
 def preview_see_form(arguments: dict):
     return _see_form(arguments, "preview_see_form")
@@ -892,6 +894,7 @@ def preview_see_form(arguments: dict):
     description="Fill the official Lismore SEE PDF form and save it. Refuses proposals outside the template's 'Minor Development Only' scope, and refuses to write a blank land identifier. Questions the applicant has not answered are left blank and reported rather than guessed. Run preview_see_form first." + _SEE_FORM_NOTE,
     properties={**_SEE_FORM_PROPERTIES, **_FILL_ONLY_PROPERTIES},
     required=_SEE_FORM_REQUIRED,
+    local_only=True,
 )
 def fill_see_pdf_tool(arguments: dict):
     return _see_form(arguments, "fill_see_pdf")

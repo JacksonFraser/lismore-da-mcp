@@ -34,6 +34,7 @@ class RegisteredTool:
     description: str
     schema: dict
     handler: Callable
+    local_only: bool = False
 
     def as_mcp_tool(self) -> Tool:
         return Tool(name=self.name, description=self.description, input_schema=self.schema)
@@ -48,8 +49,16 @@ def tool(
     description: str,
     properties: dict | None = None,
     required: list[str] | None = None,
+    local_only: bool = False,
 ):
-    """Register a handler along with the schema that describes it."""
+    """Register a handler along with the schema that describes it.
+
+    `local_only` keeps a tool off the public HTTP transport: it is not listed
+    there, and a call to it is refused with `local_only_refusal`. It is for the
+    tools that take an applicant's name — ROADMAP.md A4 decided an open,
+    unauthenticated endpoint with no terms and no privacy policy should not be
+    a place applicant PII can enter at all.
+    """
 
     def decorator(handler: Callable) -> Callable:
         if name in _REGISTRY:
@@ -60,7 +69,7 @@ def tool(
             if missing:
                 raise ValueError(f"{name}: required argument(s) not declared: {missing}")
             schema["required"] = required
-        _REGISTRY[name] = RegisteredTool(name, description, schema, handler)
+        _REGISTRY[name] = RegisteredTool(name, description, schema, handler, local_only)
         return handler
 
     return decorator
@@ -70,8 +79,28 @@ def registered() -> dict[str, RegisteredTool]:
     return dict(_REGISTRY)
 
 
-def mcp_tools() -> list[Tool]:
-    return [t.as_mcp_tool() for t in _REGISTRY.values()]
+def mcp_tools(public: bool = False) -> list[Tool]:
+    """The tools to list. `public` drops the local-only ones."""
+    return [t.as_mcp_tool() for t in _REGISTRY.values() if not (public and t.local_only)]
+
+
+def local_only_refusal(name: str) -> dict:
+    """What a caller gets for calling a local-only tool on the public server.
+
+    Unlisted there already, so a call means a client cached an old tool list or
+    read the name somewhere else. Say plainly that it exists and where it runs,
+    rather than "unknown tool", which would read as a typo.
+    """
+    return {
+        "error": "not_available_on_the_public_server",
+        "tool": name,
+        "detail": (
+            f"{name} takes an applicant's name and address, so it is switched off on this "
+            "open, unauthenticated public server. It is available when the server is run "
+            "locally over stdio — see the repository README. Everything else here, including "
+            "prepare_prelodgement_brief and get_see_template, works without it."
+        ),
+    }
 
 
 def schemas() -> dict[str, dict]:

@@ -20,8 +20,10 @@ https://lismore-da-mcp.onrender.com/mcp
 ```
 
 This is an open, unauthenticated endpoint (no API key) — it only serves public NSW planning
-guidance, not private data. It's hosted on Render's free tier, so the first request after a period
-of inactivity may take 30-60 seconds to wake up.
+guidance, not private data. So the three SEE tools that take an applicant's name —
+`generate_see_draft`, `preview_see_form` and `fill_see_pdf` — are switched off there: they are not
+listed, and a call is refused with a pointer to running the server locally. It's hosted on Render's
+free tier, so the first request after a period of inactivity may take 30-60 seconds to wake up.
 
 In Claude Code, add it with:
 
@@ -96,14 +98,15 @@ claude
 | `read_dcp_section` | Read a page range from a specific DCP chapter PDF |
 | `list_documents` | List all available planning documents |
 
-**Statement of Environmental Effects (SEE)**
+**Statement of Environmental Effects (SEE)** — the last three take an applicant's name and run
+only on a local (stdio) server; the public server does not offer them.
 
 | Tool | Description |
 |------|-------------|
 | `get_see_template` | Section-by-section guidance for writing an SEE |
-| `generate_see_draft` | Generate a full draft SEE from proposal details (any development type) |
-| `preview_see_form` | Preview exactly what will be written to the official Lismore SEE PDF before generating it |
-| `fill_see_pdf` | Fill and return the official Lismore SEE PDF (Minor Development scope only — see `preview_see_form` first) |
+| `generate_see_draft` | *Local only.* Generate a full draft SEE from proposal details (any development type) |
+| `preview_see_form` | *Local only.* Preview exactly what will be written to the official Lismore SEE PDF before generating it |
+| `fill_see_pdf` | *Local only.* Fill and return the official Lismore SEE PDF (Minor Development scope only — see `preview_see_form` first) |
 
 ## Example Usage
 

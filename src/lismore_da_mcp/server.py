@@ -19,10 +19,12 @@ from mcp.types import TextContent
 from lismore_da_mcp.app import server
 from lismore_da_mcp.observability import (
     OUTCOME_INVALID_ARGUMENTS,
+    OUTCOME_LOCAL_ONLY,
     OUTCOME_OK,
     timed_tool_call,
 )
-from lismore_da_mcp.registry import mcp_tools, registered, validate_arguments
+from lismore_da_mcp import config
+from lismore_da_mcp.registry import local_only_refusal, mcp_tools, registered, validate_arguments
 
 # Importing the tools package is what registers every tool.
 import lismore_da_mcp.tools  # noqa: F401  (side-effecting import, must come first)
@@ -115,8 +117,8 @@ TOOL_SCHEMAS = {t.name: t.input_schema for t in TOOLS}
 
 
 async def list_tools():
-    """List available tools."""
-    return mcp_tools()
+    """List available tools — without the local-only ones on the public server."""
+    return mcp_tools(public=config.PUBLIC_MODE)
 
 
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -141,6 +143,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     temp dir in PUBLIC_MODE.
     """
     with timed_tool_call(name) as outcome:
+        # Before validation: the tool is unavailable whatever the arguments, so
+        # asking the caller to fix them first would only cost a round trip — and
+        # nothing an applicant typed is looked at. Read at call time rather than
+        # bound at import, so a test can switch modes.
+        registration = registered().get(name)
+        if registration and registration.local_only and config.PUBLIC_MODE:
+            outcome[0] = OUTCOME_LOCAL_ONLY
+            return [TextContent(type="text",
+                                text=json.dumps(local_only_refusal(name), indent=2))]
+
         argument_error = validate_arguments(name, arguments)
         if argument_error:
             outcome[0] = OUTCOME_INVALID_ARGUMENTS
