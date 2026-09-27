@@ -4,8 +4,8 @@ A wrong result here is written into a box on a document that goes to Council, so
 these refuse rather than guess. See tests/test_parsers.py.
 """
 
-import math
 import re
+
 
 def parse_street_address(
     property_address: str,
@@ -37,10 +37,8 @@ def parse_street_address(
     # Suburb: the last segment that isn't just NSW and/or a postcode.
     #
     # Only when there is a later segment to take it from. A single-segment
-    # address ("Keen Street") has nothing that identifies a suburb, and the
-    # fallback used to reuse the whole string — writing the street name into the
-    # suburb box of a form that goes to Council. Leaving it blank is honest, and
-    # the caller can supply `suburb` explicitly.
+    # address ("Keen Street") has nothing that identifies a suburb, so it is
+    # left blank rather than guessed; the caller can supply `suburb`.
     if not parts["suburb"] and len(segments) > 1:
         for segment in reversed(segments[1:]):
             candidate = re.sub(r"\b\d{4}\b", "", segment)

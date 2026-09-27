@@ -152,7 +152,7 @@ def main() -> int:
     ]
 
     print(f"{len(QUOTED)} quoted provisions checked against {LEP_PATH.name}")
-    print(f"DCP Chapter 12 checked for a requirement it must not contain")
+    print("DCP Chapter 12 checked for a requirement it must not contain")
     print(f"\nsay instead: {WHAT_CHAPTER_12_DOES_NOT_SAY['say_instead']}")
 
     total = 0

@@ -154,7 +154,7 @@ def check_hierarchy(lep: str) -> list[str]:
     # Dictionary's singular in LEP_TYPE_OF, which is where a link is looked up.
     notes = {term: parent for term, (_, parent) in LEP_TYPE_OF.items()}
     for term, chain in LAND_USE_HIERARCHY.items():
-        for link, following in zip(chain, chain[1:]):
+        for link, following in zip(chain, chain[1:], strict=False):
             if link in notes and following != notes[link]:
                 failures.append(
                     f"LAND_USE_HIERARCHY[{term!r}] goes {link!r} -> {following!r}, but the LEP "

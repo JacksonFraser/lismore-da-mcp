@@ -10,7 +10,7 @@ import json
 import pytest
 
 from lismore_da_mcp.registry import registered
-from lismore_da_mcp.server import TOOLS, TOOL_SCHEMAS, ZONES, validate_arguments
+from lismore_da_mcp.server import TOOL_SCHEMAS, TOOLS, ZONES, validate_arguments
 
 TOOL_NAMES = sorted(t.name for t in TOOLS)
 

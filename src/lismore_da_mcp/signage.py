@@ -12,13 +12,15 @@ zone is one input and the heritage flag is another, and where neither settles it
 the answer says so rather than clearing the sign.
 """
 
-from lismore_da_mcp.data.signage import DESIGN_GUIDELINES
-from lismore_da_mcp.data.signage import HERITAGE_AND_THE_PATHWAY
-from lismore_da_mcp.data.signage import HERITAGE_NOT_ESTABLISHED
-from lismore_da_mcp.data.signage import PATHWAYS
-from lismore_da_mcp.data.signage import ROAD_RESERVE
-from lismore_da_mcp.data.signage import SEPP_PROHIBITED_ZONES
-from lismore_da_mcp.data.signage import SIGNAGE
+from lismore_da_mcp.data.signage import (
+    DESIGN_GUIDELINES,
+    HERITAGE_AND_THE_PATHWAY,
+    HERITAGE_NOT_ESTABLISHED,
+    PATHWAYS,
+    ROAD_RESERVE,
+    SEPP_PROHIBITED_ZONES,
+    SIGNAGE,
+)
 
 # §9.2 describes the prohibited areas in land-use words, not zone codes. This
 # maps them onto Lismore LEP 2012 zones so the question can be asked of an
@@ -60,7 +62,7 @@ def pathway(entry: dict, is_heritage: bool | None = False) -> dict:
     whether that is available on this site.
     """
     key = entry.get("pathway", "consent")
-    described = dict(PATHWAYS.get(key, PATHWAYS["consent"]))
+    described: dict[str, object] = dict(PATHWAYS.get(key, PATHWAYS["consent"]))
     described["pathway"] = key
     if key in HERITAGE_AND_THE_PATHWAY:
         if is_heritage:

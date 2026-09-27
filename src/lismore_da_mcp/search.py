@@ -8,14 +8,13 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 
-from lismore_da_mcp.observability import record_document_error
-
 from lismore_da_mcp.config import (
     DOC_CATEGORIES,
     DOCS_DIR,
     LISTABLE_SUFFIXES,
     SEARCHABLE_SUFFIXES,
 )
+from lismore_da_mcp.observability import record_document_error
 
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how",
@@ -66,7 +65,7 @@ def search_pdf(pdf_path: Path, query: str, max_results: int = 5) -> list[dict]:
         doc = fitz.open(pdf_path)
 
         for page_num in range(len(doc)):
-            lines = doc[page_num].get_text().split('\n')
+            lines = str(doc[page_num].get_text()).split('\n')
             for _, score, matched, context in _score_lines(lines, tokens, query):
                 scored.append({
                     "score": score,
@@ -205,9 +204,8 @@ def _rank(results: list[dict]) -> list[dict]:
 def annotate_instrument(result: dict) -> dict:
     """Tag a search hit with the planning instrument it comes from.
 
-    The DCP has parallel chapters for LEP 2012 and LEP 2000 land, and they were
-    previously indistinguishable in results — so a superseded setback could be
-    quoted as a current control.
+    The DCP has parallel chapters for LEP 2012 and LEP 2000 land, and a
+    superseded setback must not be quoted as a current control.
     """
     from lismore_da_mcp.data.instruments import (
         CURRENT_FEE_SCHEDULE,
@@ -284,7 +282,7 @@ def _truncate(text: str, resume_hint: str) -> str:
     )
 
 
-def extract_pdf_section(pdf_path: Path, start_page: int = 1, end_page: int = None) -> str:
+def extract_pdf_section(pdf_path: Path, start_page: int = 1, end_page: int | None = None) -> str:
     """Extract text from specific pages of a PDF."""
     try:
         doc = fitz.open(pdf_path)
@@ -296,7 +294,7 @@ def extract_pdf_section(pdf_path: Path, start_page: int = 1, end_page: int = Non
         for page_num in range(start_page - 1, min(end_page, len(doc))):
             page = doc[page_num]
             text += f"\n--- Page {page_num + 1} ---\n"
-            text += page.get_text()
+            text += str(page.get_text())
             if len(text) <= MAX_SECTION_CHARS:
                 last_page = page_num + 1
 
@@ -312,7 +310,7 @@ def extract_pdf_section(pdf_path: Path, start_page: int = 1, end_page: int = Non
         record_document_error("read", pdf_path.name, type(e).__name__, str(e))
         return f"Error reading PDF: {e}"
 
-def extract_text_section(text_path: Path, start_line: int = 1, end_line: int = None) -> str:
+def extract_text_section(text_path: Path, start_line: int = 1, end_line: int | None = None) -> str:
     """Extract a line range from a plain-text document.
 
     Text extracts have no pages, so read_dcp_section's start/end are read as line
@@ -344,7 +342,7 @@ def extract_text_section(text_path: Path, start_line: int = 1, end_line: int = N
         record_document_error("read", text_path.name, type(e).__name__, str(e))
         return f"Error reading text file: {e}"
 
-def extract_document_section(path: Path, start: int = 1, end: int = None) -> str:
+def extract_document_section(path: Path, start: int = 1, end: int | None = None) -> str:
     """Read a section of one document — pages for PDFs, lines for text extracts."""
     if path.suffix.lower() == ".txt":
         return extract_text_section(path, start, end)
@@ -362,7 +360,7 @@ def list_available_documents() -> list[dict]:
             if subdir_path.exists():
                 for file in sorted(subdir_path.iterdir()):
                     if file.suffix.lower() in LISTABLE_SUFFIXES:
-                        entry = {
+                        entry: dict[str, object] = {
                             "category": subdir,
                             "filename": file.name,
                             "path": str(file.relative_to(DOCS_DIR)),

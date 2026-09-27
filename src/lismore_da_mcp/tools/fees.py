@@ -23,10 +23,8 @@ from lismore_da_mcp.registry import tool
         'development_cost': {
             'type': 'number',
             'minimum': 0,
-            # This used to say "Use 0 for a change of use with no works", which
-            # routes the archetypal business DA to Item 2.1's $153 when the
-            # correct provision is Item 2.7's flat $395 — an under-quote of $242
-            # recommended by the schema itself. SCENARIOS.md D10.
+            # Not "use 0 for a change of use": that routes to Item 2.1 ($153)
+            # when Item 2.7's flat $395 is the correct provision.
             'description': (
                 'Estimated cost of development works in dollars. For a change of use with no '
                 'building work, set involves_building_work to false rather than passing 0 — a '
@@ -71,13 +69,9 @@ from lismore_da_mcp.registry import tool
                 "'shop' becoming a cafe. Applies the section 2.7 allowance."
             ),
         },
-        # Without these the previous use was *assumed* to occupy the same floor
-        # area as the proposal, so a restaurant expanding 100m² -> 140m² netted
-        # to zero against a real increase of about $8,000. The assumption is
-        # right for the ordinary same-tenancy change of use and is kept, but it
-        # was previously uncorrectable: the answer said "supply the previous
-        # floor area if it differed" and there was no argument to supply it in.
-        # ROADMAP.md S3.
+        # Otherwise the previous use is assumed to occupy the same floor area,
+        # which is right for a same-tenancy change of use but nets an expansion
+        # to zero.
         'existing_gross_floor_area_m2': {
             'type': 'number',
             'minimum': 0,
@@ -149,11 +143,9 @@ def calculate_da_fees(arguments: dict):
         involves_building_work=arguments.get("involves_building_work", True),
         is_dwelling=arguments.get("is_dwelling", False),
     )
-    # This tool answered "what is the lodgement fee" until 2026-08-02 and now
-    # answers "what will this cost", so the payload it returns is a different
-    # shape. The server behind it is a deployed public endpoint, so the two keys
-    # a caller is most likely to index on stay exactly where they were, and the
-    # whole of the previous payload stays available under one key.
+    # Backward compatibility for public callers: the two keys a caller is most
+    # likely to index on stay where they were, and the old lodgement-fee payload
+    # stays available under one key.
     detail = calculate_da_fee(
         cost,
         arguments.get("involves_building_work", True),

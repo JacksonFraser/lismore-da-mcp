@@ -350,8 +350,9 @@ class TestUsesTheLEPPlacesUnderAParent:
         ("E4", "backpackers' accommodation", "prohibited"),       # a curly apostrophe in the LEP
     ])
     def test_the_named_cases(self, zone, term, expected):
-        from lismore_da_mcp.tools.zoning import check_permissibility
         import json
+
+        from lismore_da_mcp.tools.zoning import check_permissibility
 
         answer = json.loads(check_permissibility({"land_use": term, "zone_code": zone})[0].text)
         assert answer["permissibility"] == expected, answer

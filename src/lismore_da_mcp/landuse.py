@@ -14,17 +14,8 @@ from lismore_da_mcp.data.definitions import (
 
 # Words that describe *what you are doing* rather than *what will operate on
 # the land*. The LEP land use table answers only the second question, so these
-# fall through to the "any other development not specified" catch-all — which
-# used to come back as likely_permitted_with_consent, a confident answer to a
-# question that was never asked. The catch-all no longer reports as a verdict
-# (ROADMAP.md S1), but these still deserve the specific error below rather than
-# a generic "not found": the term is not a near miss, it is the wrong question.
-# See PLAN.md 1.3.
-#
-# Lives here rather than in the handler that first needed it because
-# check_permissibility is no longer the only caller: a readiness check given
-# "fitout" as the proposed use has the same problem, and a second copy of this
-# set would drift from the first.
+# get a specific "wrong question" error rather than a generic "not found".
+# Shared by check_permissibility and the readiness check.
 NOT_A_LAND_USE = {
     "change of use", "change use", "use change", "changing use",
     "fitout", "fit out", "shop fitout", "refurbishment", "refit",
@@ -46,17 +37,9 @@ def _flatten(term: str) -> str:
     return " ".join(text.split())
 
 
-# The LEP writes its catch-all row two ways, and only one of them was matched.
-#
-# `data.definitions.CATCHALL_TERM` is the literal "any other development not
-# specified", and this module tested for it as a substring. But RU2, RU3, SP2 and
-# C1 word their row "Any development not specified in item 2 or 3", without the
-# "other" — so in those four zones the prohibiting catch-all was invisible, and a
-# use they do not list came back "not found" instead of prohibited.
-#
-# Found while fixing ROADMAP.md S1 item 3, which is the same defect from the
-# other side: there the catch-all answered when it should not have; here it
-# stayed silent when it should have answered.
+# The LEP writes its catch-all row two ways: "any other development not
+# specified", and in RU2, RU3, SP2 and C1 "Any development not specified in
+# item 2 or 3", without the "other".
 _CATCHALL_ROW = re.compile(r"\bany (?:other )?development not specified\b")
 
 
@@ -71,10 +54,8 @@ def _is_catchall(use: str) -> bool:
 # carried by individual definitions. Both sides of each pair land on the same
 # key, so "Centre-based child care facilities" off the zone table and
 # "centre-based child care facility" from an applicant meet without either being
-# inflected by rule. ROADMAP.md S1.
-#
-# The two sources overlap and must not disagree; `audit_landuse_matching.py`
-# checks they do not, rather than letting whichever is built second win.
+# inflected by rule. The two sources overlap; `audit_landuse_matching.py` checks
+# they agree.
 _SPELLING_PAIRS: dict[str, str] = dict(LAND_USE_TABLE_SPELLINGS)
 _SPELLING_PAIRS.update({
     entry["term"]: entry["land_use_table_term"]
@@ -138,11 +119,6 @@ def ancestors(term: str) -> list[str]:
     retail premises -> commercial premises. Where it does not (the everyday words in
     `LAND_USE_HIERARCHY`: cafe, gym, takeaway), the hand-written chain comes first and
     the notes continue it from its last link.
-
-    Until 2026-09-25 only the hand-written chains existed, and they cover the
-    commercial premises family alone, so every other use the LEP places under a
-    parent fell through to the catch-all — 161 wrong "yes" answers, the same defect
-    S1 fixed for the terms the tables name (SCENARIOS.md run 2, R1).
     """
     target = canonical_use(term)
     if not target:
@@ -169,9 +145,7 @@ def ancestors(term: str) -> list[str]:
 # What it buys is the distinction the catch-all turns on: a term in here that is
 # absent from a particular zone's table is *genuinely unlisted there*, which is
 # a fact about the LEP, whereas a term not in here at all is one this server
-# failed to identify. Those two were indistinguishable before, and answering
-# both from the catch-all is what produced 120 wrong "yes" answers and 91 wrong
-# "no" ones out of the same bug. ROADMAP.md S1.
+# failed to identify, and must not be answered from the catch-all.
 def _known_land_uses() -> set[str]:
     from lismore_da_mcp.data.zones import ZONES
 
@@ -316,35 +290,18 @@ def classify_land_use(proposed_use: str, zone_info: dict, zone_code: str = "") -
     with_consent = zone_info.get("permitted_with_consent", [])
     prohibited = zone_info.get("prohibited", [])
 
-    # Nothing in the table matched. The catch-all row decides what happens to
-    # development the table does not name, so it is tempting to answer from it —
-    # and that is the mistake. Reaching here means *this tool did not recognise
-    # the term*, which is not the same fact as the use being absent from the
-    # table, and the two have opposite consequences. Every one of the 287
-    # disagreements in ROADMAP.md S1 arrived this way, splitting into 120
-    # confident "permitted" and 91 confident "prohibited" purely by which
-    # catch-all the zone happened to carry.
+    # Nothing in the table matched, so the catch-all row applies — but only if
+    # the term is one the LEP names (`recognised`). An unrecognised term is a
+    # failure to identify the proposal, not evidence that the use is unlisted.
     #
-    # So `permissible` stays None in both branches below. It is the field
-    # `readiness.py` raises a "stop" on and `see.py` writes "Prohibited" from,
-    # and neither should fire on a term nobody identified. The catch-all itself
-    # is not lost — it is reported as what it is, the provision that *would*
-    # apply once the right term is established.
-    # `recognised` is what separates the two readings of this fall-through.
-    #
-    # A term the LEP names, absent from *this* table, really is unlisted here,
-    # and the catch-all is then the LEP's own answer — 'industry' in R2 is
-    # prohibited by item 4 and saying so is correct. A term nothing here can
-    # place is a failure to identify the proposal, and answering that from the
-    # catch-all is asserting a fact about the LEP on the strength of this
-    # server's vocabulary.
+    # `permissible` stays None in both branches: readiness.py raises a "stop"
+    # on it and the SEE writes "Prohibited" from it, and neither should fire on
+    # a fall-through. The catch-all is still reported as the provision that
+    # would apply.
     if any(_is_catchall(u) for u in with_consent):
         return {
-            # Stays None for a recognised term too. The catch-all does permit an
-            # unlisted use with consent, but "permissible" here ticks a box on a
-            # SEE, and the whole weight of S1 is that a permitted-shaped answer
-            # derived from a fall-through should not be stated as confidently as
-            # one read off an express listing.
+            # None even for a recognised term: a fall-through should not tick
+            # the SEE's "permissible" box as confidently as an express listing.
             "permissible": None,
             "matched_use": None,
             "match_type": "catchall" if recognised else "unrecognised",

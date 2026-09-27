@@ -6,7 +6,6 @@ transport.py lost its reference to the Server object and only the CI import
 check caught it.
 """
 
-import pytest
 
 from lismore_da_mcp import transport
 from lismore_da_mcp.app import server

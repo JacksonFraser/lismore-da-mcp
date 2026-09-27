@@ -24,17 +24,18 @@ confident wrong space count is what sends a DA back.
 
 import math
 
-from lismore_da_mcp.data.parking import CBD_CASH_IN_LIEU_RATE
-from lismore_da_mcp.data.parking import CBD_EXPANSION_ALLOWANCE
-from lismore_da_mcp.data.parking import CBD_FIXED_RATE
-from lismore_da_mcp.data.parking import CBD_OUTDOOR_DINING
-from lismore_da_mcp.data.parking import CBD_PARKING_CREDIT
-from lismore_da_mcp.data.parking import CBD_REDUCTIONS
-from lismore_da_mcp.data.parking import COMBINED_USES
-from lismore_da_mcp.data.parking import COUNTABLE
-from lismore_da_mcp.data.parking import MERIT_CRITERIA
-from lismore_da_mcp.data.parking import ON_STREET_LOSS
-
+from lismore_da_mcp.data.parking import (
+    CBD_CASH_IN_LIEU_RATE,
+    CBD_EXPANSION_ALLOWANCE,
+    CBD_FIXED_RATE,
+    CBD_OUTDOOR_DINING,
+    CBD_PARKING_CREDIT,
+    CBD_REDUCTIONS,
+    COMBINED_USES,
+    COUNTABLE,
+    MERIT_CRITERIA,
+    ON_STREET_LOSS,
+)
 
 # `_needs` names the floor area in prose, since that is how it reads in `basis`.
 # Turning it back into the argument a caller sends keeps `supply` uniformly
@@ -65,10 +66,7 @@ def _component(part: dict, floor_area_sqm: float | None, counts: dict) -> float 
             return None
         return part["rate"] * (floor_area_sqm / part["per_area"])
     # `is None` rather than falsy: a supplied zero is an answer, not a gap.
-    # An owner-operated café with no staff genuinely has no staff component, and
-    # conflating that with "nobody said" meant the tool could not be told either
-    # one. Same defect as the missing arguments — an input the caller cannot
-    # express. ROADMAP.md S3.
+    # An owner-operated café with no staff genuinely has no staff component.
     if "one_per" in part:
         value = counts.get(part["of"])
         return None if value is None else value / part["one_per"]
@@ -102,7 +100,8 @@ def _needs(part: dict) -> list[str]:
         return [name for alternative in part["greater_of"] for name in _needs(alternative)]
     if "per_area" in part:
         return ["floor area"]
-    return [part.get("of") or part.get("per")]
+    counted = part.get("of") or part.get("per")
+    return [counted] if counted else []
 
 
 def _evaluate(parts: list, floor_area_sqm: float | None, counts: dict):
@@ -180,15 +179,9 @@ def estimate_spaces(entry: dict, floor_area_sqm: float | None = None,
         # raise the requirement. What was counted is therefore a true lower bound,
         # and saying so is information a business can plan from: an 80m² café
         # outside the CBD owes at least 12 spaces before its staff are counted.
-        # Until 2026-09-25 this declined with "a part of the sum is not a lower
-        # bound", which was false, and returned nothing (SCENARIOS.md run 2, R5).
         #
-        # What has not changed is the rule it was protecting. S3 stopped a partial
-        # sum being reported as `spaces_required` — a medical centre with 5
-        # employees read "5" against a real 17 — and the floor stays out of that
-        # field. It is `at_least`, beside the arguments that would settle it,
-        # because 5 is a floor and 17 is the answer and they are not the same kind
-        # of number.
+        # The floor never goes in `spaces_required`: it is `at_least`, beside the
+        # arguments that would settle it, because a floor is not the answer.
         if missing:
             unmet = sorted({m for m in missing if m})
             floor = math.ceil(total)

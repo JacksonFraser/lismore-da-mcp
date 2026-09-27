@@ -22,8 +22,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from audit_signage import chapter_text, normalise  # noqa: E402
 
 from lismore_da_mcp.data.signage import (  # noqa: E402
-    APPLICATION_REQUIREMENTS, DESIGN_GUIDELINES, EXISTING_USE_RIGHTS,
-    ROAD_RESERVE, SEPP_PROHIBITED_ZONES, SIGNAGE)
+    APPLICATION_REQUIREMENTS,
+    DESIGN_GUIDELINES,
+    EXISTING_USE_RIGHTS,
+    ROAD_RESERVE,
+    SEPP_PROHIBITED_ZONES,
+    SIGNAGE,
+)
 
 
 @pytest.fixture(scope="module")

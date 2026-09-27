@@ -4,18 +4,13 @@ import json
 
 from mcp.types import TextContent
 
-from lismore_da_mcp.addresses import lookup_constraints
-from lismore_da_mcp.addresses import lookup_zone
+from lismore_da_mcp.addresses import lookup_constraints, lookup_zone
 from lismore_da_mcp.data.definitions import DEFINITION_CATEGORIES, LAND_USE_DEFINITIONS
 from lismore_da_mcp.data.heritage import CONSERVATION_INCENTIVES
 from lismore_da_mcp.data.zones import ZONES
-from lismore_da_mcp.landuse import NOT_A_LAND_USE
-from lismore_da_mcp.landuse import canonical_use
-from lismore_da_mcp.landuse import classify_land_use
+from lismore_da_mcp.landuse import NOT_A_LAND_USE, canonical_use, classify_land_use
 from lismore_da_mcp.registry import tool
-from lismore_da_mcp.vocabulary import DEFINITION_SYNONYMS
-from lismore_da_mcp.vocabulary import resolve
-from lismore_da_mcp.vocabulary import unresolved_error
+from lismore_da_mcp.vocabulary import DEFINITION_SYNONYMS, resolve, unresolved_error
 
 
 @tool(
@@ -195,37 +190,10 @@ def check_permissibility(arguments: dict):
 
     zone = ZONES[zone_code]
     classification = classify_land_use(land_use, zone, zone_code)
+    # Only None for an empty use or zone, and the gate above rules out both.
+    assert classification is not None
 
-    # Map the classification onto the verdicts this tool has always returned.
-    verdicts = {
-        ("exact", True): "permitted",
-        ("hierarchy", True): "permitted_with_consent",
-        ("exact", False): "prohibited",
-        ("hierarchy", False): "prohibited",
-    }
-    permissibility = "unknown"
-    if classification["match_type"] == "unrecognised":
-        # Never a verdict. The term matched nothing the LEP names, so the
-        # catch-all was not reached on the strength of the use being unlisted —
-        # it was reached because this server could not identify the proposal.
-        # Reporting that as "likely permitted with consent" is what shipped 120
-        # confident yeses against tables that prohibit the use. ROADMAP.md S1.
-        permissibility = "not_found"
-    elif classification["match_type"] == "catchall":
-        permissibility = "likely_permitted_with_consent" if classification["permissible"] is None else "likely_prohibited"
-    elif classification["match_type"] == "approximate":
-        permissibility = "likely_prohibited" if classification["category"] == "prohibited" else "uncertain"
-    elif classification["matched_use"]:
-        in_without = any(
-            canonical_use(u) == canonical_use(classification["matched_use"])
-            for u in zone.get("permitted_without_consent", [])
-        )
-        if classification["permissible"] is False:
-            permissibility = "prohibited"
-        else:
-            permissibility = "permitted_without_consent" if in_without else "permitted_with_consent"
-    elif classification["match_type"] == "none":
-        permissibility = "not_found"
+    permissibility = _permissibility(classification, zone)
 
     result = {
         "land_use": land_use,
@@ -257,18 +225,9 @@ def check_permissibility(arguments: dict):
         if similar:
             result["similar_uses"] = similar[:5]
 
-    # This tool reads the LEP land use table and nothing else. A State
-    # Environmental Planning Policy can permit a use the table omits, and
-    # prevails over the LEP where they conflict — most commonly for secondary
-    # dwellings ("granny flats"), which are absent from several Lismore
-    # residential tables but are generally permissible with consent under the
-    # Housing SEPP. Without this note, a catch-all miss reads as a settled "no".
-    #
-    # Gated on *everything that is not a settled permission* rather than on the
-    # prohibited-shaped verdicts alone. The old list omitted "uncertain", and it
-    # omitted the catch-all's "likely permitted with consent" — which is how 120
-    # wrong "yes" answers shipped with no caveat at all (ROADMAP.md S1). A
-    # catch-all miss now reports as not_found and is covered here.
+    # Only the LEP table is read here, and a SEPP can permit a use it omits (e.g.
+    # secondary dwellings under the Housing SEPP). So anything short of a settled
+    # permission carries that caveat, plus the heritage-building pathway.
     if permissibility not in ("permitted", "permitted_with_consent", "permitted_without_consent"):
         result["scope_of_this_answer"] = (
             "Based on the Lismore LEP 2012 land use table only. State Environmental "
@@ -279,10 +238,6 @@ def check_permissibility(arguments: dict):
             "secondary dwellings are the common example. Check with the Duty Planner "
             "before treating this as a refusal."
         )
-        # The other pathway past a prohibited result, and nothing here cited it.
-        # cl 5.10(10) lets a heritage *building* be approved for a purpose the
-        # Plan would otherwise disallow, where the use funds its conservation —
-        # which is how a café opens in an old bank or church. ROADMAP.md S4.
         result["if_the_building_is_heritage_listed"] = (
             f"LEP cl 5.10(10) — {CONSERVATION_INCENTIVES['in_plain_words']}"
         )
@@ -302,7 +257,7 @@ def get_definition(arguments: dict):
     raw_term = arguments.get("term", "")
     match = resolve(raw_term, LAND_USE_DEFINITIONS, DEFINITION_SYNONYMS)
 
-    if match:
+    if match.key:
         entry = LAND_USE_DEFINITIONS[match.key]
         result = {
             **entry,
@@ -367,3 +322,23 @@ def list_definitions(arguments: dict):
             "usage": "Use get_definition with any term key to get the full definition"
         }, indent=2)
     )]
+
+
+def _permissibility(classification: dict, zone: dict) -> str:
+    """Map a land use classification onto the verdict this tool reports."""
+    match_type = classification["match_type"]
+    if match_type in ("unrecognised", "none"):
+        # An unrecognised term reaches the table's catch-all only because the
+        # proposal could not be identified, so it is never read as a verdict.
+        return "not_found"
+    if match_type == "catchall":
+        return "likely_permitted_with_consent" if classification["permissible"] is None else "likely_prohibited"
+    if match_type == "approximate":
+        return "likely_prohibited" if classification["category"] == "prohibited" else "uncertain"
+    if not classification["matched_use"]:
+        return "unknown"
+    if classification["permissible"] is False:
+        return "prohibited"
+    matched = canonical_use(classification["matched_use"])
+    in_without = any(canonical_use(u) == matched for u in zone.get("permitted_without_consent", []))
+    return "permitted_without_consent" if in_without else "permitted_with_consent"

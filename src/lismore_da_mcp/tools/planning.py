@@ -4,21 +4,17 @@ import json
 
 from mcp.types import TextContent
 
+from lismore_da_mcp import flood, standards
 from lismore_da_mcp.data.checklists import (
     CONDITIONAL_DOCUMENTS,
     DA_CHECKLISTS,
     UNIVERSAL_DOCUMENTS,
 )
-from lismore_da_mcp import flood
 from lismore_da_mcp.data.contacts import CONTACT_INFO
 from lismore_da_mcp.data.flood import FLOOD_AREAS
-from lismore_da_mcp.data.referrals import CHARACTERISTIC_TRIGGERS
-from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS
-from lismore_da_mcp import standards
+from lismore_da_mcp.data.referrals import CHARACTERISTIC_TRIGGERS, REFERRAL_REQUIREMENTS
 from lismore_da_mcp.registry import tool
-from lismore_da_mcp.vocabulary import CHECKLIST_SYNONYMS
-from lismore_da_mcp.vocabulary import resolve
-from lismore_da_mcp.vocabulary import unresolved_error
+from lismore_da_mcp.vocabulary import CHECKLIST_SYNONYMS, resolve, unresolved_error
 
 
 @tool(
@@ -64,7 +60,7 @@ def get_flood_requirements(arguments: dict):
     is_change_of_use = bool(arguments.get("is_change_of_use", False))
 
     resolved = flood.resolve_development_type(dev_type)
-    if not resolved:
+    if not resolved.key:
         return [TextContent(type="text", text=json.dumps(
             unresolved_error(dev_type, resolved, "development type",
                              flood.DEVELOPMENT_TYPES), indent=2))]
@@ -72,7 +68,7 @@ def get_flood_requirements(arguments: dict):
     area_key = None
     if area_arg:
         area = flood.resolve_flood_area(area_arg)
-        if not area:
+        if not area.key:
             error = unresolved_error(area_arg, area, "flood area", FLOOD_AREAS)
             error["how_to_find_it"] = flood.AREA_NOT_INFERABLE["how_to_settle"]
             return [TextContent(type="text", text=json.dumps(error, indent=2))]
@@ -168,7 +164,7 @@ def get_residential_standards(arguments: dict):
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     resolved = standards.resolve_topic(wanted)
-    if not resolved:
+    if not resolved.key:
         error = unresolved_error(wanted, resolved, "standard type", standards.STANDARD_TOPICS)
         error["also_accepted"] = "all"
         return [TextContent(type="text", text=json.dumps(error, indent=2))]
@@ -210,8 +206,8 @@ def check_referrals(arguments: dict):
     }
     if not triggered_referrals:
         response["message"] = "No referrals triggered by the characteristics provided"
-    # An unrecognised characteristic used to be dropped in silence, which read as
-    # "no referral required" for a site that may well need one.
+    # Report unrecognised characteristics, so silence never reads as "no
+    # referral required".
     if unrecognised:
         response["unrecognised_characteristics"] = unrecognised
         response["available_triggers"] = sorted(char_to_referral)
@@ -235,7 +231,7 @@ def get_da_checklist(arguments: dict):
     requested = arguments.get("development_type", "")
     match = resolve(requested, DA_CHECKLISTS, CHECKLIST_SYNONYMS)
 
-    if not match:
+    if not match.key:
         # Say what is not known rather than returning the universal list, which
         # made 'nuclear reactor' and 'spaceship' look like recognised types with
         # a considered answer behind them.

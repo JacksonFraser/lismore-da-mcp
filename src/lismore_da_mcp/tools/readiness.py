@@ -7,20 +7,11 @@ from mcp.types import TextContent
 
 from lismore_da_mcp.data.contacts import CONTACT_INFO
 from lismore_da_mcp.data.parking import PARKING_RATES
-from lismore_da_mcp.data.readiness import HOW_TO_USE_THE_SESSION
-from lismore_da_mcp.data.readiness import REJECTION_WINDOW
-from lismore_da_mcp.data.readiness import STATUTORY_CONTENT
-from lismore_da_mcp.parking import cbd_location
-from lismore_da_mcp.parking import cbd_spaces
-from lismore_da_mcp.parking import estimate_spaces
-from lismore_da_mcp.parking import uses_schedule_1_in_cbd
-from lismore_da_mcp.readiness import Proposal
-from lismore_da_mcp.readiness import assess
-from lismore_da_mcp.readiness import open_questions
-from lismore_da_mcp.readiness import site_constraints
+from lismore_da_mcp.data.readiness import HOW_TO_USE_THE_SESSION, REJECTION_WINDOW, STATUTORY_CONTENT
+from lismore_da_mcp.parking import cbd_location, cbd_spaces, estimate_spaces, uses_schedule_1_in_cbd
+from lismore_da_mcp.readiness import Proposal, assess, open_questions, site_constraints
 from lismore_da_mcp.registry import tool
-from lismore_da_mcp.vocabulary import PARKING_SYNONYMS
-from lismore_da_mcp.vocabulary import resolve
+from lismore_da_mcp.vocabulary import PARKING_SYNONYMS, resolve
 
 # Both tools describe the same proposal, so they take the same arguments. Two
 # drifting copies of a twelve-argument schema is a maintenance problem, and a
@@ -35,8 +26,7 @@ PROPOSAL_ARGUMENTS = {
     'floor_area_sqm': {'type': 'number', 'description': 'Optional. Gross floor area in square metres.', 'minimum': 0},
     # Several Schedule 1 rates add a staff or seating component to the area
     # component, and without these the parking requirement cannot be worked out
-    # at all — the café rate is the common case. They used to be absent, and the
-    # area-only figure was reported as the requirement anyway. ROADMAP.md S3.
+    # at all — the café rate is the common case.
     'num_employees': {'type': 'integer', 'description': 'Optional. Number of employees. Several parking rates add a staff component, and without it no parking figure can be given for those uses.', 'minimum': 0},
     'seats': {'type': 'integer', 'description': 'Optional. Seats, for a restaurant, café, place of worship or function centre.', 'minimum': 0},
     'spaces_provided': {'type': 'integer', 'description': 'Optional. Car parking spaces available on the site.', 'minimum': 0},
@@ -116,7 +106,7 @@ def _parking(p: Proposal, spaces_provided) -> dict | None:
     higher would talk it out of a viable tenancy.
     """
     match = resolve(p.proposed_use, PARKING_RATES, PARKING_SYNONYMS)
-    if not match:
+    if not match.key:
         return None
     entry = PARKING_RATES[match.key]
     schedule_1 = estimate_spaces(entry, p.floor_area_sqm, {
@@ -125,11 +115,8 @@ def _parking(p: Proposal, spaces_provided) -> dict | None:
     })
     cbd = None if uses_schedule_1_in_cbd(match.key) else cbd_spaces(p.floor_area_sqm)
 
-    # A rate whose terms were not all supplied returns no number. Carrying that
-    # through rather than falling back on the area-only figure is the point of
-    # ROADMAP.md S3: the café rate adds a staff component, and reporting the
-    # area component alone as "the requirement" is how an 80m² café was told its
-    # parking was adequate against a real requirement of 14 spaces.
+    # A rate whose terms were not all supplied returns no number. Carry that
+    # through rather than reporting the area component alone as the requirement.
     if schedule_1 and schedule_1["spaces_required"] is None:
         return {
             "rate_matched": match.key,
@@ -210,10 +197,8 @@ def check_da_readiness(arguments: dict):
 
     response = {
         "verdict": verdict,
-        # Above the verdict on purpose. Everything below assumes an application
-        # is needed, and this is the one finding that can delete the whole
-        # exercise — burying it under fourteen documents is how a shop becoming
-        # a shop got the full "not ready" workup. SCENARIOS.md D12.
+        # Above the verdict on purpose: everything below assumes an application
+        # is needed, and this finding can mean it is not.
         **({"before_you_read_any_of_this": result["before_you_read_any_of_this"]}
            if "before_you_read_any_of_this" in result else {}),
         "what_this_prevents": REJECTION_WINDOW["plain"],
@@ -333,9 +318,8 @@ def prepare_prelodgement_brief(arguments: dict):
         f"     {duty['days']}, {duty['time']} — {duty['location']}",
         f"     {duty['appointment']}. Council: {CONTACT_INFO['phone']}",
         "",
-        # This is the output most likely to be read as official: it cites clause
-        # and page, and it ends up on a desk at Council. It used to open "For:
-        # Lismore City Council", which reads as a letterhead. (ROADMAP.md A4)
+        # This output ends up on a desk at Council, so it must not read as an
+        # official document.
         _wrap("Prepared by the Lismore DA assistant, an independent tool — not made, "
               f"reviewed or endorsed by {CONTACT_INFO['council']}. Guidance only — nothing "
               "in it is a determination, and nothing said at a duty planner session binds "

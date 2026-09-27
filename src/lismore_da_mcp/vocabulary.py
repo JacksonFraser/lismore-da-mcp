@@ -115,7 +115,7 @@ def resolve(term: str, candidates, synonyms: dict[str, str] | None = None) -> Re
 
 def unresolved_error(term: str, resolution: Resolution, what: str, candidates) -> dict:
     """A refusal that tells the caller how to succeed next time."""
-    error = {"error": f"No {what} found for '{term}'."}
+    error: dict[str, object] = {"error": f"No {what} found for '{term}'."}
     if resolution.suggestions:
         error["did_you_mean"] = resolution.suggestions
     error[f"available_{what.replace(' ', '_')}s"] = sorted(candidates)
@@ -231,10 +231,8 @@ DEFINITION_SYNONYMS = {
     "milk bar": "neighbourhood_shop",
     "motel": "hotel_or_motel_accommodation",
     "hotel": "hotel_or_motel_accommodation",
-    # "pub" pointed here until 2026-08-08. A pub is a *food and drink premises*
-    # under the LEP Dictionary — hotel or motel accommodation is a different
-    # term in a different group, permissible in different zones. It is now a
-    # definition of its own, so this table no longer needs to guess at it.
+    # Not "pub": that is a *food and drink premises* under the LEP Dictionary,
+    # with a definition of its own.
     "working from home": "home_occupation",
     "home office": "home_occupation",
     "home based business": "home_business",
@@ -436,8 +434,7 @@ SIGNAGE_SYNONYMS = {
     "verandah sign": "awning_sign_above",
     # The above-awning sign needs consent and the below-awning one is exempt, so
     # every phrasing that fails to resolve is a business steered from "you need a
-    # DA" to "no application needed". These five were checked as failing.
-    # SCENARIOS.md D6.
+    # DA" to "no application needed".
     "sign above the awning": "awning_sign_above",
     "sign above the awnings": "awning_sign_above",
     "sign above awning": "awning_sign_above",

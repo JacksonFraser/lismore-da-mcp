@@ -103,9 +103,12 @@ class TestD8ShopTopHousing:
         from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
         from audit_parking_rates import (
-            SCHEDULE_1_LAND_USES, UNCARRIED_SCHEDULE_1_USES, check_completeness,
+            SCHEDULE_1_LAND_USES,
+            UNCARRIED_SCHEDULE_1_USES,
+            check_completeness,
             land_use_column,
         )
+
         from lismore_da_mcp.data.parking import PARKING_RATES
 
         assert "Shop top housing" in SCHEDULE_1_LAND_USES
@@ -263,7 +266,9 @@ class TestD12SmallerConfirmedDefects:
         """All three were transcribed and audited and reached no output. One is
         a $1,532 notice fee, roughly three times a small café's quoted total."""
         from lismore_da_mcp.data.fees import (
-            DESIGN_REVIEW_PANEL_FEE, DESIGNATED_DEVELOPMENT_FEE, PRESCRIBED_NOTICE_FEES,
+            DESIGN_REVIEW_PANEL_FEE,
+            DESIGNATED_DEVELOPMENT_FEE,
+            PRESCRIBED_NOTICE_FEES,
         )
 
         result = call("calculate_da_fees", {"development_cost": 50_000})

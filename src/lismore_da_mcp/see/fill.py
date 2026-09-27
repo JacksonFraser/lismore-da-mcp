@@ -11,9 +11,8 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 
-from lismore_da_mcp.observability import record_document_error
-
 from lismore_da_mcp.config import SEE_TEMPLATE_PATH
+from lismore_da_mcp.observability import record_document_error
 from lismore_da_mcp.see.fields import SEE_FORM_FIELDS
 from lismore_da_mcp.see.layout import SEE_LAYOUT_EXPECTED, see_layout
 
@@ -49,10 +48,10 @@ def _write(page, area, text: str, fontsize: float) -> list:
         font=FILL_FONT_OBJ,
         fontsize=fontsize,
         align=fitz.TEXT_ALIGN_LEFT,
-        warn=None,  # None = stay silent on overflow; True warns, False raises
+        warn=None,  # pyright: ignore[reportArgumentType]  # None = silent on overflow; the stub says bool
     )
     writer.write_text(page, color=(0, 0, 0))
-    return leftover or []
+    return list(leftover or [])
 
 def _draw_single_line(page, rect, text: str) -> bool:
     """Draw one line of text, vertically centred in the box, shrinking to fit its width.
@@ -178,21 +177,14 @@ def fill_see_pdf(form_data: dict, output_path: Path) -> dict:
             if checks:
                 _draw_tick(doc[0], checks[0])
 
-        # Write beside the target, then rename into place. Handlers run on
-        # worker threads now, so two fills can be in flight at once; with a
-        # direct save they would interleave in the same file and the caller
-        # could open a half-written PDF. os.replace is atomic on POSIX and
-        # Windows, so a reader sees either the old file or a complete new one.
-        # (In PUBLIC_MODE each call already has its own temp dir; this covers
-        # the local path, where output_filename defaults to a fixed name.)
+        # Write beside the target, then rename into place: two concurrent fills
+        # to the same local filename must not interleave in one file.
         staged = output_path.with_name(f".{output_path.name}.{os.getpid()}.{threading.get_ident()}")
         try:
             doc.save(str(staged))
             doc.close()
             os.replace(staged, output_path)
         except BaseException:
-            # A failed save would otherwise leave a partial dotfile behind on
-            # every attempt, in a directory nothing prunes.
             staged.unlink(missing_ok=True)
             raise
 
@@ -204,8 +196,7 @@ def fill_see_pdf(form_data: dict, output_path: Path) -> dict:
         }
 
     except (OSError, RuntimeError, ValueError) as e:
-        # Narrow on purpose: a failure to open or write the template is an
-        # operational problem to report, but a TypeError in the field mapping is
-        # a bug and must not be dressed up as one.
+        # Narrow on purpose: I/O failures are reported, but a bug in the field
+        # mapping should raise.
         record_document_error("fill_see_pdf", SEE_TEMPLATE_PATH.name, type(e).__name__, str(e))
         return {"success": False, "error": str(e)}

@@ -16,6 +16,7 @@ from lismore_da_mcp.observability import (
     record_startup,
 )
 
+
 async def run():
     """Run the MCP server over stdio (local, single-user — used by .mcp.json)."""
     configure_logging()
@@ -34,10 +35,7 @@ class _RateLimitMiddleware:
     not a substitute for a real edge limiter (e.g. Cloudflare) if traffic grows.
     """
 
-    # Sweep idle IPs this often. Without it the map only ever grew: each entry's
-    # deque was trimmed, but the key itself was never removed, so every distinct
-    # IP that ever connected stayed for the process lifetime. On an open endpoint
-    # that is both a slow leak and a cheap way to grow the process from outside.
+    # Sweep idle IPs this often, so the map does not grow with every distinct IP.
     SWEEP_EVERY_SECONDS = 300.0
 
     def __init__(self, app, max_requests: int = 30, window_seconds: float = 60.0):
@@ -93,10 +91,10 @@ def build_http_app():
     """Build the Starlette ASGI app that serves the MCP server over Streamable HTTP."""
     from contextlib import asynccontextmanager
 
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
     from starlette.applications import Starlette
     from starlette.responses import PlainTextResponse
     from starlette.routing import Mount, Route
-    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
     # stateless=True: no tool here needs cross-request session state, and it keeps the
     # deployment simple (no session affinity needed if this is ever scaled beyond one instance).
@@ -112,8 +110,7 @@ def build_http_app():
     async def lifespan(_app):
         configure_logging()
         record_startup("http")
-        # A missing index is invisible from outside — search still answers, just
-        # via a full scan at roughly a thousand times the cost. That shipped once.
+        # A missing index is invisible from outside, so log its state at startup.
         from lismore_da_mcp.index import index_status
 
         state = index_status()

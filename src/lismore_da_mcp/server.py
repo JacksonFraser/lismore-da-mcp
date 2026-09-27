@@ -4,10 +4,9 @@ Lismore Development Application MCP Server
 Wiring only. Tools live in lismore_da_mcp.tools, one module per domain, each
 handler carrying its own schema — see registry.py.
 
-This module also re-exports a good deal of the package so that
-`from lismore_da_mcp.server import X` keeps working for the tests and for
-anything embedding this package, which is where these names lived before the
-Phase 2 and 2.3 splits. Prefer importing from the owning module in new code.
+It also re-exports names that used to live here, so older
+`from lismore_da_mcp.server import X` imports keep working. New code should
+import from the owning module.
 """
 
 import asyncio
@@ -16,16 +15,9 @@ import json
 import mcp.types as types
 from mcp.types import TextContent
 
-from lismore_da_mcp.app import server
-from lismore_da_mcp.observability import (
-    OUTCOME_INVALID_ARGUMENTS,
-    OUTCOME_OK,
-    timed_tool_call,
-)
-from lismore_da_mcp.registry import mcp_tools, registered, validate_arguments
-
 # Importing the tools package is what registers every tool.
 import lismore_da_mcp.tools  # noqa: F401  (side-effecting import, must come first)
+from lismore_da_mcp.app import server
 
 # --- re-exports (see module docstring) --------------------------------------
 from lismore_da_mcp.config import (  # noqa: F401
@@ -52,7 +44,6 @@ from lismore_da_mcp.data.instruments import (  # noqa: F401
 from lismore_da_mcp.data.parking import PARKING_RATES  # noqa: F401
 from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS  # noqa: F401
 from lismore_da_mcp.data.see_templates import SEE_TEMPLATES  # noqa: F401
-
 from lismore_da_mcp.data.zones import ZONES  # noqa: F401
 from lismore_da_mcp.fees import calculate_da_fee  # noqa: F401
 from lismore_da_mcp.landuse import (  # noqa: F401
@@ -60,6 +51,12 @@ from lismore_da_mcp.landuse import (  # noqa: F401
     classify_land_use,
     match_land_use,
 )
+from lismore_da_mcp.observability import (
+    OUTCOME_INVALID_ARGUMENTS,
+    OUTCOME_OK,
+    timed_tool_call,
+)
+from lismore_da_mcp.registry import mcp_tools, registered, validate_arguments
 from lismore_da_mcp.search import (  # noqa: F401
     STOPWORDS,
     _query_tokens,
@@ -122,23 +119,12 @@ async def list_tools():
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Validate arguments, then hand off to the registered handler.
 
-    `arguments` is never passed to the logger — several tools carry an
-    applicant's name and address. See observability.py.
+    `arguments` is never passed to the logger (see observability.py).
 
-    **Handlers are synchronous and run on a worker thread.** Every handler here
-    blocks: PDF text extraction, SQLite reads, and — since the address tools —
-    HTTPS round trips with an 8-second timeout. Called inline, each one holds
-    the event loop for its whole duration, so the public deployment served one
-    caller at a time and `/health` stalled behind whatever tool was running.
-    Measured before this change: five concurrent calls to a handler taking 0.3s
-    took 1.51s, a clean 5x serialisation.
-
-    `to_thread` is the small fix rather than making 23 handlers async: they are
-    blocking by nature (fitz and sqlite3 have no async API), so they would each
-    need this treatment anyway. Thread-safety holds because nothing is shared —
-    `sqlite3.connect` and `fitz.open` are per call and never cross threads, the
-    data dicts are read-only, and `fill_see_pdf` already writes to a per-request
-    temp dir in PUBLIC_MODE.
+    Handlers are synchronous and blocking (PDF extraction, SQLite, outbound
+    HTTPS), so they run on a worker thread to keep the event loop free. That is
+    safe because they share nothing mutable: connections and documents are
+    opened per call and the data dicts are read-only.
     """
     with timed_tool_call(name) as outcome:
         argument_error = validate_arguments(name, arguments)
@@ -162,7 +148,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 
 async def _on_call_tool(_context, params: types.CallToolRequestParams) -> types.CallToolResult:
-    return types.CallToolResult(content=await call_tool(params.name, params.arguments or {}))
+    return types.CallToolResult(content=list(await call_tool(params.name, params.arguments or {})))
 
 
 async def _on_list_tools(_context, _params) -> types.ListToolsResult:
@@ -183,7 +169,6 @@ def main():
     if PUBLIC_MODE:
         run_http()
     else:
-        import asyncio
         asyncio.run(run())
 
 
