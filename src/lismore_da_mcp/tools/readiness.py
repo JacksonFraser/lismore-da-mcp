@@ -315,7 +315,7 @@ QUESTIONS_IN_THE_SESSION = 5
 
 @tool(
     name='prepare_prelodgement_brief',
-    description="Produce a written brief to take to Lismore Council's free Duty Planner drop-in (Tuesdays and Thursdays, 8:30-10:30am, no appointment). It assembles the questions this server has declined to answer — the CBD parking boundary, the flood planning level, the contributions catchment, the Section 64 charge, whether the change of use needs a DA at all — ranked by what each costs to leave unresolved, and says which questions NOT to spend the session on because they are already answered. Returns plain text to print and take in.",
+    description="The place to start for anyone who has not yet narrowed the question ('I want to open a cafe at 12 Keen Street'): needs only proposed_use, and with property_address it derives the zone and reads the site constraints itself. Runs the whole walk — permissibility, documents, parking, referrals, approvals — and produces a written brief to take to Lismore Council's free Duty Planner drop-in (Tuesdays and Thursdays, 8:30-10:30am, no appointment). It assembles the questions this server has declined to answer — the CBD parking boundary, the flood planning level, the contributions catchment, the Section 64 charge, whether the change of use needs a DA at all — ranked by what each costs to leave unresolved, and says which questions NOT to spend the session on because they are already answered. Returns plain text to print and take in.",
     properties=PROPOSAL_ARGUMENTS,
     required=['proposed_use'],
 )

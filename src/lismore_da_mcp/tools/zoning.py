@@ -247,6 +247,16 @@ def check_permissibility(arguments: dict):
         )
     elif permissibility == "permitted_with_consent":
         result["next_steps"] = "A Development Application is required for this use."
+        # The one answer here that opens a larger job rather than closing one:
+        # a "no" ends the conversation, a "yes, with consent" starts the whole
+        # walk. Only this branch points onward, so the pointer carries
+        # information — on every answer it would be a standing note, and a
+        # note present on every answer is read as none (ROADMAP.md A3).
+        result["the_rest_of_the_job"] = (
+            "prepare_prelodgement_brief with this proposed_use and the property address runs "
+            "the rest in one call — documents, parking, referrals, constraints, other "
+            "approvals — and returns a brief to take to the free Duty Planner drop-in."
+        )
     elif permissibility == "prohibited":
         result["advice"] = "This use cannot be approved in this zone. Consider an alternative zone or use."
     elif permissibility in ("uncertain", "not_found", "likely_prohibited"):
