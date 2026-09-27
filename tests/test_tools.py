@@ -34,6 +34,7 @@ VALID_ARGS = {
     "get_flood_requirements": {"development_type": "residential"},
     "get_heritage_requirements": {"heritage_status": "conservation_area", "works": ["new sign"]},
     "get_village_requirements": {"village": "Nimbin", "precinct": "commercial"},
+    "get_commercial_requirements": {"precinct": "cbd", "work_type": "new_building"},
     "get_contact_info": {},
     "search_dcp": {"query": "setback", "chapter": "chapter-1"},
     "read_dcp_section": {"chapter": "chapter-7-off-street-carparking.pdf", "start_page": 1, "end_page": 1},
