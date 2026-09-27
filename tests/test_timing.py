@@ -18,7 +18,13 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from audit_timing import SOURCE, normalise, walk  # noqa: E402
+from audit_timing import (  # noqa: E402
+    SOURCE,
+    division_4_problems,
+    division_4_subsections,
+    normalise,
+    walk,
+)
 
 from lismore_da_mcp.data import timing as data  # noqa: E402
 from lismore_da_mcp.timing import assessment_period  # noqa: E402
@@ -29,6 +35,13 @@ def regulation():
     if not SOURCE.exists():
         pytest.skip(f"{SOURCE} not present — run scripts/fetch_epa_regulation.py")
     return normalise(SOURCE.read_text())
+
+
+@pytest.fixture(scope="module")
+def raw():
+    if not SOURCE.exists():
+        pytest.skip(f"{SOURCE} not present — run scripts/fetch_epa_regulation.py")
+    return SOURCE.read_text()
 
 
 class TestQuotesAreInTheRegulation:
@@ -205,3 +218,64 @@ class TestWhatTheApplicantControls:
         result = call("get_assessment_timeline", {})
         assert "get_other_approvals" in result["what_to_tell_a_landlord_or_a_builder"]
         assert "Occupation Certificate" in result["what_to_tell_a_landlord_or_a_builder"]
+
+
+class TestEveryProvisionInTheDivisionIsCarried:
+    """ROADMAP E1. The quotes above are presence-checked, which cannot see a
+    period or a limit an amendment *inserts* — the exact change this audit exists
+    to detect. So every subsection of Part 4 Division 4 is read off the document
+    and must be quoted or named in DIVISION_4_NOT_CARRIED with a reason."""
+
+    GROUPS = ("ASSESSMENT_PERIODS", "WHAT_THE_PERIOD_ACTUALLY_IS", "CLOCK_START",
+              "CLOCK_STOPS", "INFORMATION_REQUESTS", "REJECTION")
+    LAST_LINE_OF_S94 = "approval body from the consent authority."
+
+    def groups(self):
+        return {name: getattr(data, name) for name in self.GROUPS}
+
+    def test_the_division_is_read_off_the_document(self, raw):
+        found = division_4_subsections(raw)
+        # Sections 91-95, read rather than listed. The count is pinned so a
+        # parser that silently stops finding subsections cannot pass as clean.
+        assert {k.split("(")[0] for k in found} == {"s91", "s92", "s93", "s94", "s95"}
+        assert len(found) == 17
+        assert "40 days for all other development applications" in found["s91(4)"]
+        assert "(a) for designated development" in normalise(found["s91(2)"])
+
+    def test_every_subsection_is_quoted_or_explained(self, raw):
+        assert division_4_problems(raw, self.groups(), data.DIVISION_4_NOT_CARRIED) == []
+
+    def test_an_inserted_subsection_is_reported(self, raw):
+        assert raw.count(self.LAST_LINE_OF_S94) == 1
+        amended = raw.replace(
+            self.LAST_LINE_OF_S94,
+            self.LAST_LINE_OF_S94 + "\n(8)  The assessment period ceases to run in December.")
+        problems = division_4_problems(amended, self.groups(), data.DIVISION_4_NOT_CARRIED)
+        assert any(p.startswith("s94(8)") for p in problems), problems
+
+    def test_an_unexplained_omission_is_reported(self, raw):
+        fewer = dict(data.DIVISION_4_NOT_CARRIED)
+        del fewer["s93(1)"]
+        problems = division_4_problems(raw, self.groups(), fewer)
+        assert any(p.startswith("s93(1)") for p in problems), problems
+
+    def test_a_stale_explanation_is_reported(self, raw):
+        stale = dict(data.DIVISION_4_NOT_CARRIED, **{"s94(9)": "does not exist anywhere"})
+        problems = division_4_problems(raw, self.groups(), stale)
+        assert any("s94(9)" in p for p in problems), problems
+
+    def test_a_quote_filed_under_the_wrong_subsection_is_reported(self, raw):
+        misfiled = {"verbatim": data.ASSESSMENT_PERIODS["standard"]["verbatim"],
+                    "clause": "s91(3)"}
+        problems = division_4_problems(raw, dict(self.groups(), X=misfiled),
+                                       data.DIVISION_4_NOT_CARRIED)
+        assert any("not in s91(3)" in p for p in problems), problems
+
+    def test_every_uncarried_subsection_says_why(self):
+        for clause, reason in data.DIVISION_4_NOT_CARRIED.items():
+            assert len(reason) > 40, clause
+
+    def test_the_referral_limit_reaches_the_answer(self, call):
+        referred = call("get_assessment_timeline", {})["the_clock"]["when_it_stops"][
+            "if_the_da_was_referred"]
+        assert referred["limit"]["clause"].endswith("s94(7)")

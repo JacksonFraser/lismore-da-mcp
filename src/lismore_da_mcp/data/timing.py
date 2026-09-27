@@ -147,9 +147,48 @@ CLOCK_STOPS = {
                     "the referral authority that the information will not be given.",
         "clause": "s94(6)",
         "plain": "Integrated development referred to another agency has a second way for the "
-                 "clock to stop, on the same 25-day style limit (s94(7)). Two agencies means "
-                 "two chances for the clock to pause.",
+                 "clock to stop, with its own 25-day limit (s94(7)). Two agencies means two "
+                 "chances for the clock to pause.",
+        "the_25_day_limit": {
+            "verbatim": "Subsection (6) applies only if the referral authority makes the request "
+                        "to the consent authority within 25 days after the request for "
+                        "concurrence or approval is received by the concurrence authority or "
+                        "approval body from the consent authority.",
+            "clause": "s94(7)",
+            "plain": "The agency's 25 days run from when it receives Council's referral, not "
+                     "from lodgement — so they can end later than Council's own 25 days under "
+                     "s94(3).",
+        },
     },
+}
+
+# Every subsection of Part 4 Division 4 (ss91-95) that the data above does not
+# quote, and why. `scripts/audit_timing.py` reads the Division's subsections off
+# the regulation and fails on any that is neither quoted above nor named here —
+# so a period or a limit an amendment inserts is reported rather than invisible,
+# and an entry here that stops describing a real subsection is reported too.
+# These are not omitted because they are unimportant; they are omitted because
+# none of them can reach an ordinary local DA by a business, and each says why.
+DIVISION_4_NOT_CARRIED = {
+    "s92(2)": "Starts the period from the Independent Planning Commission's final report where "
+              "the IPC holds a public hearing. The IPC does not hold public hearings into "
+              "ordinary local DAs.",
+    "s93(1)": "Lengthens the period for designated, nominated integrated, threatened species "
+              "and State significant development by however long public exhibition runs past "
+              "the statutory minimum. get_assessment_timeline gives those kinds their base "
+              "period only; carry this if it ever answers for them in detail.",
+    "s93(2)": "The consent authority's duty to tell the applicant when s93(1) applies. Stands "
+              "or falls with s93(1).",
+    "s94(1)": "Stops the clock while an applicant for State significant development responds "
+              "to submissions at the Planning Secretary's request. State significant only.",
+    "s94(4)": "Stops the clock during Aboriginal community consultation for integrated "
+              "development needing an Aboriginal heritage impact permit — integrated development "
+              "under a different Act, and not something a shopfront change of use triggers. "
+              "Carry it if check_referrals ever models that permit.",
+    "s94(5)": "The 25-day limit on s94(4). Stands or falls with s94(4).",
+    "s95(2)": "The 50-day period after a Crown development application is referred to a "
+              "regional planning panel under s4.33(2)(b). Crown development only; s95(1) is "
+              "carried as the Crown period.",
 }
 
 # s36. What a request for additional information must contain, and the trap in
