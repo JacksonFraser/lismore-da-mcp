@@ -13,10 +13,9 @@ from lismore_da_mcp.registry import tool
 from lismore_da_mcp.parking import cbd_location as _location
 from lismore_da_mcp.parking import cbd_spaces
 from lismore_da_mcp.parking import estimate_spaces
+from lismore_da_mcp.parking import resolve_parking_use
 from lismore_da_mcp.parking import shortfall_options
 from lismore_da_mcp.parking import uses_schedule_1_in_cbd
-from lismore_da_mcp.vocabulary import PARKING_SYNONYMS
-from lismore_da_mcp.vocabulary import resolve
 from lismore_da_mcp.vocabulary import unresolved_error
 
 # The countables, as schema properties, generated from the same dict the
@@ -114,7 +113,7 @@ def _cbd_arguments_not_applied(arguments: dict, in_cbd: bool | None,
 def get_parking_rates(arguments: dict):
     requested = arguments.get("development_type", "")
     in_cbd = _location(arguments.get("location"))
-    match = resolve(requested, PARKING_RATES, PARKING_SYNONYMS)
+    match, derivation, refusal = resolve_parking_use(requested)
     if match:
         dev_type = match.key
         result = PARKING_RATES[dev_type]
@@ -128,7 +127,9 @@ def get_parking_rates(arguments: dict):
         }
         if result.get("note"):
             response["what_to_check"] = result["note"]
-        if match.how != "exact":
+        if derivation:
+            response["interpreted_as"] = derivation
+        elif match.how != "exact":
             response["interpreted_as"] = (
                 f"Read '{requested}' as '{dev_type}'. If that is not the use you meant, "
                 "call again with a term from list_parking_types."
@@ -258,11 +259,16 @@ def get_parking_rates(arguments: dict):
         # string — a hairdresser given warehouse rates is a wrong answer,
         # not a helpful approximation.
         error = unresolved_error(requested, match, "parking rate", PARKING_RATES)
+        if refusal:
+            error["schedule_1_has_its_own_rate"] = refusal
+        # This used to say a hairdresser "is generally 'shop' or 'business
+        # premises'". The LEP settles it — business premises — and the word now
+        # resolves before reaching here, so the note no longer guesses.
         error["note"] = (
-            "Chapter 7 sets rates by land use category, so an unlisted business usually "
-            "falls under a broader term (a hairdresser is generally 'shop' or "
-            "'business premises'). Confirm the correct category with Council rather than "
-            "assuming the nearest-sounding one."
+            "Chapter 7 sets rates by land use category. A word that stands for an LEP term "
+            "is resolved through the LEP Dictionary's own hierarchy before this point, so "
+            "reaching here means no chain the LEP states leads to a rate Chapter 7 carries. "
+            "Confirm the category with Council rather than assuming the nearest-sounding one."
         )
         return [TextContent(type="text", text=json.dumps(error, indent=2))]
 

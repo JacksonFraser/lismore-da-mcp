@@ -412,6 +412,313 @@ description recommends the path that under-quotes by $242; and the *"CBD exempti
 
 ---
 
+# Phase T — What Council actually did
+
+> **Added 2026-09-27.** The first ground truth from outside this repository. Everything before it —
+> the audits, 1,346 tests, both scenario runs — checks the tools against the documents *we* hold,
+> graded by us. This checks them against what Lismore City Council actually decided.
+>
+> **Method.** 21 business DAs lodged on or after 1 July 2024 (the current contributions plan) were
+> taken from Council's DA Tracker — cafés, a takeaway, barbers, tattoo studios, a hair salon, a
+> beauty salon, a medical centre, a gym, two pub jobs, a vehicle repair workshop, storage, a
+> childcare expansion, three signs, and one refused small bar. Each was run through the tools with
+> only what the business would have known, and graded against Council's Notice of Determination:
+> the conditions, the Section 7.11 and Section 64 tables, and the lodged → determined dates.
+>
+> **The headline.** No wrong "yes", and no invented figure — Phase S held. The stored rates are
+> right: where the tool produced a contribution it matched Council within 0.3%, and the Section 64
+> DSP rates reproduce Council's per-ET figures to the cent. What failed was **coverage** — the tool
+> could not answer for the commonest trades, did not size the largest costs, and did not know
+> Council's standard conditions — and one real bug that understates a charge.
+
+**Results.**
+
+| Checked | Result |
+|---|---|
+| Permissibility, 18 cases | 14 correct · **0 wrong** · 4 unrecognised: *hair salon, barbershop, tattoo studio, tattoo studio and barber* — all approved |
+| Section 7.11, rate | Pub additions $2,814.22 vs Council **$2,805.67** (DA 2024/198); vehicle repair at the industry rate, to the cent (DA 2024/337) |
+| Section 7.11, in use | Mostly no figure: a floor area is demanded where the answer is nil at any size, and uses without a Table E2 row get "ask Council" |
+| Section 7.11, bug | `existing_gross_floor_area_m2: 0` is discarded → **$0** where Council charged $2,805.67 (T1) |
+| Section 64 | Levied in 4 of 15 business consents — $9,763 (medical centre), $32,732 (gym) — never sized (T3) |
+| Conditions | Food registration, trade waste, outdoor dining, fire safety, skin penetration: predicted. **Flood Evacuation Plan: 9 of 15, never predicted** (T4) |
+| Timing | Median **62 days**; 25 of 33 business DAs over 40. The tool refuses to estimate (T5) |
+| Signs | Two pylons told "a CDC, not a DA"; both went by DA (T6) |
+| Address lookup | 5 of 21 real addresses fail — safely (T7) |
+
+**Two suspected gaps, checked and found fine — do not spend time here:**
+`takeaway` and `take away food and drink premises` both reach the retail rate (only the run-together
+`takeaway food and drink premises` fails, which is a spelling nobody is owed); and the signage
+fallback for an unknown sign already warns that an all-exempt suggestion list is an artefact of
+spelling (S5, D6).
+
+**Limits.** Twenty-one cases found street by street, not a census. Notices do not show requests for
+information, so `check_da_readiness` is **not** validated by this — the one refused application (a
+small bar whose SEE was a single generic page with an `[address]` placeholder left in) has no
+published reasons; T9 and T10 record what its own documents show. Most floor areas were back-derived from Council's own charge. Three zones came
+from a neighbouring address.
+
+**Privacy.** Notices carry the applicant's name, postal address and email. None are committed.
+Cite the DA number — public, and enough to re-fetch — never a name.
+
+### T1 — A zero existing floor area is thrown away, and same-use additions net to $0 · **CRITICAL**
+
+**The evidence.** DA 2024/198 converted 14m² of a pub's laundry into bar area; Council charged
+**$2,805.67** at the retail rate. The tool's gross figure is right ($2,814.22), but:
+
+- `existing_use: "pub"` → **$0**, because the allowance assumes the previous use occupied the
+  same floor area — which, for the same use, means nothing was built.
+- `existing_use: "pub", existing_gross_floor_area_m2: 0` → **still $0.** `tools/fees.py:136-140`
+  builds `existing_counts` with `if arguments.get(...)`, which drops a `0`, so the same-area
+  assumption returns. `contributions._units` also treats `<= 0` as not supplied. This is the
+  `None`-means-not-supplied / `0`-means-zero rule in `CLAUDE.md`, broken one argument over from
+  where S3 fixed it.
+
+**The fix.**
+1. `is not None` in both comprehensions in `tools/fees.py` (the proposal's `counts` has the same
+   pattern), and let `_units` return `0` units for a supplied zero on the *existing* side.
+2. When `existing_use` resolves to the **same use** as the proposal and no existing area is given,
+   do not assume one — return `net_contribution: None` with `supply: existing_gross_floor_area_m2`,
+   the discipline `CLAUDE.md` sets for `flood_area` and the catchment. The same-area assumption is
+   right for a *change* of use in a tenancy, and meaningless for additions to the same use.
+
+**Test.** Pub 14m², existing 0 → $2,814.22. Pub → pub with no existing area → `None` plus `supply`.
+Pub → pub at 10m² → $804.07 (unchanged). **Cost:** an hour.
+
+### T2 — Contributions should resolve words the way every other tool now does · **HIGH**
+
+**The evidence.** Since A2, `check_permissibility` reads `hairdresser` as business premises;
+`calculate_da_fees` still says it is "not listed in Table E2 — ask Council", because
+`contributions.py` resolves through `LAND_USE_HIERARCHY` and `HIERARCHY_TO_TYPE` only. That is the
+same-word, opposite-answer split A2 was written to end, one tool further on. Separately, in all
+five consents where the previous use is known and its Table E2 rate is no lower than the new
+use's, Council charged **nil** — retail → café (2025/38, 2025/30), pub → café (2025/42), shop →
+barber and shop → beauty salon (2026/15, 2024/291, business premises being the cheaper row). Without
+a floor area the tool gives no figure, when the answer is nil at any size.
+
+**The fix.**
+1. Resolve the contribution type through `landuse.lep_term_for()` and `ancestors()` to the nearest
+   `HIERARCHY_TO_TYPE` key, carrying `interpretation()`'s sentence.
+2. No-increase shortcut: when the existing use's Table E2 rate is at least the proposal's and no
+   area is given, answer *nil, if the new use occupies no more floor area than the old one did*.
+3. Vocabulary, in `DEFINITION_SYNONYMS`: `hair salon`, `hairdressing salon`, `barbershop`,
+   `barber shop` → business premises. The LEP names hairdressers; these are the words applicants
+   use, and DA 2026/15 is Council describing a barbershop as "a business premises" verbatim.
+   **`tattoo studio` stays refused** — A2 left it that way deliberately, and although Council
+   approved two (2024/246, 2026/213), the one published notice does not name the category. Put it
+   in B1 instead.
+4. **Council's readings of uses with no Table E2 row go to B1, not to the data.** DA 2024/337
+   charged a vehicle repair station at the industry rate, to the cent; DA 2024/153 charged a
+   medical centre replacing a dwelling on net traffic only. One notice each is an observation, not
+   a rule. Promote a reading when a second notice agrees.
+
+**Cost:** half a day, most of it the test matrix.
+
+### T3 — Size Section 64 per ET, and add the charge that is missing · **HIGH**
+
+**The evidence.** Section 64 was levied in 4 of the 15 business consents, and in both where the
+Section 7.11 table is also readable it was the larger of the two:
+
+| DA | Use | ET (water / sewer) | Section 64 | Section 7.11 |
+|---|---|---|---|---|
+| 2024/153 | dwelling → medical centre | 0.20 / 0.89 | **$9,763.16** | $4,142.15 |
+| 2025/157 | new gym, North Lismore | 1.21 / 1.21 | **$32,732.10** | (table is an image) |
+| 2024/337 | vehicle repair additions | 0.13 / 0.13 | $2,659.35 | $1,868.60 |
+| 2025/29 | hair salon | 0 / 0.11 | $906.95 → **$0** under "Policy 11.3.3" | — |
+
+Three findings:
+
+- **The DSP rates in `data/contributions.py` are right**, indexed by one factor:
+  6,500 × 1.2685 = $8,245.04 and 1,400 × 1.2682 = $1,775.42 (Dec-24 quarter); 11,100 × 1.2875 =
+  $14,291.22 (North Lismore, 2025). The "2016 dollars" objection is a CPI lookup, not a wall.
+- **Every notice has a third line the repo does not carry: Rous County Council bulk water,
+  $10,350/ET (2024-25) and $10,958/ET (2025-26)** — larger than Lismore's water and sewer charges
+  combined in the medical centre's table. `SECTION_64_NOTES["also"]` names Rous in one sentence.
+- **The ET is Council's assessment, and 0.11–1.21 was seen.** That part of the refusal stands.
+
+And one claim to correct: `SECTION_64_NOTES["who_it_catches"]` says a café in a former shop "can be
+assessed at several ETs". **None of the four café consents carried a Section 64 charge.** Four is
+not enough to say never, but it is enough to stop asserting the opposite.
+
+**The fix.** Fetch Rous County Council's developer charges document into `documents/fees/`
+(checked blank and public, indexed); store the quarter's index factor with its source; return
+**per-ET figures for all three lines** in the site's service area, with the observed ET range
+labelled as observed. Still no total — the ET is Council's. Fetch Policy 11.3.3 too: a waiver that
+takes a charge to $0 is worth knowing about before lodging. Extend `audit_contributions.py` to
+re-derive the per-ET rates.
+
+**Cost:** a day, most of it the Rous source. Do not store a Rous figure read off a notice.
+
+### T4 — Tell a floodplain business to expect a Flood Evacuation Plan · **HIGH**
+
+**The evidence.** Nine of fifteen consents required one: 2024/153, 2024/198, 2024/291, 2025/38,
+2025/157, 2025/178, 2025/182, 2025/192, 2026/15 — cafés, a barber, a beauty salon, a storage yard.
+**DCP Chapter 8 requires one only for motels.** This is Council's standard practice, which is
+exactly what no document in `documents/` can show. The condition's content is consistent: the
+Wilsons River gauge height (station 058176) at which evacuation starts, the evacuation procedure,
+hazardous materials above the FPL, and routes out of Lismore — due within three months of consent,
+or before the Occupation Certificate. The same notices also state **the site's Flood Planning
+Level** (13.32–13.88m AHD seen), the figure this repo says it cannot get.
+
+**The fix.** A small `OBSERVED_CONDITIONS` list — each entry with its content, when it falls due,
+and the DA numbers it was seen in — surfaced by `get_other_approvals` and `check_da_readiness` for
+a business on or near the floodplain, **labelled as practice, not rule**. Everything that decides a
+number stays sourced to documents; this only tells the applicant what to have ready. Add *"The
+consent will state your FPL; ask for it now"* to the flood question in `DUTY_PLANNER_QUESTIONS`.
+
+**Cost:** half a day. Resist predicting approval from these (see *Deliberately not doing*) —
+they are conditions on consents that were granted.
+
+### T5 — Say what turnaround actually looks like · **MED**
+
+**The evidence.** `get_assessment_timeline` gives the 40-day deemed-refusal period and then says
+current turnaround is "not in any document". The tracker has it. For 33 business DAs lodged since
+July 2024: **median 62 days, 75th percentile 101, 25 over 40.** In the sample, a $0 shop → barber
+took 132 days (2026/15), shop → beauty salon 154 (2024/291), dwelling → medical centre 237
+(2024/153).
+
+**The fix.** A dated snapshot — n, median, 75th percentile, the window, the query that produced it
+— refreshed by T8, and shown beside the statutory period. Keep the rule that no date is
+calculated; a distribution is not a date. It measures lodged → determined, so it includes any
+information-request pause, which is what a landlord actually waits through.
+
+**Cost:** two hours once T8 exists.
+
+### T6 — The signage headline should carry its own condition · **MED**
+
+**The evidence.** Both pylons in the sample, 6m and 5m and illuminated (2024/272, 2024/313), went
+by DA; the tool's headline for each was "Complying Development — a CDC, not a DA". The DCP says a
+pylon is complying *"if erected in accordance with"* the Codes SEPP, whose criteria this repo does
+not carry — and *Deliberately not doing* keeps it that way. `list_signage_types` already puts the
+condition in its label; `get_signage_requirements` puts it in a sub-field.
+
+**The fix.** The label becomes "Complying Development **if it meets the SEPP criteria, which this
+server does not check** — otherwise a DA", and illuminated signs and unknown heritage status say a
+DA is the common route. No SEPP encoding. **Cost:** an hour.
+
+### T7 — Accept Lot/DP where the address will not resolve · **MED**
+
+**The evidence.** 5 of 21 real addresses returned no match. Council records a different street
+number from the state's address point — the small bar lodged as 135 Keen Street and was tracked as
+133; a pub is 68 Bridge Street to one and 72 to the other. The refusal is correct (the nearest match
+is a different property), but it stops the applicant at step one — and every notice and rates
+notice carries the Lot/DP, which `CLAUDE.md` already tells us to ask for.
+
+**The fix.** A `lot_dp` argument that finds the parcel in the NSW cadastre and reads the zone at
+its centroid, with the straddle caveat. Verify live before relying on the service; the existing
+rules (never raise, `LISMORE_ADDRESS_LOOKUP=off`, verify rather than trust) apply unchanged.
+
+**Cost:** a day, most of it the live verification.
+
+### T8 — Make this run repeatable: `scripts/validate_against_tracker.py` · **MED**
+
+> **DONE 2026-09-27.** The script has four modes (`harvest`, `fetch`, `grade`, `freeze`), the
+> 21 cases are in `tests/fixtures/tracker_cases.json` with Council's figures read off the notices,
+> and `/validate-tracker` plus the `tracker-validator` agent run the loop. `grade` reproduces the
+> run above: permissibility PASS 14 · GAP 4; Section 7.11 FAIL 1 (T1) · GAP 13; Section 64 GAP 4;
+> Flood Evacuation Plan GAP 9. **2026/200/1** (self-storage, Goonellabah) is the first frozen
+> prediction — recorded before Council decides, so it is the first case graded without hindsight.
+> `tracker-cache/` is gitignored and in `protect-private-paths.py`. T5 can now build on it.
+
+Everything above came from a one-off harness. Make it a script, so the figures this phase cites are
+its output rather than a claim. What had to be learned:
+
+- The tracker is Civica/Altitude at `lismore-nsw.altitudelg.com/e-services/` and needs Playwright,
+  like the council site. `daEnquiry.do` accepts a GET, but **the date filters are ignored and
+  results cap near 150**, so search by street name and filter dates locally.
+- Documents are at `dialog/getElectronicDocumentContents.do?id=…`; notices are text-extractable
+  with `fitz`. Some tables are images (DA 2025/157's Section 7.11) — report those, do not guess.
+- Grade against: permissibility (approved ⇒ not prohibited), Section 7.11 per component (each
+  component implies a worker count and PVTs, which is how the floor areas above were recovered
+  and how the Table E2 row Council used can be identified), Section 64 per ET, conditions present
+  or absent, days lodged → determined.
+- **Cache outside the repo** — the notices carry personal details. Put the cache path in
+  `.gitignore` *and* in `protect-private-paths.py`, the same two locks as `documents/output/`.
+
+Run it quarterly beside `verify_against_council.py` (E2). **Cost:** a day.
+
+### T9 — Give licensed and live-music venues their own requirements · **HIGH**
+
+**The evidence.** The one refusal in the sample, DA 2026/24 (a change of use from restaurant to a
+small bar with live music, CBD laneway, refused June 2026). Council's reasons are not published —
+the tracker shows "Refusal Notice Issued" and no document — so what follows is read from the
+application's own lodged documents and press coverage, not from Council:
+
+- **The applicant's own acoustic report showed non-compliance.** Measured against the Liquor &
+  Gaming NSW Standard Noise Condition — the criterion the report says Council's Environmental
+  Health Officer told it to use — music at the nearest shop-top residence was ~22dB over
+  background at 63Hz and 125Hz, **about 17dB over the limit**, after soundproofing works. It set an
+  internal cap of 91dB(C) against tested levels of 101–109dB(C), and said further reduction "would
+  require a significant investment to a building that was not designed to contain loud music".
+  Upstairs tenants (a yoga studio and consulting rooms) measured 60–64dB(A).
+- **The report's own mitigation was not lodged.** It recommended a Noise Management Plan and
+  ventilation that does not undo the sound insulation; neither is among the six documents lodged.
+- **Fire safety.** The only fire document lodged was a 2022 annual fire safety statement for the
+  building. The owner's public fundraiser, launched three weeks before refusal, named fire safety
+  upgrades as the cost of keeping the venue — consistent with a change of building classification
+  for an assembly use, which a restaurant → live-music venue usually is.
+- **The venue opened three months before the DA was lodged** and has kept listing gigs since the
+  refusal. The DA was regularising a use already trading — a common and expensive position for a
+  business, because every month of assessment is a month of exposure.
+
+What the tool would have said: `check_da_readiness` flags missing operating details, a BCA
+assessment, fire safety and a site plan — the right direction. But the checklist's only noise
+line is *"Acoustic report (if the new use generates noise, especially near residential)"*, which
+this applicant satisfied on paper. Nothing names a **plan of management**, a **noise management
+plan**, the **standard the acoustic report will be judged against**, or the fact that an acoustic
+report which finds exceedance is evidence for refusal rather than a box ticked.
+
+**The fix.** A licensed-premises branch in `data/checklists.py` and `readiness.py`, triggered by
+the LEP terms that carry it (small bar, pub, entertainment facility, function centre, nightclub)
+and by `serves_alcohol` or live music:
+
+1. **Plan of management** — hours, patron capacity, security, patron arrival and departure, the
+   complaints line.
+2. **Noise management plan** — music limits, who measures them and with what, reviewed yearly.
+3. **Acoustic report assessed against the Liquor & Gaming Standard Noise Condition**, at the
+   *hours, days and patron numbers applied for*, at the nearest residence and at any tenancy above
+   or beside.
+4. **BCA classification and fire safety for the proposed occupancy**, before the lease commitment
+   rather than after lodgement.
+
+Source rule: fetch the Standard Noise Condition's text from Liquor & Gaming NSW into
+`documents/legislation/`. Do not transcribe it from the acoustic report, which is a second-hand
+quotation in a private document. Items 1–2 are practice, not law — label them the way T4 labels
+the Flood Evacuation Plan, with the DA they were inferred from, and revise the item if the refusal
+reasons ever surface (from the applicant, or a GIPA request; the review and appeal windows close
+around December 2026).
+
+**Cost:** half a day, plus the source fetch. Add `2026/24` to the scenario suites as the licensed
+venue case — neither suite has one that ends in refusal.
+
+### T10 — Say out loud that the documents have to agree with each other · **MED**
+
+**The evidence.** In the same application, the SEE proposed live music Thursday and Friday
+5–11pm and Saturday and Sunday 12–11pm, for about 120 patrons; the acoustic report assessed
+Friday and Saturday 6–10pm and Sunday 12–7pm. The SEE also said an acoustic report would be
+prepared "if required by Council" while one was attached, and closed with an unfilled
+`[address]` placeholder. A document that asks for more than its own evidence supports is one an
+assessor can refuse on without going further.
+
+**Why this is not a document check.** `readiness.py` never reports a document as verified —
+nothing here can open a file, and that rule stays. What it can do is say, at the point of
+lodgement, what a business most often gets wrong between documents.
+
+**The fix.** A `confirm_before_lodging` item for any use with operating hours or patronage —
+*"the hours, days and patron numbers must be the same in the SEE, the plan of management and every
+report; a specialist report assesses only what it was asked to, so check its assumptions and its
+conclusion before lodging"* — and a matching line in `not_checked_here`. `generate_see_draft`
+should take hours and patron numbers once, as arguments, and write them the same way everywhere
+they appear.
+
+**Cost:** two hours.
+
+**Order within the phase:** T1 first — it is the only item that makes an answer wrong rather than
+missing. Then T2 and T3, which are where the money is; then T4 and T9, which are what the most
+businesses will be asked for and the one refusal the sample contains. T10 rides along with T9.
+T8 before T5, which depends on it.
+
+---
+
 # Phase A — Survive first contact
 
 Cheap, days not weeks, and it is the distribution work that can be done from here. Everything in
@@ -459,6 +766,14 @@ the existing refusal, and the collision test exists.
 **Cost:** ~30 lines and a test. Half a day.
 
 ### A2 — Share the resolution path across the other tools
+
+> **DONE 2026-09-27.** `landuse.lep_term_for()` is the shared step, used by `classify_land_use`
+> (so permissibility, readiness and the SEE draft) and by `parking.resolve_parking_use()` (all four
+> parking callers), which walks the LEP chain to the nearest Chapter 7 rate and shows the path.
+> Hairdresser, barber, dry cleaner and bank now reach business premises in both tools; tattoo
+> studio still refuses. The walk stops at a use Schedule 1 rates on its own row, which is how it
+> found `pub` -> hotel accommodation rate still live in `PARKING_SYNONYMS`. The audit is
+> `check_synonyms_follow_the_lep`, which found two synonyms contradicting the LEP.
 > **Reduced 2026-08-09.** S1 now owns the resolution machinery itself — `land_use_table_term`,
 > singular↔plural, and the rule that a catchall is never an answer. What is left here is the
 > *second* half of the problem: making the other tools use that machinery, so a word
@@ -776,6 +1091,9 @@ Two rules for whoever picks this up:
   business a prohibited use is permitted, and deletes a $16,081 charge on a sign flip. A is days of
   work and the only distribution work available from inside the repo. Everything after both is
   worth less while the tool is confidently wrong and hard to call.
+- **Phase T's T1 goes with the correctness work, ahead of Phase A** — it understates a charge the
+  way S3's sign flip did. The rest of Phase T can run alongside Phase A: it is coverage, and it is
+  the only part of this roadmap graded against Council's decisions rather than our own reading.
 - **Re-run `SCENARIOS.md` after each phase.** It caught fifteen defects that 1,346 tests and ten
   audits did not, because it is the only thing here that composes tools the way an applicant does.
 - **Do not declare a phase finished without listing what was in it.** Phase 0 was declared done
