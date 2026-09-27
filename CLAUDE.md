@@ -149,6 +149,8 @@ handlers `.get()` a default and answer confidently wrong. An empty `land_use` on
 a raw `MCPError` reading "could not convert string to float". **The SDK does not validate
 arguments; nothing checks them but this function.**
 
+**Known aliases are renamed before the gate, and only known ones.** `resolve_aliases()` runs first in `call_tool` and renames the spellings callers actually use — `floor_area`, `cost_of_works`, `zone`, `parking_spaces`, `address`, `use` — to the argument each tool declares, from `ARGUMENT_CONCEPTS` in `registry.py` (ROADMAP.md A1; run 2 of the scenarios refused five natural spellings out of five). A tool's own argument is never rewritten, two names with different values are refused, and anything not in the table is refused by `validate_arguments` exactly as before. **Do not add an alias whose meaning differs between tools** — `area_sqm` (a sign's area), `existing_spaces_on_site` (the CBD credit) and `development_type` (the use in two tools, the kind of work in the rest) are left out on purpose, and a test pins that.
+
 **A type check alone is not enough, because the dangerous values are the well-typed ones.**
 `gross_floor_area_m2: -80` is a perfectly good float, and it returned a budget of **$420** where
 `+80` returned **$16,501** — a sign flip silently deleting the largest charge in the answer while

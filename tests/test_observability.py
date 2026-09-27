@@ -89,7 +89,7 @@ class TestToolCallLogging:
 
     def test_invalid_arguments_logged_as_such(self, caplog):
         with caplog.at_level(logging.INFO, logger=obs.LOGGER_NAME):
-            asyncio.run(call_tool("get_zone_info", {"zone": "R2"}))
+            asyncio.run(call_tool("get_zone_info", {"colour": "R2"}))
         assert "outcome=invalid_arguments" in caplog.text
 
     def test_invalid_arguments_are_a_warning_not_an_error(self, caplog):
