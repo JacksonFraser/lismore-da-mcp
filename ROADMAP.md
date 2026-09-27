@@ -1270,6 +1270,33 @@ Ordered by how often a business hits it. Each is the same shape as C1 and none i
   server is explicitly for, currently reachable only through generic keyword search **[verified]**,
   while Chapter 1 (Residential) has two dedicated tools, 1,112 lines of data and its own audit.
   Awnings and weather protection, CBD urban design, the Health Precinct.
+
+  > **Landed 2026-09-27.** `data/commercial.py`, `commercial.py`, `get_commercial_requirements`
+  > and `scripts/audit_commercial.py` (written first). The audit checks 160 stored quotes and 12
+  > figures against the chapter, reads the chapter's own structure off its typography — 17
+  > numbered sections, 16 Part A subheadings, 34 Table B1 labels — and requires every one to be
+  > carried or named as descriptive, and asserts eight recorded absences. Three findings the
+  > roadmap did not anticipate:
+  >
+  > - **The chapter never mentions a change of use.** It is written for "new and renovating
+  >   buildings". So a change of use with no external work is answered with that scope and the
+  >   controls external work would bring in — never a list of design rules presented as binding
+  >   an internal fitout. Same shape as flood §8.3, reached from the other direction.
+  > - **It has no reading rule of its own.** Table B1 is laid out like Chapter 1's Performance
+  >   Criteria and Acceptable Solutions, but Chapter 2 lacks §1.3's "Council may be prepared to
+  >   approve" sentence. What applies is the DCP Introduction's narrower "Variations to the
+  >   Plan", which is quoted from that document and audited against it.
+  > - **Its maps are not the parking map.** Part A applies on Chapter 2's Map 1, Part B on Map 2 —
+  >   both images, and Map 1 is a different map from Chapter 7's CBD parking boundary. The
+  >   precinct is never inferred; without it both parts are returned, and `check_da_readiness`
+  >   raises a new `commercial_design_precinct` Duty Planner question for a new building or
+  >   external work on E2/MU1 land.
+  >
+  > Also: the 14m blank-wall rule this repository once wrongly attributed to Chapter 1 is real —
+  > it is Chapter 2's, for new CBD development. The chapter still names the zone B3 Commercial
+  > Core (now E2), cites Chapter 14 by the title of the version repealed in 2020, and gives the
+  > Health Precinct's northern boundary as Leycester Street where Chapter 1 §11 says Orion
+  > Street; all three are quoted as written and flagged.
 - **D2 — DCP Chapter 15, Waste Minimisation.** Referenced seven times in checklists as prose with
   no structured answer **[verified]**. A waste management plan is a standard request-for-information
   trigger on food premises, which makes it a delay, which is rent.

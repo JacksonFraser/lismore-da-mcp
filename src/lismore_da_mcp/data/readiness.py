@@ -409,6 +409,30 @@ DUTY_PLANNER_QUESTIONS = [
         "ask_it_as": "The fitout adds Xm² of enclosed floor area inside the tenancy. Is that "
                      "charged under the Section 7.11 plan?",
     },
+    {
+        "key": "commercial_design_precinct",
+        "question": "Is this site within Map 1 (the CBD) or Map 2 (Brewster Street) of DCP "
+                    "Chapter 2, Commercial Development?",
+        "why_it_matters": "It decides whether Chapter 2's design controls apply at all, and "
+                          "which: Part A's CBD principles — awnings connected to the neighbours "
+                          "and extending to the kerb line, no straight external wall over 14m "
+                          "without articulation, a site analysis with any new building — or Part "
+                          "B's Brewster Street table, with its 6m setback and 1200m² site for "
+                          "buildings of three levels or more.",
+        "cost_if_unresolved": "A building designed without the controls it will be assessed "
+                              "against. Chapter 2 A.3 says so itself: adding the design "
+                              "attributes after a building is fully designed 'may result in a "
+                              "poor outcome'.",
+        "why_we_cannot_answer_it": "Both maps are images with no extractable text. Part B covers "
+                                   "only part of what the chapter calls the B3 zone, and Chapter "
+                                   "2's Map 1 is a different map from Chapter 7's CBD parking "
+                                   "boundary, so neither the zone nor the parking answer settles "
+                                   "it.",
+        "applies": "A new building or external alterations on E2 or MU1 land, or anywhere the "
+                   "applicant says is in the CBD.",
+        "ask_it_as": "Is this address within Map 1 or Map 2 of DCP Chapter 2, Commercial "
+                     "Development?",
+    },
 ]
 
 # Said at the top of the brief. The duty planner session is free, drop-in and
