@@ -30,7 +30,7 @@ from lismore_da_mcp.data.contributions import (
     PLAN_NAME,
 )
 from lismore_da_mcp.data.definitions import LAND_USE_HIERARCHY
-from lismore_da_mcp.landuse import canonical_use
+from lismore_da_mcp.landuse import canonical_use, lep_term_for
 
 # What each Table E2 base is counted in, and the argument that supplies it.
 BASE_UNITS = {
@@ -73,12 +73,33 @@ def resolve_development_type(term: str) -> tuple[str | None, str | None]:
 
 
 def _units(entry: dict, counts: dict) -> tuple[float | None, str]:
-    """How many chargeable units the proposal has, in the base Table E2 uses."""
+    """How many chargeable units the proposal has, in the base Table E2 uses.
+
+    `None` means not supplied and `0` means zero — a previous use with no floor
+    area is how a caller says the area is new (ROADMAP.md T1). The schema's
+    `minimum: 0` keeps negatives out before this is reached.
+    """
     argument, divisor, described = BASE_UNITS[entry["base"]]
     supplied = counts.get(argument)
-    if supplied is None or supplied <= 0:
+    if supplied is None:
         return None, argument
     return supplied / divisor, described
+
+
+def _same_use(proposed: str, existing: str) -> bool:
+    """Whether the previous use is the proposal's own use, not a different one.
+
+    Compared as the LEP term each word stands for, so "Restaurants or cafes" and
+    "restaurant or cafe" match, and so do an everyday word and the term A2 maps
+    it to. Two different uses on the same Table E2 row — shop and cafe — are not
+    the same use: that is a change of use, and the same-area default is right
+    for it.
+    """
+    def term(word: str) -> str:
+        mapped = lep_term_for(word)
+        return canonical_use(mapped["term"] if mapped else word)
+
+    return term(proposed) == term(existing)
 
 
 def _rates(entry: dict, catchment: str | None) -> dict:
@@ -164,11 +185,32 @@ def estimate_contribution(
                 "allowance cannot be quantified here. Council assesses it — see "
                 "what_you_must_do."
             )
+        elif existing_counts is None and _same_use(term, existing_use):
+            # The same use, previous size not stated. The same-area default would
+            # mean nothing new was built, so the net would be $0 by construction —
+            # which is how DA 2024/198's new 14m² of bar area, charged $2,805.67 by
+            # Council, was answered $0 (ROADMAP.md T1). The net lies between nil
+            # and the gross; only the previous floor area says where.
+            existing_entry = DEVELOPMENT_TYPE_RATES[existing_key]
+            argument = BASE_UNITS[existing_entry["base"]][0]
+            allowance["existing_development_type"] = existing_entry["plan_name"]
+            allowance["allowed"] = None
+            allowance["supply"] = f"existing_{argument}"
+            allowance["at_most"] = gross
+            allowance["why_not"] = (
+                f"The previous use is the same use as the proposal, so the contribution is "
+                f"charged only on what is added. Supply existing_{argument}: what the use "
+                f"had before this application, or 0 for an area that is entirely new to it. "
+                f"The net is between nil and the at_most figure, which is the charge if "
+                f"all of it is new."
+            )
+            result["net_contribution"] = None
         else:
             existing_entry = DEVELOPMENT_TYPE_RATES[existing_key]
             # A change of use in the same tenancy keeps the same floor area unless
             # the caller says otherwise, which is the ordinary case.
-            existing_units, _ = _units(existing_entry, existing_counts or counts)
+            existing_units, _ = _units(
+                existing_entry, counts if existing_counts is None else existing_counts)
             if existing_units is None:
                 allowance["allowed"] = None
                 allowance["why_not"] = (

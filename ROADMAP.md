@@ -460,7 +460,28 @@ from a neighbouring address.
 **Privacy.** Notices carry the applicant's name, postal address and email. None are committed.
 Cite the DA number — public, and enough to re-fetch — never a name.
 
-### T1 — A zero existing floor area is thrown away, and same-use additions net to $0 · **CRITICAL**
+### T1 — A zero existing floor area is thrown away, and same-use additions net to $0 · **DONE 2026-09-27**
+
+> **Landed.** DA 2024/198 now grades **PASS — $2,814.22 against Council's $2,805.67** (was FAIL,
+> $0). Three changes, one per layer the bug crossed:
+>
+> - **The handler** keeps a supplied `0` (`is not None` in both comprehensions in `tools/fees.py`),
+>   and `contributions._units` treats `0` as zero units rather than "not supplied".
+> - **The allowance** no longer assumes an area for the *same* use. `_same_use()` compares the LEP
+>   term each word stands for, through A2's `lep_term_for`, so plurals and mapped words match. Pub →
+>   pub with no previous area now returns `net_contribution: None`, `supply:
+>   existing_gross_floor_area_m2` and `at_most` (the gross). A *change* of use — shop → café,
+>   office → café — keeps the same-area default, which is right for it.
+> - **The budget** no longer falls back from a `None` net to the gross. `net or gross` would have
+>   put the whole area into `budget_at_least` as new: the opposite error, just as unannounced.
+>
+> Two S3 tests pinned restaurant → restaurant netting to $0 under the same-area default, with a
+> rationale ("a change of use in the same tenancy") that described a different case. They now test
+> a real change of use, office → café, and `TestTheSameUseIsNotAssumedToHaveBuiltNothing` holds the
+> new behaviour. **Known edge:** "restaurant" and "restaurant or cafe" are different LEP terms, so
+> that pair is still read as a change of use and keeps the default.
+
+**Original entry:**
 
 **The evidence.** DA 2024/198 converted 14m² of a pub's laundry into bar area; Council charged
 **$2,805.67** at the retail rate. The tool's gross figure is right ($2,814.22), but:

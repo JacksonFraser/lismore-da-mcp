@@ -125,10 +125,14 @@ def calculate_da_fees(arguments: dict):
         }, indent=2))]
 
     cost = float(arguments.get("development_cost", 0))
+    # `is not None`, never truthiness: a supplied 0 is an answer. An existing
+    # floor area of 0 is how a caller says the area is new, and `if
+    # arguments.get(...)` dropped it — so DA 2024/198's new bar area, charged
+    # $2,805.67 by Council, came back $0 (ROADMAP.md T1).
     counts = {
         key: arguments[key]
         for key in ("gross_floor_area_m2", "dwellings", "beds_or_sites")
-        if arguments.get(key)
+        if arguments.get(key) is not None
     }
     # The previous use's own measures, where they differ from the proposal's.
     # `estimate_contribution` has taken `existing_counts` all along and nothing
@@ -136,7 +140,7 @@ def calculate_da_fees(arguments: dict):
     existing_counts = {
         key: arguments[f"existing_{key}"]
         for key in ("gross_floor_area_m2", "dwellings", "beds_or_sites")
-        if arguments.get(f"existing_{key}")
+        if arguments.get(f"existing_{key}") is not None
     } or None
 
     result = estimate_total_cost(

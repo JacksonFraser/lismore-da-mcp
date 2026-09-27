@@ -111,7 +111,11 @@ because the tool answered rather than erroring:
 - **Zero with no way to say it.** `estimate_spaces` filtered falsy counts and every caller passed
   `arguments.get(...) or 0`, so `num_employees: 0` and "nobody said" were the same value. An
   owner-operated café could not state that it has no staff. **`None` means not supplied; `0` means
-  zero** — keep that distinction when adding a countable.
+  zero** — keep that distinction when adding a countable. It broke again one argument over:
+  `existing_gross_floor_area_m2: 0`, the caller saying "this area is new", was dropped by `if
+  arguments.get(...)`, and a pub's new bar area came back $0 against Council's real $2,805.67
+  (ROADMAP.md T1, found by `/validate-tracker`). Write `is not None`; never test a count for
+  truthiness.
 
 **And a partial sum is never reported as the answer — but it is a floor, and it says so.** Where a
 rate has a term that was not supplied, `estimate_spaces` returns `spaces_required: None` with
