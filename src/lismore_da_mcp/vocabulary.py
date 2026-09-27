@@ -161,9 +161,11 @@ PARKING_SYNONYMS = {
     "physio": "medical_centre",
     "gymnasium": "gym",
     "fitness centre": "gym",
-    "pub": "hotel",
-    "bar": "hotel",
-    "tavern": "hotel",
+    # "pub", "bar" and "tavern" pointed at "hotel" — the hotel or motel
+    # *accommodation* rate, per accommodation unit — until 2026-09-25. Schedule 1
+    # rates a pub on its own row, which this server does not carry, and
+    # DEFINITION_SYNONYMS dropped the same mapping for the same reason in August.
+    # Unmapped, "pub" now reaches `resolve_parking_use`, which says so.
     "church": "place_of_worship",
     "mosque": "place_of_worship",
     "temple": "place_of_worship",
@@ -244,7 +246,8 @@ DEFINITION_SYNONYMS = {
     "shop top": "shop_top_housing",
     "factory": "general_industries",
     "warehouse": "warehouse_or_distribution_centre",
-    "storage": "warehouse_or_distribution_centre",
+    # "storage" pointed here too until 2026-09-25, but the LEP defines storage
+    # premises as a term of its own, so the word is not this server's to settle.
     # The terms added with the 0.7 re-transcription, in the words a business
     # uses for them. A brewery or roastery with a tasting room is an artisan
     # food and drink industry — a type of light industry, so it is permissible
@@ -252,7 +255,10 @@ DEFINITION_SYNONYMS = {
     "brewery": "artisan_food_and_drink_industry",
     "distillery": "artisan_food_and_drink_industry",
     "roastery": "artisan_food_and_drink_industry",
-    "cellar door": "artisan_food_and_drink_industry",
+    # "cellar door" pointed at artisan food and drink industry until 2026-09-25.
+    # The LEP places cellar door premises under farm gate premises, agritourism
+    # and agriculture — a different group, permissible in different zones — and
+    # check_permissibility answers "cellar door premises" from that directly.
     "office": "office_premises",
     "doctors surgery": "medical_centre",
     "medical practice": "medical_centre",
@@ -261,6 +267,12 @@ DEFINITION_SYNONYMS = {
     "bulky goods": "specialised_retail_premises",
     "bulky goods premises": "specialised_retail_premises",
     "bottle shop": "shop",
+    # The next five are named in the business premises definition itself, so
+    # the reading is the LEP's; the rest are this server's, and say so when used.
+    "bank": "business_premises",
+    "post office": "business_premises",
+    "travel agency": "business_premises",
+    "betting agency": "business_premises",
     "hairdresser": "business_premises",
     "barber": "business_premises",
     "beauty salon": "business_premises",

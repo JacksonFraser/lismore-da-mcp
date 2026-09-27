@@ -4,6 +4,7 @@ Derives the form's answers from what the caller supplied, refusing where the
 proposal falls outside the template's "Minor Development Only" scope.
 """
 
+from lismore_da_mcp.parking import resolve_parking_use
 from lismore_da_mcp.data.parking import PARKING_RATES
 from lismore_da_mcp.data.zones import ZONES
 from lismore_da_mcp.landuse import classify_land_use
@@ -15,7 +16,6 @@ from lismore_da_mcp.see.fields import (
 )
 from lismore_da_mcp.vocabulary import (
     MINOR_DEVELOPMENT_SYNONYMS,
-    PARKING_SYNONYMS,
     resolve,
 )
 from lismore_da_mcp.parking import estimate_spaces
@@ -176,7 +176,7 @@ def generate_see_form_data(
     parking = None
     # Same loose resolution the parking tool uses, so "coffee shop" gets a rate
     # here too rather than silently omitting the parking section of the form.
-    rate_match = resolve(proposed_use or "", PARKING_RATES, PARKING_SYNONYMS)
+    rate_match = resolve_parking_use(proposed_use or "")[0]
     rate_entry = PARKING_RATES.get(rate_match.key) if rate_match else None
     if rate_entry:
         parking = estimate_spaces(rate_entry, floor_area_sqm, {"employees": num_employees})

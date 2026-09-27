@@ -218,6 +218,35 @@ def check_absences() -> list[str]:
     return failures
 
 
+def check_synonyms_follow_the_lep() -> list[str]:
+    """No everyday word is read as a term the LEP places it outside of.
+
+    DEFINITION_SYNONYMS is this server's vocabulary, and since ROADMAP.md A2 it
+    decides permissibility and parking as well as get_definition — so a wrong
+    entry is a wrong answer in three tools. It is checked against the LEP where
+    the LEP speaks: if the word, its plural or '<word> premises' is itself a
+    term the LEP defines, the synonym must land on that term or one of its
+    parents. "cellar door" -> artisan food and drink industry failed this (the
+    LEP puts cellar door premises under agritourism), and so did "storage" ->
+    warehouse (the LEP defines storage premises separately).
+    """
+    from lismore_da_mcp.landuse import KNOWN_LAND_USES, ancestors, canonical_use
+    from lismore_da_mcp.vocabulary import DEFINITION_SYNONYMS
+
+    failures = []
+    for word, key in DEFINITION_SYNONYMS.items():
+        target = canonical_use(LAND_USE_DEFINITIONS[key]["term"])
+        for form in (word, word + "s", word + " premises"):
+            placed = canonical_use(form)
+            if placed in KNOWN_LAND_USES and placed != target and target not in {
+                    canonical_use(a) for a in ancestors(form)}:
+                failures.append(
+                    f"{word!r} is read as {LAND_USE_DEFINITIONS[key]['term']!r}, but the LEP "
+                    f"defines {form!r} and places it under {ancestors(form) or 'nothing'}."
+                )
+    return failures
+
+
 def main() -> int:
     lep = lep_text()
     groups = [
@@ -228,6 +257,7 @@ def main() -> int:
         ("related_terms resolve", check_related_terms()),
         ("every definition is in exactly one category", check_categories()),
         ("recorded inventions are still absent", check_absences()),
+        ("everyday words are read as the LEP places them", check_synonyms_follow_the_lep()),
     ]
 
     total = 0

@@ -9,6 +9,7 @@ import textwrap
 
 from mcp.types import TextContent
 
+from lismore_da_mcp.parking import resolve_parking_use
 from lismore_da_mcp.config import DOCS_DIR
 from lismore_da_mcp.config import PUBLIC_MODE
 from lismore_da_mcp.config import SEE_TEMPLATE_PATH
@@ -25,7 +26,6 @@ from lismore_da_mcp.see.fields import PURPOSE_WRITTEN_SEE_HEADINGS, SEE_QUESTION
 from lismore_da_mcp.see.fields import SEE_TEMPLATE_SCOPE
 from lismore_da_mcp.see.fill import fill_see_pdf
 from lismore_da_mcp.see.generate import generate_see_form_data
-from lismore_da_mcp.vocabulary import PARKING_SYNONYMS
 from lismore_da_mcp.vocabulary import SEE_SECTION_SYNONYMS
 from lismore_da_mcp.vocabulary import resolve
 from lismore_da_mcp.vocabulary import unresolved_error
@@ -160,7 +160,7 @@ def _parking_section(proposed_use, floor_area, existing_parking, num_employees,
     that goes to Council over the applicant's name and may be four times too
     high.
     """
-    match = resolve(proposed_use or "", PARKING_RATES, PARKING_SYNONYMS)
+    match = resolve_parking_use(proposed_use or "")[0]
     entry = PARKING_RATES.get(match.key) if match else None
     existing_line = (
         f"Existing Spaces:     {existing_parking}" if existing_parking is not None

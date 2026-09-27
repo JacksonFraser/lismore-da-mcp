@@ -198,6 +198,53 @@ def _known_land_uses() -> set[str]:
 KNOWN_LAND_USES = _known_land_uses()
 
 
+def _named_in(word: str, definition: str) -> bool:
+    """Whether the LEP's own definition text names this word (or its plural)."""
+    stem = re.escape(_flatten(word))
+    return bool(re.search(rf"\b{stem}(?:s|es)?\b", _flatten(definition)))
+
+
+def lep_term_for(word: str) -> dict | None:
+    """The LEP defined term an everyday word stands for, or None.
+
+    ROADMAP.md A2. `get_definition` read "hairdresser" as business premises from
+    `DEFINITION_SYNONYMS`, while `check_permissibility` refused the same word and
+    `get_parking_rates` refused it too — the same word, adjacent questions,
+    opposite outcomes, which reads to a caller as an unreliable tool rather than
+    a coverage boundary. This is the one path they now share.
+
+    Only a confident mapping is taken — the word itself, or its synonym-table
+    entry. Never a fuzzy one: a near-spelling is a guess, and a guessed land use
+    category is the wrong "yes" this repository has spent two phases removing.
+    `named_in_definition` says whether the LEP's own words back the reading
+    ("hairdressers" is in the business premises definition) or only this
+    server's vocabulary does ("barber" is not), and callers say which.
+    """
+    from lismore_da_mcp.vocabulary import DEFINITION_SYNONYMS, resolve  # noqa: PLC0415
+
+    if not str(word).strip() or canonical_use(word) in KNOWN_LAND_USES:
+        return None
+    match = resolve(word, LAND_USE_DEFINITIONS, DEFINITION_SYNONYMS)
+    if not match or match.how not in ("exact", "squashed", "synonym"):
+        return None
+    entry = LAND_USE_DEFINITIONS[match.key]
+    return {
+        "word": str(word),
+        "term": entry["term"],
+        "named_in_definition": _named_in(word, entry.get("definition", "")),
+    }
+
+
+def interpretation(mapped: dict) -> str:
+    """The sentence a caller is shown when a word was read as an LEP term."""
+    if mapped["named_in_definition"]:
+        return (f"Read '{mapped['word']}' as '{mapped['term']}': the LEP Dictionary's "
+                f"definition of {mapped['term']} names it.")
+    return (f"Read '{mapped['word']}' as '{mapped['term']}'. That is this server's reading, "
+            f"not the LEP's words — the definition of {mapped['term']} does not name "
+            f"'{mapped['word']}'. Confirm the category with Council before relying on it.")
+
+
 def match_land_use(term: str, uses: list[str], strength: str) -> str | None:
     """Find `term` in a zone's use list at one matching strength.
 
@@ -248,7 +295,8 @@ def _candidates(proposed_use: str, categories, strength: str):
                 yield category, listed, permissible, phrase
 
 
-def classify_land_use(proposed_use: str, zone_info: dict, zone_code: str = "") -> dict | None:
+def classify_land_use(proposed_use: str, zone_info: dict, zone_code: str = "",
+                      _already_mapped: bool = False) -> dict | None:
     """Classify a use against a zone's land use table.
 
     Returns None when there is nothing to go on. `permissible` is left None when the
@@ -277,6 +325,16 @@ def classify_land_use(proposed_use: str, zone_info: dict, zone_code: str = "") -
     # through the hierarchy, or it is absent and the catch-all decides. Fuzzy
     # matching is for the words this server cannot place at all.
     recognised = canonical_use(proposed_use) in KNOWN_LAND_USES
+    if not recognised and not _already_mapped:
+        # A word the LEP does not name, but that stands for one it does. Answered
+        # as that term, with the reading stated — see lep_term_for. Mapped once
+        # only: a term that somehow fails recognition must not map back to itself.
+        mapped = lep_term_for(proposed_use)
+        if mapped:
+            result = classify_land_use(mapped["term"], zone_info, zone_code, _already_mapped=True)
+            if result and result["match_type"] != "unrecognised":
+                result["interpreted_as"] = interpretation(mapped)
+                return result
     strengths = ("exact", "hierarchy") if recognised else ("exact", "hierarchy", "approximate")
 
     for strength in strengths:

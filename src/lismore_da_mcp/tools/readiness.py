@@ -5,6 +5,7 @@ import textwrap
 
 from mcp.types import TextContent
 
+from lismore_da_mcp.parking import resolve_parking_use
 from lismore_da_mcp.data.contacts import CONTACT_INFO
 from lismore_da_mcp.data.parking import PARKING_RATES
 from lismore_da_mcp.data.readiness import HOW_TO_USE_THE_SESSION
@@ -19,8 +20,6 @@ from lismore_da_mcp.readiness import assess
 from lismore_da_mcp.readiness import open_questions
 from lismore_da_mcp.readiness import site_constraints
 from lismore_da_mcp.registry import tool
-from lismore_da_mcp.vocabulary import PARKING_SYNONYMS
-from lismore_da_mcp.vocabulary import resolve
 
 # Both tools describe the same proposal, so they take the same arguments. Two
 # drifting copies of a twelve-argument schema is a maintenance problem, and a
@@ -115,7 +114,7 @@ def _parking(p: Proposal, spaces_provided) -> dict | None:
     business it complies when it may owe eleven more spaces; reporting the
     higher would talk it out of a viable tenancy.
     """
-    match = resolve(p.proposed_use, PARKING_RATES, PARKING_SYNONYMS)
+    match = resolve_parking_use(p.proposed_use)[0]
     if not match:
         return None
     entry = PARKING_RATES[match.key]

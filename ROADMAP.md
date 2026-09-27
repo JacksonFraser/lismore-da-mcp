@@ -451,6 +451,14 @@ the existing refusal, and the collision test exists.
 **Cost:** ~30 lines and a test. Half a day.
 
 ### A2 — Share the resolution path across the other tools
+
+> **DONE 2026-09-27.** `landuse.lep_term_for()` is the shared step, used by `classify_land_use`
+> (so permissibility, readiness and the SEE draft) and by `parking.resolve_parking_use()` (all four
+> parking callers), which walks the LEP chain to the nearest Chapter 7 rate and shows the path.
+> Hairdresser, barber, dry cleaner and bank now reach business premises in both tools; tattoo
+> studio still refuses. The walk stops at a use Schedule 1 rates on its own row, which is how it
+> found `pub` -> hotel accommodation rate still live in `PARKING_SYNONYMS`. The audit is
+> `check_synonyms_follow_the_lep`, which found two synonyms contradicting the LEP.
 > **Reduced 2026-08-09.** S1 now owns the resolution machinery itself — `land_use_table_term`,
 > singular↔plural, and the rule that a catchall is never an answer. What is left here is the
 > *second* half of the problem: making the other tools use that machinery, so a word
