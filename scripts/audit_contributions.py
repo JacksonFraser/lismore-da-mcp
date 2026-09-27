@@ -17,6 +17,12 @@ Two checks, because either alone would be weak:
      appear elsewhere on the page; this can, and it is what found the tourist
      accommodation discrepancy in the published table.
 
+  3. **Completeness.** Every row of Table E2 is read off the PDF — the label
+     column, isolated by x-position — and must be carried in
+     `DEVELOPMENT_TYPE_RATES` (matched on `plan_name`) or named in
+     `UNCARRIED_TABLE_E2_ROWS`. The first two checks only look at what is
+     stored, so neither could see a development type the next plan review adds.
+
 Discrepancies listed in `KNOWN_TABLE_DISCREPANCIES` are expected and reported
 separately. Anything else is a failure.
 
@@ -38,6 +44,7 @@ from lismore_da_mcp.data.contributions import (  # noqa: E402
     INFRASTRUCTURE_RATES,
     KNOWN_TABLE_DISCREPANCIES,
     SECTION_64_CHARGES,
+    UNCARRIED_TABLE_E2_ROWS,
 )
 
 PLAN_PDF = ROOT / "documents" / "fees" / "section-7.11-contributions-plan-2024-2041.pdf"
@@ -77,6 +84,85 @@ def check_presence(pdf: Path, page: int, label: str, amounts: dict[str, float]) 
         for name, amount in amounts.items()
         if amount is not None and not any(f in printed for f in formats(amount))
     ]
+
+
+def row_label(text: str) -> str:
+    """Compare labels on wording, not typography."""
+    return " ".join(text.replace("’", "'").split()).lower()
+
+
+def table_e2_rows(pdf: Path = PLAN_PDF, page: int = TABLE_E2_PAGE) -> list[str]:
+    """The development type labels of Table E2, read off the PDF.
+
+    The label column is right-aligned against the Base column, so a label line is
+    one that ends left of where the "Base" header starts — every cell of the Base
+    column itself overhangs that point. Consecutive label lines are one wrapped
+    label. Superscript note letters (the C in "Residential AccommodationC") are
+    printed smaller and dropped. Only the table body is read: from the last
+    header ("Rural South") to "Notes:".
+    """
+    import fitz
+
+    with fitz.open(pdf) as doc:
+        blocks = doc[page].get_text("dict")["blocks"]
+    lines = [line for block in blocks for line in block.get("lines", [])]
+
+    def text(line, body_size=None):
+        return "".join(span["text"] for span in line["spans"]
+                       if body_size is None or span["size"] >= body_size * 0.8)
+
+    header = next((line for line in lines if text(line).strip() == "Base"), None)
+    if header is None:
+        return []
+    boundary = header["bbox"][0]
+    body_size = header["spans"][0]["size"]
+
+    rows: list[str] = []
+    current: list[str] = []
+    in_body = False
+    for line in lines:
+        words = text(line).strip()
+        if not in_body:
+            in_body = words == "Rural South"
+            continue
+        if words.startswith("Notes:"):
+            break
+        if line["bbox"][2] < boundary:
+            current.append(text(line, body_size))
+        elif current:
+            rows.append(" ".join(" ".join(current).split()))
+            current = []
+    if current:
+        rows.append(" ".join(" ".join(current).split()))
+    return rows
+
+
+def completeness_problems(rows: list[str], carried: dict, uncarried: dict) -> list[str]:
+    """Rows of Table E2 neither carried nor explained, and explanations for no row."""
+    if not rows:
+        return ["Table E2's row labels could not be read — the page layout changed"]
+    in_table = {row_label(r): r for r in rows}
+    stored = {row_label(entry["plan_name"]): key for key, entry in carried.items()}
+    named = {row_label(r): r for r in uncarried}
+
+    problems = [
+        f"Table E2 row {in_table[label]!r} is neither in DEVELOPMENT_TYPE_RATES nor "
+        f"named in UNCARRIED_TABLE_E2_ROWS"
+        for label in in_table if label not in stored and label not in named
+    ]
+    problems += [
+        f"DEVELOPMENT_TYPE_RATES[{key!r}] plan_name is not a row of Table E2"
+        for label, key in stored.items() if label not in in_table
+    ]
+    problems += [
+        f"UNCARRIED_TABLE_E2_ROWS names {named[label]!r}, which is not a row of Table E2"
+        for label in named if label not in in_table
+    ]
+    problems += [
+        f"{named[label]!r} is both carried and named in UNCARRIED_TABLE_E2_ROWS"
+        for label in named if label in stored
+    ]
+    return problems
 
 
 def derive(entry: dict, catchment: str) -> float:
@@ -184,6 +270,15 @@ def main() -> int:
             f"{stale[0]} ({stale[1]}): listed in KNOWN_TABLE_DISCREPANCIES but was not "
             f"reached by the audit — the entry no longer describes anything."
         )
+
+    # 3. Completeness — every row of Table E2 is carried or explained.
+    print("\nChecking every development type in Table E2 is carried...")
+    rows = table_e2_rows()
+    found = completeness_problems(rows, DEVELOPMENT_TYPE_RATES, UNCARRIED_TABLE_E2_ROWS)
+    problems += found
+    if not found:
+        print(f"  {len(rows)} rows: {len(DEVELOPMENT_TYPE_RATES)} carried, "
+              f"{len(UNCARRIED_TABLE_E2_ROWS)} named with a reason")
 
     if problems:
         print(f"\n{len(problems)} PROBLEM(S):")
