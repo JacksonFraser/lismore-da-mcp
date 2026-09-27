@@ -1161,7 +1161,49 @@ say what DCP Chapter 12 actually requires. The document is in `documents/dcp/`, 
 That is the sharpest audience-aligned gap in the repository: the tool raises the alarm and cannot
 answer the question it just raised.
 
-### C1 — Transcribe DCP Chapter 12 and give it a tool
+### C1 — Transcribe DCP Chapter 12 and give it a tool · **DONE 2026-09-27**
+
+> **Landed as `get_heritage_requirements`.** This entry predates S4, which had already established
+> that Chapter 12 requires no heritage document — so the first job was to read the chapter end to end
+> and find out what it *does* contain. The answer is more than the S4 notes implied: §12.3 makes its
+> policies binding on Schedule 5 items with a variation route ("If a proposal departs from the
+> policies, justification must be provided"); §12.4 is Burra Charter principles written as
+> recommendations; §12.5 is twelve design guidelines split PREFERRED / NOT ENCOURAGED — signage,
+> colours, roof, windows, materials, verandahs, fences, garages, setbacks, outbuildings; and §12.6
+> gives each of the seven conservation areas a statement of significance, characteristics and
+> precinct policies. All of it is in `data/heritage.py` verbatim: 223 quotes.
+>
+> **S4's docstring was one clause too strong.** "Chapter 12 requires no document at all" is not
+> quite right: §12.5 says "Colour scheme details for new development will be required with the
+> development application", and §12.3 requires a justification for any departure. Neither is a
+> heritage management document, so S4's correction stands and its absence check still passes; the
+> sentence is fixed and the two are carried as `WHAT_CHAPTER_12_DOES_ASK_FOR`.
+>
+> **The audit was written first and runs both directions.** Presence of every stored string; then
+> completeness counted off the document — all 164 bullets, 9 PREFERRED and 8 NOT ENCOURAGED
+> headings, 5 objectives, 7 conservation area headings, every figure with a unit (there are five),
+> and every Schedule 5 Part 2 row against the stored area names, labels and significance. The page 9
+> photograph's scanner noise includes four bullet glyphs; that count is pinned, so a real bullet
+> cannot be skipped as noise.
+>
+> **The rules carried from flood.** Status is never inferred: without `heritage_status` the tool
+> returns heritage item / conservation area / both / vicinity / none known side by side, and says the
+> state layer confirms but cannot clear. The DCP never goes back alone: cl 5.10(2)–(5) come with every
+> answer and (10) wherever an item is possible. "May" stays "may": guidelines are reported under the
+> chapter's own labels, and only the three phrasings the chapter itself uses as a flat refusal are
+> reported as one.
+>
+> **The business cases.** Works select the guidelines ("new sign", "repaint facade", "shopfront");
+> a sign also gets the pointer to Chapter 9 §9.2. A change of use is told that cl 5.10(2) lists works,
+> not uses — a reading, flagged for the Duty Planner — and is offered cl 5.10(10) only where the
+> building could be a heritage item: a building that is merely inside a conservation area, even a
+> Girards Hill "contributory" one, is not "a building that is a heritage item".
+>
+> **Not done here:** the DUTY_PLANNER_QUESTIONS entry for "does a change of use with no works
+> trigger cl 5.10?" — the tool points at the existing `heritage_status` question instead, to keep
+> `readiness.py` out of this change while other work is in flight there. Worth adding.
+
+### C1 — original entry
 
 Same shape as flood: `data/heritage.py` verbatim, `heritage.py` to select, `get_heritage_requirements`,
 `scripts/audit_heritage.py` with **both** directions — presence of what is stored, and a count of

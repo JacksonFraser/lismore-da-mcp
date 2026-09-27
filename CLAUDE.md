@@ -55,7 +55,7 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_definitions.py` | Checks all 36 land use definitions in `data/definitions.py` against the LEP Dictionary, plus the clause 5.4 controls each carries. Beyond presence it checks each quote **opens with its own term** (verbatim LEP text lifted from the wrong entry passes a presence check), that `land_use_table_term` really is how `data/zones.py` spells the use, that `LAND_USE_HIERARCHY`'s first links agree with the LEP's own "X is a type of Y" notes — which caught `office premises` recorded as a type of business premises — and, like `audit_standards.py`, that the recorded inventions are still **absent**. |
 | `scripts/audit_landuse_matching.py` | The only audit that checks a **tool** rather than a data file: it asks `check_permissibility` about all 991 land use rows in both the table's spelling and the LEP Dictionary's, and grades the answer against the table. Every other audit here would pass with the matching layer completely broken, which is how ROADMAP.md S1's defect survived 1,346 tests. The singular↔plural pairing is read off the Dictionary in the document, never computed — a candidate spelling the document does not confirm is discarded, so the audit can never grade the tool against a word that is not a land use. It also audits `LAND_USE_TABLE_SPELLINGS` itself, since S1's fix turned that pairing into stored data: every pair must be one the document yields, every pair the document yields must be stored, and every table spelling must appear verbatim in `data/zones.py` — a pair whose right-hand side is not a real table entry resolves onto nothing and reads exactly like one that works. **Since 2026-09-25 it also asks about every use the Dictionary places under a parent** (108 "is a type of" notes × 21 zones), graded through the chain of parents read off the document — the first pass asked only about terms a table names, and passed clean while 161 answers like *medical centre in E4* were a wrong "yes" (SCENARIOS.md run 2, R1). It audits `LEP_TYPE_OF` against the notes both ways, too. |
 | `scripts/audit_parking_rates.py` **completeness** | Added 2026-08-20. The rates were only ever presence-checked, and the docstring claimed a completeness check that **did not exist** — so "27 entries checked, 0 not matching" printed while `Shop top housing` was absent from `data/parking.py` entirely. Schedule 1's land use column is now isolated from the PDF by x-position (the rate columns still cannot be diffed, which is why rates stay verbatim), every row is either carried or named in `UNCARRIED_SCHEDULE_1_USES`, and the hand-read list is itself checked against the document so it cannot drift into fiction. |
-| `scripts/audit_heritage.py` | Checks the LEP cl 5.10 provisions in `data/heritage.py` against the LEP text, and runs the check that matters more: that DCP **Chapter 12 still requires nothing**. Nine places asserted "a Heritage Impact Statement is required (DCP Chapter 12)" and both halves were wrong, so the correction rests on a negative — which a presence check is structurally blind to. It also pins the *modality*: if cl 5.10(5) ever stops saying "may", every hedge this repo now carries is wrong in the other direction. |
+| `scripts/audit_heritage.py` | Checks the LEP cl 5.10 provisions in `data/heritage.py` against the LEP text, and — since ROADMAP.md C1 — all 223 DCP Chapter 12 quotes against the chapter, in both directions: every stored string is in the chapter, and every bullet (164), PREFERRED / NOT ENCOURAGED heading, numbered objective, conservation area heading and figure with a unit in the chapter is carried, plus every conservation area against its LEP Schedule 5 Part 2 row. It also runs the check that matters more: that DCP **Chapter 12 still requires no heritage document**. Nine places asserted "a Heritage Impact Statement is required (DCP Chapter 12)" and both halves were wrong, so the correction rests on a negative — which a presence check is structurally blind to. It also pins the *modality*: if cl 5.10(5) ever stops saying "may", every hedge this repo now carries is wrong in the other direction. |
 | `scripts/run_scenarios.py` | Runs `SCENARIOS.md` against the real handlers with fixed calls and keeps every answer verbatim; `--compare` lists what changed since an earlier run. It does not judge — verdicts need a reading of the source — but an unchanged answer keeps its verdict, so a run costs the changed scenarios only. Run it after every phase: run 2 found a wrong "yes" 161 answers wide that every audit passed. |
 | `scripts/audit_interpretations.py` | Checks every provision quoted in `data/interpretations.py` — the register of readings this repo takes where a source admits more than one — appears verbatim in its source, **on the PDF page the entry names**, so a reviewer can turn straight to it and a phrase lifted from the wrong section fails. Also checks each entry carries what the planner review needs and that its `duty_planner_question` and `relied_on_by` links resolve. It cannot audit the readings themselves — that is ROADMAP.md B2, and `scripts/render_interpretations.py` prints the register as the review packet. |
 | `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
@@ -84,9 +84,9 @@ imports keep working. It is not where the code lives. Find things by module:
 
 | Layer | Where | What |
 |---|---|---|
-| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`, `interpretations`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `interpretations.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py` | Applies the facts. Handler-free and directly unit-testable. |
-| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`), each a thin handler carrying its own schema. |
+| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`, `interpretations`, `heritage`. No logic. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `interpretations.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py`, `heritage.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`, `heritage`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
 
@@ -407,8 +407,8 @@ and the audit checks it against `data/zones.py`.
 
 **`data/heritage.py` exists because one wrong sentence reached nine files.** Every one of them
 asserted *"a Heritage Impact Statement is required (DCP Chapter 12)"*, and both halves are wrong:
-Chapter 12 requires no document at all — it mentions a heritage impact statement twice, both in its
-definitions, and says only that it applies whenever consent is required under cl 5.10 — while the
+Chapter 12 requires no heritage document — it mentions a heritage impact statement twice, both in its
+definitions, and says it applies whenever consent is required under cl 5.10 — while the
 provision that *does* bite, **cl 5.10(5), says the consent authority *may* require a heritage
 management document**, of which a HIS is one of three forms. Stating a discretion as a rule sends a
 business to buy a consultant's report before anyone has asked for one, and forecloses the
@@ -427,7 +427,30 @@ Two rules follow. **Never write into a SEE that a document accompanies the appli
 used to state as fact that a HIS was attached, in text going to Council over the applicant's name.
 And **`tests/test_heritage.py` greps the whole package** rather than pinning nine call sites — the
 failure mode here was propagation, so what is pinned is the phrase's *absence* everywhere, which
-cannot drift the way nine separate assertions did.
+cannot drift the way nine separate assertions did. The grep exempts `data/heritage.py` **by path** —
+there are now three files called `heritage.py`, and a name match would exempt the two that talk most
+about heritage documents.
+
+**`heritage.py` selects; `data/heritage.py` is Chapter 12 and cl 5.10** (ROADMAP.md C1, on the flood
+template). The chapter is real content, not a stub: §12.3 makes its policies binding on Schedule 5
+items *with a variation route*, §12.5 has twelve design guidelines split PREFERRED / NOT ENCOURAGED
+(signage, colours, roof, windows, materials, fences…), and §12.6 has precinct policies for all seven
+conservation areas — Nimbin's are the shopfront ones (stall risers, no large plate glass, shutters
+inside). Reading it whole also showed S4's "requires no document at all" was one clause too strong:
+it asks for **colour scheme details with a DA for new development** and a **justification for any
+departure** (`WHAT_CHAPTER_12_DOES_ASK_FOR`) — neither a heritage management document, so S4 stands.
+Three rules, each flood's. **Status is never inferred**: without `heritage_status` the tool returns
+heritage item / conservation area / both / vicinity / none known side by side, and says the state
+layer can *confirm* a listing but cannot *clear* one (point query, the vicinity is unmapped, a state
+dataset is not the instrument). **The DCP never goes back alone**: Chapter 12 applies "whenever
+development consent is required under clause 5.10", so cl 5.10(2) — which lists *works*, not uses —
+decides whether it applies at all, and cl 5.10(3)–(5) and (10) ride along. **"May" stays "may"**:
+guidelines are reported under the chapter's own labels, and only the policies it words as a flat
+refusal ("will not be approved", "will not be permitted", "should not be approved") are reported as
+one, found by phrase in the stored quotes rather than listed by hand. Two easy mistakes to keep out:
+**cl 5.10(10) is only for "a building that is a heritage item"** — not a building merely inside a
+conservation area, even one Girards Hill's policy says to treat "in a similar manner" to an item —
+and the Heritage Map labels C1–C7 are not accepted as area names, because C1–C3 are zone codes here.
 
 **`landuse.py` decides which stored fact applies, and until 2026-08-20 nothing checked it.** Every
 audit above passes on data; all 21 zone tables match the LEP verbatim; and `check_permissibility`
@@ -877,9 +900,24 @@ is not evidence the land does not flood.
 
 # HERITAGE CONSERVATION (DCP Chapter 12 & LEP Schedule 5)
 
+Prefer `get_heritage_requirements`, which quotes Chapter 12 and cl 5.10 and selects the design
+guidelines and precinct policies for the work described. Pass `heritage_status` only if it has been
+established — `lookup_site_constraints` can confirm a listing but an empty result does not clear one.
+
 ## Heritage Items
 - Complete list in LEP 2012 Schedule 5
-- Seven Heritage Conservation Areas in LGA
+- Seven Heritage Conservation Areas in LGA (LEP Schedule 5 Part 2 / Heritage Map label): Dalley
+  Street (C1), Eltham (C2), Girards Hill (C3), St Andrew's (C4), Spinks Park/Civic Precinct (C5),
+  St Carthage's (C6), Nimbin (C7). Each has its own §12.6 precinct policies, which "must be
+  addressed with development applications for that respective area"
+- cl 5.10(2) lists **works** that need consent (external alteration including "detail, fabric,
+  finish or appearance", structural interior change to an item, erecting, subdividing) — not uses.
+  cl 5.10(3)(a) lets minor work or maintenance proceed without consent once Council confirms in
+  writing, before work starts
+- cl 5.10(10) (a prohibited use approved to fund conservation) applies only to a building that is a
+  heritage item, not to one merely inside a conservation area
+- Chapter 12 signage: internally illuminated signs "will not be approved"; hanging or fascia signs
+  and hand-painted or individually mounted lettering are PREFERRED
 
 ## Development Near Heritage Items
 - Conservation means: maintenance, preservation, restoration, reconstruction, adaptation
