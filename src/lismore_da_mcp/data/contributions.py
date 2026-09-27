@@ -276,6 +276,19 @@ DEVELOPMENT_TYPE_RATES = {
     },
 }
 
+# Rows of Table E2 that DEVELOPMENT_TYPE_RATES deliberately does not carry, each
+# with the reason. `scripts/audit_contributions.py` reads the row labels off the
+# plan and fails on any row that is neither carried (by `plan_name`) nor named
+# here, and on any name here that is not a row of the table — so a development
+# type added at the next review is reported rather than silently uncharged.
+UNCARRIED_TABLE_E2_ROWS = {
+    "Other Development": (
+        "Not a rate. The row reads 'See Note E', which sends anything not in the table "
+        "to sections 1.5 and 1.6 and the Table E1 per person / PVT rates. Carried as "
+        "OTHER_DEVELOPMENT, which says why no figure can be quoted."
+    ),
+}
+
 # Cells of Table E2 that do not reproduce from Table E1. Named rather than
 # tolerated: an audit that reports the same unexplained difference every run
 # teaches its reader to stop reading it.

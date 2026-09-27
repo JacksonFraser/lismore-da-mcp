@@ -97,6 +97,14 @@ def the_clock() -> dict:
                 "clause": "EP&A Regulation 2021 "
                           f"{CLOCK_STOPS['referral_authority_requests']['clause']}",
                 "in_practice": CLOCK_STOPS["referral_authority_requests"]["plain"],
+                "limit": {
+                    "provision":
+                        CLOCK_STOPS["referral_authority_requests"]["the_25_day_limit"]["verbatim"],
+                    "clause": "EP&A Regulation 2021 "
+                              f"{CLOCK_STOPS['referral_authority_requests']['the_25_day_limit']['clause']}",
+                    "in_practice":
+                        CLOCK_STOPS["referral_authority_requests"]["the_25_day_limit"]["plain"],
+                },
             },
         },
         "when_it_never_starts": {

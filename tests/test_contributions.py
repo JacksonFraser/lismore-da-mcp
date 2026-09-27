@@ -23,7 +23,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from audit_contributions import (  # noqa: E402
     DERIVATION_TOLERANCE,
+    completeness_problems,
     derive,
+    table_e2_rows,
     known_discrepancy,
     money_on_page,
     page_text,
@@ -43,6 +45,7 @@ from lismore_da_mcp.data.contributions import (  # noqa: E402
     INFRASTRUCTURE_RATES,
     KNOWN_TABLE_DISCREPANCIES,
     SECTION_64_CHARGES,
+    UNCARRIED_TABLE_E2_ROWS,
 )
 from lismore_da_mcp.data.fees import DA_FEE_NO_BUILDING_WORK  # noqa: E402
 from lismore_da_mcp.fees import calculate_da_fee, estimate_total_cost  # noqa: E402
@@ -53,6 +56,11 @@ CELLS = [(key, catchment) for key in DEVELOPMENT_TYPE_RATES for catchment in CAT
 @pytest.fixture(scope="module")
 def e2_figures():
     return money_on_page(page_text(PLAN_PDF, TABLE_E2_PAGE))
+
+
+@pytest.fixture(scope="module")
+def rows():
+    return table_e2_rows()
 
 
 @pytest.fixture(scope="module")
@@ -158,6 +166,46 @@ class TestTheAuditCanFail:
         """The presence half of the audit, shown failing on a figure that is not
         in the document."""
         assert not any(f in e2_figures for f in formats(99_999.99))
+
+
+class TestEveryDevelopmentTypeIsCarried:
+    """ROADMAP E1. Presence and derivation only look at what is stored, so
+    neither could see a development type the next plan review adds. Table E2's
+    row labels are read off the PDF and each must be carried or explained."""
+
+    def test_the_rows_are_read_off_the_document(self, rows):
+        # Pinned so a parser that quietly stops finding rows cannot pass as clean.
+        assert len(rows) == 11
+        assert rows[0] == "Dwelling house / residential lot / exhibition home"
+        # The superscript note letter is not part of the label.
+        assert "Residential Accommodation with 2 bedrooms" in rows
+        # A label wrapped over two lines is one row.
+        assert ("Tourist and visitor accommodation, camping grounds, caravan parks, "
+                "eco-tourist facilities") in rows
+
+    def test_every_row_is_carried_or_explained(self, rows):
+        assert completeness_problems(rows, DEVELOPMENT_TYPE_RATES, UNCARRIED_TABLE_E2_ROWS) == []
+
+    def test_a_row_added_to_the_plan_is_reported(self, rows):
+        problems = completeness_problems(rows + ["Hospitals"], DEVELOPMENT_TYPE_RATES,
+                                         UNCARRIED_TABLE_E2_ROWS)
+        assert any("'Hospitals'" in p for p in problems), problems
+
+    def test_a_dropped_row_is_reported(self, rows):
+        fewer = {k: v for k, v in DEVELOPMENT_TYPE_RATES.items() if k != "industry"}
+        problems = completeness_problems(rows, fewer, UNCARRIED_TABLE_E2_ROWS)
+        assert any("'Industry'" in p for p in problems), problems
+
+    def test_a_stale_explanation_is_reported(self, rows):
+        stale = dict(UNCARRIED_TABLE_E2_ROWS, **{"Hospitals": "never in the table"})
+        problems = completeness_problems(rows, DEVELOPMENT_TYPE_RATES, stale)
+        assert any("'Hospitals'" in p for p in problems), problems
+
+    def test_a_plan_name_that_is_not_a_row_is_reported(self, rows):
+        renamed = dict(DEVELOPMENT_TYPE_RATES,
+                       industry=dict(DEVELOPMENT_TYPE_RATES["industry"], plan_name="Industries"))
+        problems = completeness_problems(rows, renamed, UNCARRIED_TABLE_E2_ROWS)
+        assert any("['industry'] plan_name" in p for p in problems), problems
 
 
 class TestResolvingAUseToARate:

@@ -656,7 +656,25 @@ that produced every invented figure this project has had to remove. Write the au
 
 Small, dull, and the reason the fee schedule was two years stale before anyone noticed.
 
-### E1 — The third direction for the two audits that lack it
+### E1 — The third direction for the two audits that lack it · **DONE 2026-09-27**
+
+> **Landed.** Both audits now read the inventory off the document and fail on anything neither
+> carried nor named with a reason.
+>
+> - **`audit_timing.py`** reads every subsection of Part 4 Division 4 (ss91–95) off the fetched
+>   regulation — 17 of them — and requires each to be quoted in `data/timing.py` or named in
+>   `DIVISION_4_NOT_CARRIED` with why it cannot reach an ordinary local DA. An inserted `s94(8)`, a
+>   dropped explanation and an explanation for a subsection that no longer exists are each reported,
+>   and tests show all three failing. It also checks each quote against the subsection its `clause`
+>   names rather than the whole 600KB text, so a quote filed under the wrong subsection is caught.
+>   One subsection turned out worth carrying rather than explaining: **s94(7)**, the 25-day limit on
+>   a referral agency's own information request. The data had paraphrased it as "the same 25-day
+>   style limit", but the agency's 25 days run from when it receives Council's referral, not from
+>   lodgement. It is now quoted and reaches `get_assessment_timeline`.
+> - **`audit_contributions.py`** reads Table E2's development type column off the PDF by
+>   x-position (superscript note letters dropped, wrapped labels joined) and requires each of the 11
+>   rows to be carried by `plan_name` or named in `UNCARRIED_TABLE_E2_ROWS`. All 10 rated rows are
+>   carried; "Other Development" is named, since it is Note E rather than a rate.
 
 Most audits already check both directions; two do not **[verified]**:
 
