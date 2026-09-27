@@ -410,6 +410,35 @@ description recommends the path that under-quotes by $242; and the *"CBD exempti
 `CLAUDE.md` records as deleted on 2026-08-06 is still live at `data/readiness.py:239` and
 `tools/see.py:82`.
 
+### S6 — The run-2 leftovers · **DONE 2026-09-27**
+
+> **Landed — four carried over from run 1 and two from the LOW list; the rest are elsewhere.**
+> Listed in `SCENARIOS.md` under *Results — run 2*, tested together in
+> `tests/test_run2_leftovers.py`, and every test of a fix fails on the code before it.
+>
+> - **cl 5.22 reaches `check_da_readiness`.** A childcare centre, school or boarding house now gets
+>   a `confirm_before_lodging` finding that the flood question reaches past the flood planning
+>   area to the probable maximum flood — the one flood finding a Flood Planning Level cannot
+>   settle. Matched on the applicant's words with `flood.py`'s own list; a shop gets nothing.
+> - **Heritage no longer hardens to silence when an address is given.** The state layer's "not
+>   within a mapped area" is a point reading; it now yields an `address_in_the_see` finding naming
+>   cl 5.10(5)(c) and the conservation area question stays on the Duty Planner agenda, whose own
+>   text already said the layer does not stand in for Schedule 5. Supplying an address had made
+>   the answer *less* careful.
+> - **`available_flood_areas` offers `cbd_flood_liable`**, and a test holds the menu equal to the
+>   words the schema offers, each of which must resolve.
+> - **RU4, RU6, R4, E5, C4, W3 and W4 are "not used in Lismore", not "not found".** The names are
+>   the LEP's own, read from the clauses that mention them, and RU4/RU6 carry the cl 4.2 note
+>   verbatim. A code the Plan never mentions (SP1, X9) is still "not found".
+> - **`get_da_checklist`** takes the LEP's food terms, and answers `heritage` (or `flood`,
+>   `bushfire`, `height`) with the conditional document that condition adds — read off
+>   `CONDITIONAL_DOCUMENTS`' own wording — instead of refusing it as an unknown type.
+>
+> Not done here: zero `gross_floor_area_m2` is fixed in PR #70's change to the same lines; the
+> hairdresser note is A2's; and **implausible inputs stay unflagged**, because any threshold
+> would be a figure no document gives, and a flag on every large answer would be a standing
+> caveat.
+
 ---
 
 # Phase T — What Council actually did

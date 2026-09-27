@@ -489,3 +489,26 @@ ZONES = {
         "redirect_to": "E3",
     },
 }
+
+
+# Standard Instrument zones that Lismore LEP 2012 names in passing — in
+# clauses written for every council — but gives no land use table. A code from
+# this list was answered "Zone not found", which reads as a gap in this
+# server's data when it is a fact about the Plan. Each name is spelt as the LEP
+# text spells it after "Zone <code> "; tests/test_zone_transcription.py checks
+# that, and that none of them has crept into ZONES.
+ZONES_WITHOUT_A_TABLE = {
+    "RU4": "Primary Production Small Lots",
+    "RU6": "Transition",
+    "R4": "High Density Residential",
+    "E5": "Heavy Industrial",
+    "C4": "Environmental Living",
+    "W3": "Working Waterways",
+    "W4": "Working Waterfront",
+}
+
+# The note to cl 4.2, verbatim — the one place the Plan says it outright.
+RU4_RU6_NOTE = (
+    "When this Plan was made it did not include Zone RU4 Primary Production Small Lots or "
+    "Zone RU6 Transition."
+)
