@@ -22,7 +22,7 @@ from lismore_da_mcp.observability import (
     OUTCOME_OK,
     timed_tool_call,
 )
-from lismore_da_mcp.registry import mcp_tools, registered, validate_arguments
+from lismore_da_mcp.registry import mcp_tools, registered, resolve_aliases, validate_arguments
 
 # Importing the tools package is what registers every tool.
 import lismore_da_mcp.tools  # noqa: F401  (side-effecting import, must come first)
@@ -141,7 +141,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     temp dir in PUBLIC_MODE.
     """
     with timed_tool_call(name) as outcome:
-        argument_error = validate_arguments(name, arguments)
+        # Known aliases first (ROADMAP.md A1), so the gate below sees only the
+        # tool's own names and refuses everything else exactly as before.
+        arguments, argument_error = resolve_aliases(name, arguments)
+        argument_error = argument_error or validate_arguments(name, arguments)
         if argument_error:
             outcome[0] = OUTCOME_INVALID_ARGUMENTS
             return [TextContent(type="text", text=json.dumps(argument_error, indent=2))]

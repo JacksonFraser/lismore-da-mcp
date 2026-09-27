@@ -123,7 +123,7 @@ class TestOrdinaryCallsStillWork:
         assert json.loads(text)["name"] == "Primary Production"
 
     def test_unknown_argument_still_refused(self):
-        is_error, text = through_sdk("get_zone_info", {"zone": "R2"})
+        is_error, text = through_sdk("get_zone_info", {"colour": "R2"})
         assert "Unrecognised" in text or is_error
 
     def test_missing_required_still_refused(self):

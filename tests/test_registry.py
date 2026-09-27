@@ -122,3 +122,106 @@ class TestHandlersAreDirectlyCallable:
 
     def test_handler_for_a_no_argument_tool(self):
         assert registry.get("get_contact_info").handler({})[0].text
+
+
+class TestArgumentAliases:
+    """ROADMAP.md A1. Run 2 of SCENARIOS.md sent five natural spellings of
+    arguments the server has — floor area, cost, zone — and all five were
+    refused. Rewrite what we know, refuse what we do not, never default."""
+
+    @staticmethod
+    def dispatch(tool, arguments):
+        import asyncio
+        import json
+
+        from lismore_da_mcp.server import call_tool
+
+        text = asyncio.run(call_tool(tool, arguments))[0].text
+        try:
+            return json.loads(text)
+        except ValueError:
+            return {"text": text}
+
+    @pytest.mark.parametrize("tool,arguments", [
+        # The five RB-01 calls, verbatim.
+        ("calculate_da_fees", {"cost_of_works": 50000, "floor_area": 80, "development_type": "cafe"}),
+        ("get_parking_rates", {"development_type": "cafe", "floor_area": 80}),
+        ("get_setback_requirements", {"setback_type": "front", "zone_code": "R1"}),
+        ("generate_see_draft", {"property_address": "12 Keen Street, Lismore NSW 2480", "zone": "E2",
+                                "proposed_use": "cafe", "development_type": "change of use",
+                                "floor_area_sqm": 80}),
+        ("calculate_da_fees", {"estimated_cost": 50000, "floor_area_sqm": 80, "development_type": "cafe"}),
+    ])
+    def test_the_spellings_run_2_sent_are_accepted(self, tool, arguments):
+        result = self.dispatch(tool, arguments)
+        assert "Unrecognised" not in str(result.get("error", "")), result
+
+    def test_every_alias_lands_on_the_argument_the_tool_declares(self):
+        """Every tool, every concept it has an argument for, every alias it does
+        not itself declare — each renamed to that one argument."""
+        checked = 0
+        for tool, schema in registry.schemas().items():
+            properties = schema.get("properties", {})
+            for concept in registry.ARGUMENT_CONCEPTS.values():
+                target = registry._alias_target(tool, properties, concept)
+                if target is None:
+                    continue
+                assert target in properties
+                for alias in concept["aliases"] - set(properties):
+                    resolved, error = registry.resolve_aliases(tool, {alias: 1})
+                    assert error is None and resolved == {target: 1}, (tool, alias, resolved)
+                    checked += 1
+        assert checked > 100, "the aliases are not being exercised"
+
+    def test_an_alias_never_shadows_a_tools_own_argument(self):
+        """The collision guard. A name a tool declares is that tool's argument,
+        whatever it means elsewhere — 'zone' is the setbacks tool's own."""
+        for tool, schema in registry.schemas().items():
+            properties = schema.get("properties", {})
+            for concept in registry.ARGUMENT_CONCEPTS.values():
+                for alias in concept["aliases"] & set(properties):
+                    resolved, _ = registry.resolve_aliases(tool, {alias: 1})
+                    assert resolved == {alias: 1}, (tool, alias)
+
+    def test_no_alias_belongs_to_two_concepts(self):
+        seen = {}
+        for name, concept in registry.ARGUMENT_CONCEPTS.items():
+            for alias in concept["aliases"]:
+                assert alias not in seen, f"{alias!r} is in both {seen.get(alias)!r} and {name!r}"
+                seen[alias] = name
+
+    def test_every_target_is_a_real_argument(self):
+        declared = {p for s in registry.schemas().values() for p in s.get("properties", {})}
+        for name, concept in registry.ARGUMENT_CONCEPTS.items():
+            for target in concept["targets"]:
+                assert target in declared, (name, target)
+            for tool in concept.get("development_type_in", ()):
+                assert "development_type" in registry.schemas()[tool]["properties"]
+
+    @pytest.mark.parametrize("name", [
+        "area_sqm",                 # signage: the sign's area, not a floor area
+        "existing_spaces_on_site",  # parking: feeds the CBD credit, not spaces provided
+        "existing_parking_spaces",
+        "development_type",         # the use in two tools, "what you are doing" in others
+        "site_area_sqm",
+    ])
+    def test_names_that_mean_different_things_are_not_aliases(self, name):
+        assert all(name not in c["aliases"] for c in registry.ARGUMENT_CONCEPTS.values())
+
+    def test_signage_does_not_take_a_floor_area_as_its_area(self):
+        result = self.dispatch("get_signage_requirements",
+                               {"sign_type": "wall sign", "floor_area": 80})
+        assert "Unrecognised argument(s): floor_area" in result["error"]
+
+    def test_an_unknown_argument_is_still_refused_the_same_way(self):
+        result = self.dispatch("get_zone_info", {"colour": "R2"})
+        assert result["error"] == "Unrecognised argument(s): colour"
+        assert "zone_code" in result["accepted_arguments"]
+
+    def test_two_names_with_different_values_are_refused(self):
+        result = self.dispatch("calculate_da_fees", {"development_cost": 1000, "cost": 2000})
+        assert "both give development_cost" in result["error"]
+
+    def test_two_names_with_the_same_value_are_one_argument(self):
+        result = self.dispatch("calculate_da_fees", {"development_cost": 1000, "cost": 1000})
+        assert "error" not in result

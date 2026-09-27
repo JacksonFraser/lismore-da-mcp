@@ -108,6 +108,107 @@ _JSON_TYPES: dict[str, tuple[type, ...]] = {
 _ENFORCED_KEYWORDS = frozenset({"type", "description", "minimum", "maximum", "items"})
 
 
+# The names callers actually use for the same few concepts, and where each lands.
+#
+# ROADMAP.md A1. The server spells floor area three ways, cost two, zone two and
+# parking provided two, depending on the tool — and the most complex tool in the
+# business path was the odd one out on the two commonest. Run 2 of SCENARIOS.md
+# sent five natural spellings and all five were refused; every refusal is a
+# round trip on the first call a session ever makes.
+#
+# **Rewrite what we know, refuse what we do not, never default.** An alias here
+# is a known-correct rename, not a guess: each concept names the arguments it may
+# land on, in order, and a tool takes the first it declares. Nothing else
+# changes — an unknown name is still refused by `validate_arguments`, with the
+# same message, and a tool's own argument is never rewritten, so an alias cannot
+# shadow a real one.
+#
+# Deliberately left out, because the same word means different things in
+# different tools:
+#   * `area_sqm` — in signage it is the *sign's* area, not a floor area;
+#   * `existing_spaces_on_site` / `existing_parking_spaces` — the first feeds the
+#     CBD parking credit, which is not the same fact as the spaces provided;
+#   * `development_type` as a general target — it is the land use in the parking
+#     and fees tools, and "what you are doing" (fitout, change of use) in the
+#     readiness and SEE tools. The use concept reaches it only in those two.
+ARGUMENT_CONCEPTS = {
+    "floor area": {
+        "targets": ("floor_area_sqm", "gross_floor_area_m2"),
+        "aliases": {"floor_area", "floor_area_m2", "floor_area_sqm", "gross_floor_area",
+                    "gross_floor_area_m2", "gross_floor_area_sqm", "gfa", "gfa_m2", "gfa_sqm"},
+    },
+    "cost of works": {
+        "targets": ("development_cost", "estimated_cost"),
+        "aliases": {"cost", "cost_of_works", "cost_of_development", "development_cost",
+                    "estimated_cost", "estimated_development_cost", "construction_cost",
+                    "project_cost"},
+    },
+    "zone": {
+        "targets": ("zone_code", "zone"),
+        "aliases": {"zone", "zone_code", "zoning", "land_zone"},
+    },
+    "parking spaces provided": {
+        "targets": ("spaces_provided", "parking_spaces_provided"),
+        "aliases": {"spaces_provided", "parking_spaces_provided", "parking_spaces",
+                    "parking_provided", "car_spaces", "car_parking_spaces"},
+    },
+    "address": {
+        "targets": ("property_address", "address"),
+        "aliases": {"address", "property_address", "site_address", "street_address"},
+    },
+    "the proposed use": {
+        "targets": ("land_use", "proposed_use"),
+        # Only where development_type *is* the use.
+        "development_type_in": ("get_parking_rates", "calculate_da_fees"),
+        "aliases": {"use", "land_use", "proposed_use", "intended_use", "business_type"},
+    },
+}
+
+
+def _alias_target(tool: str, properties: dict, concept: dict) -> str | None:
+    """The argument this tool declares for a concept, or None if it has none."""
+    for target in concept["targets"]:
+        if target in properties:
+            return target
+    if tool in concept.get("development_type_in", ()) and "development_type" in properties:
+        return "development_type"
+    return None
+
+
+def resolve_aliases(name: str, arguments: dict) -> tuple[dict, dict | None]:
+    """Rename known aliases to the tool's own argument names.
+
+    Returns (arguments, error). Runs before `validate_arguments`, which then sees
+    only the tool's own names and checks them exactly as before. An argument the
+    tool itself declares is never rewritten. Two names for one argument with
+    different values is refused rather than resolved — which one the caller meant
+    is not something to guess.
+    """
+    registration = _REGISTRY.get(name)
+    if registration is None:
+        return arguments, None
+    properties = registration.schema.get("properties", {})
+
+    resolved, sources = {}, {}
+    for key, value in arguments.items():
+        target = key
+        if key not in properties:
+            for concept in ARGUMENT_CONCEPTS.values():
+                if key in concept["aliases"]:
+                    target = _alias_target(name, properties, concept) or key
+                    break
+        if target in resolved and resolved[target] != value:
+            return arguments, {
+                "error": f"'{sources[target]}' and '{key}' both give {target}, with different "
+                         "values.",
+                "note": "Send one of them. Two values for the same argument are not reconciled "
+                        "here, because which one was meant is not something to guess.",
+            }
+        resolved[target] = value
+        sources.setdefault(target, key)
+    return resolved, None
+
+
 def _type_error(argument: str, expected: str, value) -> str | None:
     """Return a description of the mismatch, or None if the value fits."""
     allowed = _JSON_TYPES.get(expected)
