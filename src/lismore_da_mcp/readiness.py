@@ -689,6 +689,7 @@ def open_questions(p: Proposal, has_parking_shortfall: bool | None = None) -> li
     applies = {
         "codes_sepp_or_existing_use_rights": p.is_change_of_use,
         "cbd_boundary": p.in_cbd is None,
+        "nimbin_precinct": p.zone_code.strip().upper() == "RU5",
         "flood_planning_level": True,
         "section_64_charge": p.is_food or bool(p.floor_area_sqm),
         "contribution_catchment": not p.catchment,

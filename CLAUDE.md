@@ -62,6 +62,7 @@ curl localhost:8080/health                # → "ok"
 | `/validate-tracker`, `tracker-validator` agent, `scripts/validate_against_tracker.py` | The only check graded by someone other than us: real business DAs from Council's DA Tracker, graded against the Notices of Determination (ROADMAP.md Phase T). `harvest` finds new DAs, `fetch --update` reads Council's figures into `tests/fixtures/tracker_cases.json`, `grade` scores the tools, `freeze` records a prediction for an undetermined DA — the only cases graded without hindsight. Inputs come from what the applicant knew at lodgement, never the consent. Notices carry names and emails, so downloads stay in `tracker-cache/`, which is gitignored and hook-blocked. Needs the `scraping` extra, and it is live — the tracker and the address services. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/`, `_quarantined/` or `tracker-cache/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
 | `.github/workflows/verify-against-council.yml` | Runs `verify_against_council.py` quarterly (3 Feb/May/Aug/Nov — August catches Council's July fees reissue) and on `workflow_dispatch`. Opens or comments on a `council-drift` issue on drift, and a **separate** `council-verify-blocked` issue when Council could not be reached or the script failed, because Council may refuse CI runners and a block must read as neither drift nor clean. Holds only the default token with `contents: read` / `issues: write`, checks out without credentials, and fails if `documents/` changed. Its first run already paid for itself in review: `normalise()` had lost its curly-apostrophe handling, so two parking rates would have opened a false drift issue. |
+| `scripts/audit_nimbin.py` | Checks `data/nimbin.py` against DCP Part B Chapter 6 (Nimbin Village) in four directions, because it is a fresh transcription: every quote is present; every numbered section heading, every precinct's **Preferred land uses** list (item for item, both ways), every Live / Work criterion label and every figure the chapter prints with a unit is read **off the document** and must be carried or named with a reason; no figure in the data's guidance text is one the chapter does not print; and the recorded absences (no height in metres, no parking rate, no site coverage, no side or rear setback figure) are still absent. `tests/test_nimbin.py` shows each direction failing. |
 
 `.claude/settings.local.json` stays out of git (per-machine permissions); everything else in
 `.claude/` is shared, because a guardrail only one person has is not a guardrail.
@@ -85,9 +86,9 @@ imports keep working. It is not where the code lives. Find things by module:
 
 | Layer | Where | What |
 |---|---|---|
-| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`, `interpretations`, `heritage`, `heritage_items`. No logic. |
-| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `interpretations.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py`, `heritage.py` | Applies the facts. Handler-free and directly unit-testable. |
-| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`, `heritage`), each a thin handler carrying its own schema. |
+| Facts | `data/` | Hand-transcribed source content: `zones`, `parking`, `contributions`, `fees`, `definitions`, `standards`, `referrals`, `flood`, `checklists`, `instruments`, `see_templates`, `signage`, `approvals`, `timing`, `readiness`, `contacts`, `interpretations`, `heritage`, `heritage_items`, `nimbin`. No logic. |
+| Domain logic | `fees.py`, `contributions.py`, `parking.py`, `interpretations.py`, `signage.py`, `approvals.py`, `timing.py`, `readiness.py`, `flood.py`, `standards.py`, `landuse.py`, `search.py`, `index.py`, `vocabulary.py`, `addresses.py`, `heritage.py`, `villages.py` | Applies the facts. Handler-free and directly unit-testable. |
+| Tools | `tools/` | One module per domain (`zoning`, `parking`, `signage`, `approvals`, `timing`, `readiness`, `fees`, `planning`, `documents`, `see`, `heritage`, `villages`), each a thin handler carrying its own schema. |
 | SEE form | `see/` | `fields`, `layout`, `fill`, `generate`, `parsers` for the Council PDF. |
 | Plumbing | `registry.py`, `app.py`, `transport.py`, `observability.py`, `config.py` | Registration, the `Server` object, stdio/HTTP, logging, paths. |
 
@@ -418,6 +419,20 @@ fitout is this repo's most likely flood-shaped mistake. And **the DCP never goes
 cl 5.21(2) is a bar on granting consent rather than a standard to design to, and cl 5.21(3)(a)
 requires climate change to be considered, which the DCP's 2001 modelling predates.
 
+**`villages.py` selects; `data/nimbin.py` is DCP Part B Chapter 6.** RU5 is a business zone
+(`PLAN.md`), and Nimbin is the only village with a chapter of its own — the DCP Introduction
+records that Dunoon's and Clunes' were repealed in July 2020 — so `get_village_requirements`
+asks for `village` and **never infers Nimbin from RU5**; any other village is told the Part A
+chapters apply. Inside Nimbin the chapter draws its boundary, precincts, heritage conservation
+area and flood hazard on Figures 1, 2, 3 and 5, all images, so each is an argument and an
+unknown one returns every option — the CBD-boundary discipline again, and the refusal is a
+Duty Planner question (`nimbin_precinct`). Two things the answer always carries: **"preferred"
+is not "permissible"** (§2 — permissibility is still `check_permissibility`'s, and a
+non-preferred use must show there is no suitable land in its preferred precinct), and **§1.3(b)
+makes this chapter prevail over the rest of the DCP**, so its recommended 1m freeboard sits over
+Chapter 8's. The chapter's own misprints (§3.1.4 cites Figure 4 for the flood map, which is
+Figure 5) are recorded in `SOURCE_TEXT_DEFECTS` and quoted as printed.
+
 **`standards.py` answers from DCP Chapter 1, and its hardest job is saying what the chapter does
 not contain.** Chapter 1 is Performance Criteria with Acceptable Solutions, so §1.3 makes every
 figure a deemed-to-comply safe harbour rather than a limit — reporting "you must have 6m" talks an
@@ -590,7 +605,9 @@ This agent has access to official planning documents stored in the `documents/` 
 8. **For subdivision requirements**: Read `documents/dcp/chapter-5a-urban-residential-subdivision.pdf`
 9. **For buffer requirements**: Read `documents/dcp/chapter-11-buffer-areas.pdf`
 10. **For vegetation/trees**: Read `documents/dcp/chapter-14-vegetation-protection.pdf`
-11. **For Nimbin-specific**: Read `documents/dcp/part-b-chapter-6-nimbin-village.pdf`
+11. **For Nimbin-specific**: call `get_village_requirements` (it quotes
+    `documents/dcp/part-b-chapter-6-nimbin-village.pdf`). Only Nimbin has a village chapter;
+    Dunoon's and Clunes' were repealed in 2020
 12. **For koala habitat**: Read `documents/dcp/koala-plan-of-management.pdf`
 13. **For SEE preparation**: Read `documents/forms/statement-of-environmental-effects-minor-development.pdf` — a genuine blank Lismore City Council SEE template (added 2026-07-26, verified empty of any applicant data). It only covers "Minor Development": single-storey dwellings, single-storey residential additions/alterations, ancillary residential structures (sheds, pools, carports), and strata subdivision of existing buildings. For anything outside that scope (commercial, change of use, multi-storey, etc.), this form doesn't apply — build the SEE from the standard EP&A Regulation Schedule 1 headings instead (site description, context/setting, access/traffic, environmental impacts, flora/fauna, natural hazards, waste disposal, social/economic impacts, operational details). (The previous file at this path, `see-template-nsw-planning-portal.pdf`, was removed — it was actually a different council's completed, signed application containing another person's private details; see `_quarantined/README.md`.)
 14. **For stormwater**: Read `documents/forms/stormwater-drainage-handbook.pdf`
