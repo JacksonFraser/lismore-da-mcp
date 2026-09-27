@@ -184,8 +184,22 @@ def estimate_total_cost(
             existing_counts=existing_counts,
         )
         parts["section_7_11_contributions"] = contribution
-        payable = contribution.get("net_contribution") or contribution.get("contribution")
-        if payable and catchment and catchment in payable:
+        # A net of None is a refusal, not an absence: the allowance could not be
+        # sized, and falling back to the gross with `or` would budget the whole
+        # area as new — the opposite error to the $0 it replaced (ROADMAP.md T1).
+        if "net_contribution" in contribution:
+            payable = contribution["net_contribution"]
+        else:
+            payable = contribution.get("contribution")
+        if payable is None and "net_contribution" in contribution:
+            allowance = contribution.get("existing_development_allowance", {})
+            parts["section_7_11_contributions"]["not_added_to_total"] = (
+                "The previous use is the same use as the proposal and its size was not "
+                f"given, so the contribution is not in budget_at_least. Supply "
+                f"{allowance.get('supply', 'the previous floor area')} — it is at most "
+                "the at_most figure under existing_development_allowance."
+            )
+        elif payable and catchment and catchment in payable:
             known_total += payable[catchment]
             included.append("section_7_11_contributions")
             # When the net is what set the total and the previous use's size was
