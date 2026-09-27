@@ -134,3 +134,61 @@ class TestFactsMatchTheData:
         }
         missing = sorted(tool_shaped - set(registered()))
         assert missing == [], f"instructions name tools that do not exist: {missing}"
+
+
+class TestFrontDoor:
+    """ROADMAP.md A3. prepare_prelodgement_brief composes the whole walk from
+    proposed_use alone, and it sat undiscoverable behind thirty tools that each
+    answer one question. A session opening "I want to open a café at 12 Keen
+    Street" should reach it without being told it exists."""
+
+    def test_named_as_the_start_before_the_order_of_work(self):
+        """Placed ahead of the numbered steps, because an agent reads those as
+        the procedure and would otherwise walk them one narrow tool at a time."""
+        assert "START HERE" in INSTRUCTIONS
+        start = INSTRUCTIONS.index("START HERE")
+        assert start < INSTRUCTIONS.index("TYPICAL ORDER OF WORK")
+        assert "prepare_prelodgement_brief" in INSTRUCTIONS[start:start + 120]
+
+    def test_what_it_says_the_brief_needs_is_what_the_schema_requires(self):
+        """The instructions promise proposed_use is enough. If the tool ever
+        requires more, that promise sends the first call into a refusal."""
+        assert "needs only proposed_use" in INSTRUCTIONS
+        schema = registered()["prepare_prelodgement_brief"].schema
+        assert schema["required"] == ["proposed_use"]
+        assert "property_address" in schema["properties"]
+
+    def test_the_tool_description_says_so_too(self):
+        """A client that drops server instructions still lists descriptions."""
+        description = registered()["prepare_prelodgement_brief"].description
+        assert description.startswith("The place to start")
+
+
+class TestNarrowToolsPointBack:
+    """check_permissibility is where an unnarrowed session most often starts.
+    It points onward only when its answer opens the rest of the job — a
+    standing pointer on every answer would carry no information (PLAN.md 0.1)."""
+
+    @staticmethod
+    def _ask(zone, use):
+        import asyncio
+        import json
+
+        from lismore_da_mcp.server import call_tool
+
+        return json.loads(asyncio.run(call_tool(
+            "check_permissibility", {"zone_code": zone, "land_use": use}))[0].text)
+
+    def test_permitted_with_consent_points_at_the_brief(self):
+        result = self._ask("E2", "restaurant or cafe")
+        assert result["permissibility"] == "permitted_with_consent"
+        assert "prepare_prelodgement_brief" in result["the_rest_of_the_job"]
+
+    @pytest.mark.parametrize("zone,use", [
+        ("R2", "industry"),                  # prohibited: nothing further to do
+        ("E2", "zzzz not a land use"),       # unrecognised: the question is not settled
+    ])
+    def test_other_answers_do_not(self, zone, use):
+        result = self._ask(zone, use)
+        assert result["permissibility"] != "permitted_with_consent"
+        assert "the_rest_of_the_job" not in result

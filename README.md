@@ -86,7 +86,7 @@ claude
 | Tool | Description |
 |------|-------------|
 | `check_da_readiness` | Check one proposal against the checklist, the site constraints, the referrals and the Regulation's own content requirements, and report what would stop it, what could get it rejected in the first 14 days, and what is still missing |
-| `prepare_prelodgement_brief` | A printable brief for Council's free Duty Planner drop-in: the questions this server cannot answer, ranked by what each costs to leave unresolved, and the ones already answered so the fifteen minutes are not spent on them |
+| `prepare_prelodgement_brief` | **Start here** if the question is not yet narrow — needs only the proposed use (and ideally the address) and runs the whole walk. A printable brief for Council's free Duty Planner drop-in: the questions this server cannot answer, ranked by what each costs to leave unresolved, and the ones already answered so the fifteen minutes are not spent on them |
 
 **Documents**
 

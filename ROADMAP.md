@@ -915,7 +915,22 @@ unreachable term still refuses, and the audit covers the fallback.
 
 **Cost:** 1–2 days, most of it deciding which tools share the path.
 
-### A3 — Make the composed tools the front door
+### A3 — Make the composed tools the front door · **DONE 2026-09-27**
+
+> **Landed.** The server `instructions` now open with a START HERE paragraph naming
+> `prepare_prelodgement_brief` as the first call for anyone who has not narrowed the question —
+> ahead of the numbered steps, because an agent reads those as the procedure and would otherwise
+> walk them one narrow tool at a time. The tool's own description opens the same way, for clients
+> that drop the instructions. **The budget held**: 4,193 characters before, 4,156 after, by
+> compressing the opening, step 2, the fee and flood lines, and dropping step 7's now-redundant
+> mention of the brief. The 4,200 guard was not touched.
+>
+> One narrow tool points back, and only on one answer: `check_permissibility` adds
+> `the_rest_of_the_job` when the use is *permitted with consent* — the one verdict that opens a
+> larger job rather than closing it. Not on "prohibited", not on an unrecognised term, and not on
+> every tool: a pointer present on every answer is item 0.1's standing caveat again. Tests pin the
+> placement, that "needs only proposed_use" agrees with the schema's `required`, and the pointer's
+> presence and absence.
 
 **The evidence.** `prepare_prelodgement_brief` needs only `proposed_use`, runs the whole walk, and
 produces the one artifact that physically travels to Council **[verified]**. It is the best thing
