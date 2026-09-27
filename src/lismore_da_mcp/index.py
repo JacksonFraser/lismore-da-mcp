@@ -1,21 +1,9 @@
 """SQLite FTS5 index over the documents/ tree.
 
-Without an index every query re-extracts text from all 41 documents — 902 PDF
-pages, ~2.1M characters — which measured 7.4s locally and 16-26s on the hosted
-free tier. That is almost entirely PyMuPDF extraction; the line scoring itself is
-noise. So the index stores the extracted text and nothing else clever.
-
-Segments are stored at exactly the granularity the scorer already works on:
-
-  * one row per page for a PDF
-  * one row per file for a .txt extract
-
-which is how search_pdf and search_text_file split text today. The index narrows
-which segments get scored; `_score_lines` then runs unchanged on the stored text,
-so results are identical to a full scan — a line can only score above zero if its
-segment contains at least one query token, and that is exactly what FTS5 returns.
-
-Uses the stdlib `sqlite3`; no new dependency.
+Caches extracted PDF text, which is almost all the cost of a search (seconds per
+query without it). Segments match the scorer's granularity — one row per PDF
+page, one per .txt file — so FTS5 only narrows which segments `_score_lines`
+runs on, and results are identical to a full scan.
 """
 
 import os
@@ -26,11 +14,8 @@ import fitz  # PyMuPDF
 
 from lismore_da_mcp.config import DOCS_DIR
 
-# Ephemeral on Render, which is fine — it is rebuilt at deploy time by the build
-# command configured in the Render dashboard (see render.yaml for why the
-# dashboard rather than the Blueprint). If that step is ever removed, search
-# still answers: lookup() returns None and the caller falls back to a full scan.
-# There is no lazy rebuild — a first request should not pay an ~8s build.
+# Built at deploy time (see render.yaml). If it is missing, lookup() returns None
+# and search falls back to a full scan; there is deliberately no lazy rebuild.
 INDEX_PATH = Path(
     os.environ.get("LISMORE_SEARCH_INDEX", str(DOCS_DIR.parent / ".search-index.sqlite3"))
 )
@@ -60,12 +45,12 @@ def _segments(path: Path):
     doc = fitz.open(path)
     try:
         for page_num in range(len(doc)):
-            yield "page", page_num + 1, doc[page_num].get_text()
+            yield "page", page_num + 1, str(doc[page_num].get_text())
     finally:
         doc.close()
 
 
-def build_index(paths, index_path: Path = None, force: bool = False) -> dict:
+def build_index(paths, index_path: Path | None = None, force: bool = False) -> dict:
     """Build or refresh the index. Returns a summary dict."""
     index_path = index_path or INDEX_PATH
     want = fingerprint(paths)
@@ -129,7 +114,7 @@ def _match_expression(tokens: list[str]) -> str:
     return " OR ".join('"' + t.replace('"', '""') + '"*' for t in tokens)
 
 
-def lookup(tokens: list[str], chapter: str = "", index_path: Path = None):
+def lookup(tokens: list[str], chapter: str = "", index_path: Path | None = None):
     """Candidate segments for these tokens, or None if there is no usable index.
 
     Returns (file, category, kind, number, body) tuples. Returning None rather
@@ -155,7 +140,7 @@ def lookup(tokens: list[str], chapter: str = "", index_path: Path = None):
         conn.close()
 
 
-def index_status(index_path: Path = None) -> dict:
+def index_status(index_path: Path | None = None) -> dict:
     index_path = index_path or INDEX_PATH
     if not index_path.exists():
         return {"present": False, "path": str(index_path)}

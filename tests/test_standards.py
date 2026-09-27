@@ -24,8 +24,13 @@ from audit_standards import chapter_text, normalise  # noqa: E402
 
 from lismore_da_mcp import standards  # noqa: E402
 from lismore_da_mcp.data.standards import (  # noqa: E402
-    DEFINITIONS, ELEMENTS, HEALTH_PRECINCT, HOUSING_TYPES, HOW_THIS_CHAPTER_WORKS,
-    NOT_SET_BY_THIS_CHAPTER)
+    DEFINITIONS,
+    ELEMENTS,
+    HEALTH_PRECINCT,
+    HOUSING_TYPES,
+    HOW_THIS_CHAPTER_WORKS,
+    NOT_SET_BY_THIS_CHAPTER,
+)
 
 
 @pytest.fixture(scope="module")

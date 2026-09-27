@@ -1,8 +1,7 @@
 """Address → zone lookup against two NSW government APIs.
 
-Five tools require `zone_code` and, until now, nothing derived it. The intended
-audience is people applying for the first time, who know their address and not
-their zone — so the server could not answer the first question anyone asks.
+Several tools require `zone_code`, and first-time applicants know their address,
+not their zone.
 
 Two free, unauthenticated services do it:
 
@@ -409,7 +408,7 @@ def lookup_zone(address: str) -> dict:
     except LookupUnavailable as exc:
         return _unavailable("zoning map service", exc, matched_address=matched_address)
 
-    lismore_features = [f for f in features if _normalise(f.get("LGA_NAME")) == _normalise(LGA_NAME)]
+    lismore_features = [f for f in features if _normalise(f.get("LGA_NAME") or "") == _normalise(LGA_NAME)]
 
     if not features:
         return {
@@ -654,12 +653,8 @@ def _describe(label: str, features: list[dict]) -> dict:
 def out_of_area(match: dict) -> dict | None:
     """A refusal if the geocoder placed this address in another council.
 
-    `lookup_zone` gates on `LGA_NAME` from the zoning features and refuses
-    correctly; `lookup_constraints` asked nothing at all and answered for
-    `1 Jonson Street, Byron Bay` with Lismore-specific reasoning attached —
-    including the flood caveat, which names this LGA and is the single most
-    load-bearing sentence either tool returns. One of the two knew and the other
-    did not ask. SCENARIOS.md D5.
+    Shared by `lookup_zone` and `lookup_constraints`, so neither answers for an
+    address outside Lismore with Lismore-specific reasoning attached.
 
     Gating here rather than on the layers' own `LGA_NAME` because the geocoder
     answers before any layer is queried, and because Bushfire Prone Land carries

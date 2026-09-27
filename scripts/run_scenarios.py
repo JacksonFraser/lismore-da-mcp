@@ -250,7 +250,7 @@ def compare(out: Path, previous: Path, ids: list[str]) -> list[str]:
             continue
         old = json.loads(before.read_text())
         new = json.loads(after.read_text())
-        moved = [f"{i}:{n['tool']}" for i, (o, n) in enumerate(zip(old, new))
+        moved = [f"{i}:{n['tool']}" for i, (o, n) in enumerate(zip(old, new, strict=False))
                  if o["output"] != n["output"] or o["args"] != n["args"]]
         if len(old) != len(new):
             moved.append(f"call count {len(old)} -> {len(new)}")

@@ -178,8 +178,7 @@ def figure_problems(figures: dict, haystack: str) -> list:
 
 def carried_structure() -> dict:
     """What the data claims to carry, in the same shape as `headings()`."""
-    from lismore_da_mcp.data.commercial import (
-        DESCRIPTIVE_SECTIONS, PART_A, PART_A_FRAME, PART_B_FRAME, TABLE_B1)
+    from lismore_da_mcp.data.commercial import DESCRIPTIVE_SECTIONS, PART_A, PART_A_FRAME, PART_B_FRAME, TABLE_B1
 
     sections = set(DESCRIPTIVE_SECTIONS)
     subheadings = set()
@@ -212,8 +211,16 @@ def invented_structure() -> dict:
 def main() -> int:
     sys.path.insert(0, str(ROOT / "src"))
     from lismore_da_mcp.data.commercial import (
-        FIGURES, HOW_TO_READ_THIS_CHAPTER, NOT_SET_BY_THIS_CHAPTER, PART_A, PART_A_FRAME,
-        PART_B_FRAME, PRECINCTS, SEPARATION_TABLE, TABLE_B1)
+        FIGURES,
+        HOW_TO_READ_THIS_CHAPTER,
+        NOT_SET_BY_THIS_CHAPTER,
+        PART_A,
+        PART_A_FRAME,
+        PART_B_FRAME,
+        PRECINCTS,
+        SEPARATION_TABLE,
+        TABLE_B1,
+    )
 
     for path in (CHAPTER, INTRODUCTION):
         if not path.exists():

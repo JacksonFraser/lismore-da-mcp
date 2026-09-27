@@ -4,11 +4,8 @@ import json
 
 from mcp.types import TextContent
 
-from lismore_da_mcp.approvals import by_timing
-from lismore_da_mcp.approvals import describe
-from lismore_da_mcp.approvals import relevant
-from lismore_da_mcp.data.approvals import APPROVALS
-from lismore_da_mcp.data.approvals import WHAT_THE_DA_DOES_NOT_COVER
+from lismore_da_mcp.approvals import by_timing, describe, relevant
+from lismore_da_mcp.data.approvals import APPROVALS, WHAT_THE_DA_DOES_NOT_COVER
 from lismore_da_mcp.data.contacts import CONTACT_INFO
 from lismore_da_mcp.registry import tool
 

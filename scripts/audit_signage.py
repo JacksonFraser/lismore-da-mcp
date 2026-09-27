@@ -46,8 +46,13 @@ def normalise(text: str) -> str:
 def main() -> int:
     sys.path.insert(0, str(ROOT / "src"))
     from lismore_da_mcp.data.signage import (
-        APPLICATION_REQUIREMENTS, DESIGN_GUIDELINES, EXISTING_USE_RIGHTS,
-        ROAD_RESERVE, SEPP_PROHIBITED_ZONES, SIGNAGE)
+        APPLICATION_REQUIREMENTS,
+        DESIGN_GUIDELINES,
+        EXISTING_USE_RIGHTS,
+        ROAD_RESERVE,
+        SEPP_PROHIBITED_ZONES,
+        SIGNAGE,
+    )
 
     if not CHAPTER.exists():
         print(f"missing {CHAPTER}")

@@ -164,7 +164,7 @@ def requirements(village: str | None = None, precinct_key: str | None = None,
     """What Chapter 6 says for this proposal, or why it does not apply."""
     nimbin_site = is_nimbin(village)
     if nimbin_site is False:
-        return other_village(village)
+        return other_village(village or "")
 
     zone_code = str(zone or "").strip().upper()
     if zone_code and zone_code != "RU5":

@@ -176,7 +176,7 @@ def section_headings(lines: list[str]) -> list[str]:
         number = match.group(1) or match.group(2)
         title = match.group(3)
         if title is None:
-            following = next((l.strip() for l in lines[i + 1:i + 3] if l.strip()), "")
+            following = next((ln.strip() for ln in lines[i + 1:i + 3] if ln.strip()), "")
             if not following or not following[0].isupper():
                 continue
         elif not title[0].isupper():
@@ -210,9 +210,9 @@ def preferred_land_use_lists(lines: list[str]) -> list[list[str]]:
 
 def live_work_labels(lines: list[str]) -> list[str]:
     """P1, A1.1, ... in the §2.3 table."""
-    start = next(i for i, l in enumerate(lines) if l.strip() == "Live / Work Precinct")
-    end = next(i for i, l in enumerate(lines) if l.strip() == "Commercial Precinct" and i > start)
-    return [m.group(1) for l in lines[start:end] if (m := LIVE_WORK_LABEL.match(l.strip()))]
+    start = next(i for i, ln in enumerate(lines) if ln.strip() == "Live / Work Precinct")
+    end = next(i for i, ln in enumerate(lines) if ln.strip() == "Commercial Precinct" and i > start)
+    return [m.group(1) for ln in lines[start:end] if (m := LIVE_WORK_LABEL.match(ln.strip()))]
 
 
 # --------------------------------------------------------------------------
@@ -252,7 +252,7 @@ def preferred_use_problems(lines: list[str]) -> list[str]:
         return [f"the chapter has {len(in_document)} 'Preferred land uses' lists and the data "
                 f"{len(stored)}"]
     problems = []
-    for (key, carried), printed in zip(stored, in_document):
+    for (key, carried), printed in zip(stored, in_document, strict=False):
         printed = [normalise(u) for u in printed]
         for use in printed:
             if use not in carried:

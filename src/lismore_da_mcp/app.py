@@ -9,8 +9,5 @@ from mcp.server import Server
 
 from lismore_da_mcp.instructions import INSTRUCTIONS
 
-# `instructions` is returned in the initialize response and surfaced to the model
-# by clients. Without it a remote agent gets 21 tool descriptions and no sense of
-# the process or the caveats — all of which previously lived only in this repo's
-# CLAUDE.md, which someone connecting to the hosted server never sees.
+# `instructions` is returned in the initialize response and surfaced to the model.
 server = Server("lismore-da-mcp", instructions=INSTRUCTIONS)

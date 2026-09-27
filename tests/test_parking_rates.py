@@ -349,8 +349,14 @@ class TestCbdProvisionsAreInTheDCP:
     ])
     def test_provision_appears_verbatim(self, label, chapter):
         from lismore_da_mcp.data.parking import (
-            CBD_EXPANSION_ALLOWANCE, CBD_FIXED_RATE, CBD_PARKING_CREDIT,
-            CBD_REDUCTIONS, COMBINED_USES, DISABILITY_PARKING, ON_STREET_LOSS)
+            CBD_EXPANSION_ALLOWANCE,
+            CBD_FIXED_RATE,
+            CBD_PARKING_CREDIT,
+            CBD_REDUCTIONS,
+            COMBINED_USES,
+            DISABILITY_PARKING,
+            ON_STREET_LOSS,
+        )
         quotes = {
             "fixed_rate": CBD_FIXED_RATE["verbatim"],
             "exclusion": CBD_FIXED_RATE["exclusion_verbatim"],

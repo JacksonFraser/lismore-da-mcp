@@ -19,12 +19,24 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from audit_commercial import (  # noqa: E402
-    FIGURE_CAPTION, chapter_text, figure_problems, headings, introduction_text,
-    invented_structure, normalise, not_carried)
+    FIGURE_CAPTION,
+    chapter_text,
+    figure_problems,
+    headings,
+    introduction_text,
+    invented_structure,
+    normalise,
+    not_carried,
+)
 
 from lismore_da_mcp import commercial  # noqa: E402
 from lismore_da_mcp.data.commercial import (  # noqa: E402
-    FIGURES, HOW_TO_READ_THIS_CHAPTER, NOT_SET_BY_THIS_CHAPTER, PART_A, TABLE_B1)
+    FIGURES,
+    HOW_TO_READ_THIS_CHAPTER,
+    NOT_SET_BY_THIS_CHAPTER,
+    PART_A,
+    TABLE_B1,
+)
 from lismore_da_mcp.registry import registered  # noqa: E402
 from lismore_da_mcp.server import call_tool  # noqa: E402
 

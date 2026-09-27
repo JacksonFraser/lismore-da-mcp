@@ -1,23 +1,9 @@
 """Logging, with applicant data structurally excluded.
 
-The server had none at all, so on the public deployment there was no record of
-what was asked, what failed, or whether the rate limiter was engaging — any user
-report of a bad answer was unfalsifiable.
-
-The hard constraint is that this server handles other people's personal
-information. `fill_see_pdf` and `preview_see_form` take an applicant's name,
-street address and lot/DP; `generate_see_draft` takes the same. Those must never
-reach a log line, on a public unauthenticated service whose logs go to a
-third-party platform.
-
-That is enforced by shape rather than by discipline: `record_tool_call()` accepts
-a tool *name*, a duration and an outcome. It has no parameter that could carry an
-argument value, so there is no call site where someone could pass one by
-accident. Argument *names* are safe and are not logged either, since knowing a
-caller supplied `applicant_name` adds nothing.
-
-tests/test_observability.py asserts that a call carrying a fake name, address and
-lot/DP produces log output containing none of them.
+Several tools take an applicant's name, address and lot/DP, and the public
+deployment's logs go to a third-party platform. So `record_tool_call()` accepts
+only a tool name, a duration and an outcome: it has no parameter that could carry
+an argument value. tests/test_observability.py checks that none leaks.
 """
 
 import logging
@@ -54,9 +40,7 @@ def configure_logging() -> logging.Logger:
 
 # --- tool calls -----------------------------------------------------------
 #
-# Deliberately no parameter that can carry an argument value. See module
-# docstring: this is what stops applicant data being logged, rather than a
-# convention that a future edit could quietly break.
+# Deliberately no parameter that can carry an argument value (see module docstring).
 
 OUTCOME_OK = "ok"
 OUTCOME_INVALID_ARGUMENTS = "invalid_arguments"
@@ -114,24 +98,28 @@ def timed_tool_call(tool_name: str):
 def record_rate_limited(window_seconds: float, max_requests: int) -> None:
     """A request was rejected by the limiter.
 
-    The client IP is deliberately not logged. It is personal information, the
-    endpoint is public and unauthenticated, and Render's proxy already records
-    request-level detail — so carrying it into application logs adds retention
-    risk without adding much. What matters here is that the limiter engaged at
-    all, which is the signal for tuning it or moving to a real edge limiter.
+    The client IP is personal information and Render's proxy already records it,
+    so it is not logged here.
     """
     logger.warning(
         f"event=rate_limited max_requests={max_requests} window_seconds={window_seconds:g}"
     )
 
 
+def record_proxy_chain(entries: int, trusted_hops: int) -> None:
+    """How many X-Forwarded-For entries the first proxied request carried.
+
+    Logged once, so the rate limiter's trusted hop count can be checked against
+    the real proxy chain. Only the count is logged, never an address.
+    """
+    logger.info(f"event=proxy_chain forwarded_for_entries={entries} trusted_hops={trusted_hops}")
+
+
 def record_index_state(status: str, segments: int | None = None) -> None:
     """Whether the search index is present.
 
-    Worth a line because a missing index is invisible from outside: search still
-    answers, just via a full scan at roughly a thousand times the cost. That
-    exact failure shipped to production once and was only caught by timing the
-    endpoint.
+    A missing index is invisible from outside — search still answers, via a much
+    slower full scan — so it is logged at startup.
     """
     message = f"event=search_index status={status}"
     if segments is not None:
@@ -142,10 +130,8 @@ def record_index_state(status: str, segments: int | None = None) -> None:
 def record_document_error(operation: str, document: str, error_type: str, detail: str) -> None:
     """A document could not be read.
 
-    Document names are safe to log — they are public planning documents, not
-    applicant material. Before logging existed, a PDF that failed to open was
-    indistinguishable from one containing no matches, so a silently unsearchable
-    document could sit there indefinitely.
+    Otherwise an unreadable PDF looks the same as one with no matches. Document
+    names are public planning documents, so they are safe to log.
     """
     logger.error(
         f"event=document_error operation={operation} document={document} "

@@ -1,21 +1,11 @@
 """What this server tells a connecting agent about how to use it.
 
 MCP returns this in the `initialize` response and clients surface it to the
-model. Without it, an agent connecting to the hosted server receives 21 tool
-descriptions and nothing else — no sense of the DA process, no idea which
-question each tool answers, and none of the caveats that have to accompany
-planning advice. All of that previously lived only in this repository's
-CLAUDE.md, which a remote user never sees.
+model. It covers what an agent cannot infer from tool schemas: the order to do
+things in, and the caveats that must accompany planning advice. It is injected
+into every session, so keep it short.
 
-Kept deliberately short. It is injected into every session, so it earns its
-place by covering what an agent cannot infer from tool schemas: the order to do
-things in, and the things that must be said out loud.
-
-The fee schedule year is interpolated rather than written out. It was written
-out, and it still read "2024-25" on 2026-08-02 — a year after item 0.1 moved the
-scale to 2026-27, with a test asserting the stale literal was present. A fact
-stated in two places drifts; a test that pins the copy rather than the agreement
-makes the drift permanent.
+The fee schedule year is interpolated from the data so the two cannot drift.
 """
 
 from lismore_da_mcp.data.fees import DA_FEE_SCHEDULE_YEAR

@@ -5,7 +5,6 @@ extracts must stay reachable, and .txt must keep being addressed by line while
 PDFs are addressed by page.
 """
 
-import pytest
 
 from lismore_da_mcp.server import (
     DOC_CATEGORIES,

@@ -129,6 +129,107 @@ def _rates(entry: dict, catchment: str | None) -> dict:
     return dict(entry["rates"])
 
 
+def _existing_use_allowance(
+    result: dict,
+    readings: list[str],
+    term: str,
+    entry: dict,
+    gross: dict,
+    counts: dict,
+    catchment: str | None,
+    existing_use: str,
+    existing_counts: dict | None,
+) -> dict:
+    """Section 2.7: the allowance for the development already lawfully on the site.
+
+    Sets `result["net_contribution"]` where a net can be stated, and appends any
+    registered reading the net relies on to `readings`.
+    """
+    existing_key, existing_how = resolve_development_type(existing_use)
+    allowance: dict = {"section": EXISTING_DEVELOPMENT_ALLOWANCE["section"]}
+    if existing_key is None:
+        allowance["allowed"] = None
+        allowance["why_not"] = (
+            f"'{existing_use}' does not map to a development type in Table E2, so the "
+            "allowance cannot be quantified here. Council assesses it — see "
+            "what_you_must_do."
+        )
+    elif existing_counts is None and _same_use(term, existing_use):
+        # The same use, previous size not stated. The same-area default would
+        # mean nothing new was built, so the net would be $0 by construction —
+        # which is how DA 2024/198's new 14m² of bar area, charged $2,805.67 by
+        # Council, was answered $0 (ROADMAP.md T1). The net lies between nil
+        # and the gross; only the previous floor area says where.
+        existing_entry = DEVELOPMENT_TYPE_RATES[existing_key]
+        argument = BASE_UNITS[existing_entry["base"]][0]
+        allowance["existing_development_type"] = existing_entry["plan_name"]
+        allowance["allowed"] = None
+        allowance["supply"] = f"existing_{argument}"
+        allowance["at_most"] = gross
+        allowance["why_not"] = (
+            f"The previous use is the same use as the proposal, so the contribution is "
+            f"charged only on what is added. Supply existing_{argument}: what the use "
+            f"had before this application, or 0 for an area that is entirely new to it. "
+            f"The net is between nil and the at_most figure, which is the charge if "
+            f"all of it is new."
+        )
+        result["net_contribution"] = None
+    else:
+        existing_entry = DEVELOPMENT_TYPE_RATES[existing_key]
+        # A change of use in the same tenancy keeps the same floor area unless
+        # the caller says otherwise, which is the ordinary case.
+        existing_units, _ = _units(
+            existing_entry, counts if existing_counts is None else existing_counts)
+        if existing_units is None:
+            allowance["allowed"] = None
+            allowance["why_not"] = (
+                f"The previous use is charged per {existing_entry['base']}, which was "
+                "not supplied."
+            )
+        else:
+            existing_rates = _rates(existing_entry, catchment)
+            credit = {
+                name: round(rate * existing_units, 2)
+                for name, rate in existing_rates.items()
+            }
+            net = {
+                name: round(max(0.0, gross[name] - credit[name]), 2)
+                for name in gross
+            }
+            allowance["existing_development_type"] = existing_entry["plan_name"]
+            if existing_how != "exact":
+                allowance["existing_interpreted_as"] = (
+                    f"'{existing_use}' read as '{existing_entry['plan_name']}' {existing_how}"
+                )
+            if existing_entry["demand"] != entry["demand"]:
+                readings.append("allowance_netted_as_totals")
+            if existing_counts is None:
+                readings.append("allowance_same_floor_area")
+                allowance["assumption"] = (
+                    "The previous use is taken to occupy the same floor area as the "
+                    "proposal, which is the ordinary case for a change of use in an "
+                    "existing tenancy. Supply the previous floor area if it differed."
+                )
+            allowance["allowance"] = credit
+            result["net_contribution"] = net
+            if all(value == 0 for value in net.values()):
+                allowance["effect"] = (
+                    "The previous use generated at least as much demand as the "
+                    "proposal, so on these figures no contribution is payable. That is "
+                    "a conclusion to put to Council with evidence, not to assume."
+                )
+            else:
+                allowance["effect"] = (
+                    "The contribution is charged on the increase in demand only. The "
+                    "net figures above are what to budget."
+                )
+    allowance["existing_lawful_development"] = (
+        EXISTING_DEVELOPMENT_ALLOWANCE["existing_lawful_development"]
+    )
+    allowance["what_you_must_do"] = EXISTING_DEVELOPMENT_ALLOWANCE["what_you_must_do"]
+    return allowance
+
+
 def estimate_contribution(
     term: str,
     counts: dict,
@@ -206,88 +307,8 @@ def estimate_contribution(
 
     # Section 2.7 — the allowance for what is already lawfully on the site.
     if existing_use:
-        existing_key, existing_how = resolve_development_type(existing_use)
-        allowance: dict = {"section": EXISTING_DEVELOPMENT_ALLOWANCE["section"]}
-        if existing_key is None:
-            allowance["allowed"] = None
-            allowance["why_not"] = (
-                f"'{existing_use}' does not map to a development type in Table E2, so the "
-                "allowance cannot be quantified here. Council assesses it — see "
-                "what_you_must_do."
-            )
-        elif existing_counts is None and _same_use(term, existing_use):
-            # The same use, previous size not stated. The same-area default would
-            # mean nothing new was built, so the net would be $0 by construction —
-            # which is how DA 2024/198's new 14m² of bar area, charged $2,805.67 by
-            # Council, was answered $0 (ROADMAP.md T1). The net lies between nil
-            # and the gross; only the previous floor area says where.
-            existing_entry = DEVELOPMENT_TYPE_RATES[existing_key]
-            argument = BASE_UNITS[existing_entry["base"]][0]
-            allowance["existing_development_type"] = existing_entry["plan_name"]
-            allowance["allowed"] = None
-            allowance["supply"] = f"existing_{argument}"
-            allowance["at_most"] = gross
-            allowance["why_not"] = (
-                f"The previous use is the same use as the proposal, so the contribution is "
-                f"charged only on what is added. Supply existing_{argument}: what the use "
-                f"had before this application, or 0 for an area that is entirely new to it. "
-                f"The net is between nil and the at_most figure, which is the charge if "
-                f"all of it is new."
-            )
-            result["net_contribution"] = None
-        else:
-            existing_entry = DEVELOPMENT_TYPE_RATES[existing_key]
-            # A change of use in the same tenancy keeps the same floor area unless
-            # the caller says otherwise, which is the ordinary case.
-            existing_units, _ = _units(
-                existing_entry, counts if existing_counts is None else existing_counts)
-            if existing_units is None:
-                allowance["allowed"] = None
-                allowance["why_not"] = (
-                    f"The previous use is charged per {existing_entry['base']}, which was "
-                    "not supplied."
-                )
-            else:
-                existing_rates = _rates(existing_entry, catchment)
-                credit = {
-                    name: round(rate * existing_units, 2)
-                    for name, rate in existing_rates.items()
-                }
-                net = {
-                    name: round(max(0.0, gross[name] - credit[name]), 2)
-                    for name in gross
-                }
-                allowance["existing_development_type"] = existing_entry["plan_name"]
-                if existing_how != "exact":
-                    allowance["existing_interpreted_as"] = (
-                        f"'{existing_use}' read as '{existing_entry['plan_name']}' {existing_how}"
-                    )
-                if existing_entry["demand"] != entry["demand"]:
-                    readings.append("allowance_netted_as_totals")
-                if existing_counts is None:
-                    readings.append("allowance_same_floor_area")
-                    allowance["assumption"] = (
-                        "The previous use is taken to occupy the same floor area as the "
-                        "proposal, which is the ordinary case for a change of use in an "
-                        "existing tenancy. Supply the previous floor area if it differed."
-                    )
-                allowance["allowance"] = credit
-                result["net_contribution"] = net
-                if all(value == 0 for value in net.values()):
-                    allowance["effect"] = (
-                        "The previous use generated at least as much demand as the "
-                        "proposal, so on these figures no contribution is payable. That is "
-                        "a conclusion to put to Council with evidence, not to assume."
-                    )
-                else:
-                    allowance["effect"] = (
-                        "The contribution is charged on the increase in demand only. The "
-                        "net figures above are what to budget."
-                    )
-        allowance["existing_lawful_development"] = (
-            EXISTING_DEVELOPMENT_ALLOWANCE["existing_lawful_development"]
-        )
-        allowance["what_you_must_do"] = EXISTING_DEVELOPMENT_ALLOWANCE["what_you_must_do"]
+        allowance = _existing_use_allowance(
+            result, readings, term, entry, gross, counts, catchment, existing_use, existing_counts)
         result["existing_development_allowance"] = allowance
     elif entry["demand"] == "non_residential":
         result["ask_about_the_allowance"] = (

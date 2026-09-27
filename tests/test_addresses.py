@@ -25,7 +25,6 @@ from lismore_da_mcp.addresses import (
     parse_address,
 )
 
-
 # Captured at import, before the autouse no-network fixture replaces it, so the
 # opt-in live tests at the bottom have something real to restore.
 REAL_GET_JSON = addresses._get_json
