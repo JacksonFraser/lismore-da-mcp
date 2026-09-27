@@ -670,7 +670,32 @@ Most audits already check both directions; two do not **[verified]**:
   Table E2, which is better than completeness for that table — but nothing checks that every
   development type in the plan is carried in the data. Smaller, worth an hour while in there.
 
-### E2 — Put `verify_against_council.py` on a schedule
+### E2 — Put `verify_against_council.py` on a schedule · **DONE 2026-09-27**
+
+> **Landed.** `.github/workflows/verify-against-council.yml`, quarterly on the 3rd of Feb, May,
+> Aug and Nov — August so the run follows Council's July fees reissue — plus `workflow_dispatch`.
+> Default `GITHUB_TOKEN` only, `contents: read` and `issues: write`, checkout without credentials,
+> and a step that fails if `documents/` changed.
+>
+> **The part that needed design was "could not fetch".** Council's site 403s plain HTTP and may
+> refuse GitHub's runners altogether, and before this change a refused download was lumped in with
+> drift as a "problem", exit 1. A block would have opened a drift issue every quarter until
+> someone learned to ignore it. The script now has an exit-code contract — 0 clean, 1 drift,
+> 3 unverified, 4 verifier error, 2 usage — and writes the same verdict as JSON; drift outranks a
+> partial block, and an uncaught exception no longer exits with the drift code. A download that is
+> not a PDF (a challenge page saved under a PDF's name) is *not fetched*, not *changed*. After three
+> consecutive failed downloads the rest are skipped, so a blocked runner answers in minutes rather
+> than an hour. Drift and "could not run" open **different** issues (`council-drift`,
+> `council-verify-blocked`); a later run that fetches successfully closes the latter.
+>
+> **Found while testing it:** `normalise()` in the verifier had lost its curly-apostrophe
+> replacement — both calls were straight-to-straight no-ops — so the hotel and motel parking rates
+> (*manager's/owner's*) would have reported as drift against an unchanged Chapter 7 on the very
+> first run. A test now serves the committed PDFs as the "live" copies and requires a clean verdict,
+> which runs every real figure check against every real document.
+>
+> **Not verified here:** the live run. This environment cannot download Playwright's Chromium, so
+> the workflow has not executed against Council's site; trigger it once by hand after merging.
 
 The script exists and does the right thing; only the cron does not. GitHub Actions, quarterly,
 opening an issue on drift. It needs the `scraping` extra and must never write to `documents/`.
