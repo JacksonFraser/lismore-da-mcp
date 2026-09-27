@@ -138,10 +138,21 @@ rate limiter (`_RateLimitMiddleware`, 30 req/60s). `render.yaml` deploys the HTT
 https://lismore-da-mcp.onrender.com as an **open, unauthenticated** endpoint.
 
 **`PUBLIC_MODE` is a privacy switch, not just a transport flag.** It is `True` iff
-`MCP_TRANSPORT=http`. In that mode `fill_see_pdf` must write to a per-request temp dir, return the
-PDF inline (base64), and delete it — never into the shared `documents/output/` tree, because
-generated SEEs contain a named applicant's address and would otherwise be readable by the next
-caller. Any new tool that writes files must respect this branch.
+`MCP_TRANSPORT=http`. **Since 2026-09-27 the tools that take an applicant's name are not offered in
+that mode at all** (ROADMAP.md A4): `generate_see_draft`, `preview_see_form` and `fill_see_pdf` are
+registered with `@tool(..., local_only=True)`, so `list_tools` omits them and `call_tool` refuses
+them — before argument validation, so nothing the caller sent is examined — with
+`not_available_on_the_public_server` and a pointer to running locally. The refusal logs as its own
+outcome, `local_only`, not `invalid_arguments`: a count of it is the evidence that would justify
+exposing them. The endpoint is open and unauthenticated with no terms and no privacy policy, and
+none of the three had ever been called by anyone real, so switching them off closed the only place
+applicant PII could enter at no cost. `preview_see_form` went with them although it writes no file:
+it requires the same name and address, echoes the name back, and exists only to precede
+`fill_see_pdf`. **A new tool taking `applicant_name` must be `local_only`** —
+`tests/test_local_only_tools.py` fails otherwise. `fill_see_pdf`'s own public-mode branch
+(per-request temp dir, PDF returned inline as base64, then deleted — never the shared
+`documents/output/` tree) stays as defence in depth, and any new tool that writes files must still
+respect this switch.
 
 **A tool is one decorated function that carries its own schema.** `registry.py` holds the `@tool`
 decorator and the registry; `tools/` holds the handlers, one module per domain. Adding a tool means

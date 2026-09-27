@@ -62,9 +62,9 @@ TYPICAL ORDER OF WORK
    and OC follow the consent and gate the opening date. The 40 days is calendar,
    not business, and is a deemed refusal threshold — an appeal right, not a date
    Council must decide by.
-6. The SEE: get_see_template for structure, generate_see_draft for any
-   development, or preview_see_form then fill_see_pdf for Council's official
-   Minor Development form.
+6. The SEE: get_see_template, and on a local server only (they take a
+   name) generate_see_draft, or preview_see_form then fill_see_pdf for
+   Council's Minor Development form.
 7. Before lodging, check_da_readiness runs the checklist, constraints and
    referrals against the one proposal and says what is missing. A DA rejected
    under s39 is taken never to have been made — it restarts from zero — and

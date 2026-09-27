@@ -946,12 +946,26 @@ without being told it exists.
 **Cost:** hours. Watch the instructions budget — `PLAN.md` records it held at 4,200 characters by
 compressing rather than growing, and that guard should hold here too.
 
-### A4 — Put the identity statement where it is constant
+### A4 — Put the identity statement where it is constant · **DONE 2026-09-27**
 
 > **Half done 2026-09-25.** The statement is in the server `instructions` ("An independent tool,
 > not Lismore City Council's" — fitted inside the 4,200-character budget by compressing, not by
 > raising it) and in the brief, whose header no longer opens "For: Lismore City Council". Both are
-> pinned by tests. **Still open: the decision on the two PII tools.**
+> pinned by tests.
+>
+> **The PII decision, 2026-09-27: off on the public transport.** `generate_see_draft`,
+> `fill_see_pdf` — and `preview_see_form`, which the entry below did not name — are registered
+> `local_only`. The public server does not list them, and a call from a stale tool list is refused
+> before its arguments are examined, with `not_available_on_the_public_server` and a pointer to
+> running the server locally. Stdio is unchanged. `preview_see_form` went too because it takes the
+> same required name and address and echoes the name back; it writes no file, but leaving it up
+> would keep a PII intake open for a tool whose only purpose is to precede one that is gone.
+> A test fails if any tool taking `applicant_name` is not `local_only`, so a fourth cannot slip in.
+>
+> The refusal logs as its own outcome, `local_only`, rather than `invalid_arguments`. That is the
+> "reason to expose them" the entry below asks for, made countable: if it ever shows up in the
+> logs, someone real wanted these tools publicly, and the answer to open question 3 changes.
+> `fill_see_pdf`'s temp-dir-and-inline branch stays, as defence in depth.
 
 **The evidence.** The only "guidance only, verify with Council" statement lives in `README.md:226`,
 which nobody reaching this through the public endpoint or a connector ever sees **[verified]**.
@@ -1277,9 +1291,10 @@ New:
 1. **Which of the three shapes?** See *The decision this roadmap cannot make*. Not blocking Phase A.
 2. **Is there an appetite to approach Council directly?** `PLAN.md` open question 3, unchanged and
    still the highest-leverage relationship that does not exist.
-3. **Should the two PII-taking tools be exposed on the public transport at all?** A4 proposes
-   disabling them until there is a reason. If the answer is "keep them", the privacy design needs a
-   real test rather than a design argument, and the endpoint needs terms.
+3. ~~**Should the two PII-taking tools be exposed on the public transport at all?**~~ **Decided
+   2026-09-27: no, until there is a reason** — and three tools, not two (A4). Revisit if the
+   `local_only` outcome appears in the public logs; exposing them then needs a real test of the
+   privacy design rather than a design argument, and terms for the endpoint.
 4. **Does anyone want the parking reading resolved badly enough to ask?** B1 registers it; B2 would
    settle it. Council's Duty Planner would answer this in ten minutes of a free session, and it is
    worth ~14 parking spaces to an 80m² CBD café.
