@@ -58,9 +58,10 @@ curl localhost:8080/health                # → "ok"
 | `scripts/audit_heritage.py` | Checks the LEP cl 5.10 provisions in `data/heritage.py` against the LEP text, and — since ROADMAP.md C1 — all 223 DCP Chapter 12 quotes against the chapter, in both directions: every stored string is in the chapter, and every bullet (164), PREFERRED / NOT ENCOURAGED heading, numbered objective, conservation area heading and figure with a unit in the chapter is carried, plus every conservation area against its LEP Schedule 5 Part 2 row, and (ROADMAP.md C2) all 113 heritage items and 18 archaeological sites in `data/heritage_items.py` row for row against Schedule 5 Parts 1 and 3, both ways. It also runs the check that matters more: that DCP **Chapter 12 still requires no heritage document**. Nine places asserted "a Heritage Impact Statement is required (DCP Chapter 12)" and both halves were wrong, so the correction rests on a negative — which a presence check is structurally blind to. It also pins the *modality*: if cl 5.10(5) ever stops saying "may", every hedge this repo now carries is wrong in the other direction. |
 | `scripts/run_scenarios.py` | Runs `SCENARIOS.md` against the real handlers with fixed calls and keeps every answer verbatim; `--compare` lists what changed since an earlier run. It does not judge — verdicts need a reading of the source — but an unchanged answer keeps its verdict, so a run costs the changed scenarios only. Run it after every phase: run 2 found a wrong "yes" 161 answers wide that every audit passed. |
 | `scripts/audit_interpretations.py` | Checks every provision quoted in `data/interpretations.py` — the register of readings this repo takes where a source admits more than one — appears verbatim in its source, **on the PDF page the entry names**, so a reviewer can turn straight to it and a phrase lifted from the wrong section fails. Also checks each entry carries what the planner review needs and that its `duty_planner_question` and `relied_on_by` links resolve. It cannot audit the readings themselves — that is ROADMAP.md B2, and `scripts/render_interpretations.py` prints the register as the review packet. |
-| `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. |
+| `scripts/verify_against_council.py` | The audits above check the data against the PDFs **in this repo**; this checks those PDFs are still what Council publishes. Re-downloads each, compares byte for byte, re-verifies every figure against the fresh copy, and crawls for documents we do not carry. Needs the `scraping` extra — the council site 403s plain HTTP. Never writes to `documents/`. **Exit codes are a contract**: 0 clean, 1 drift, 3 *unverified* (something could not be fetched and nothing else was wrong), 4 the verifier itself failed, 2 usage. `--json` / `--issue-body` write the same verdict for the workflow. A download that is not a PDF counts as not fetched, never as a changed document — a bot-challenge page saved under a PDF's name would otherwise read as every figure gone. |
 | `/validate-tracker`, `tracker-validator` agent, `scripts/validate_against_tracker.py` | The only check graded by someone other than us: real business DAs from Council's DA Tracker, graded against the Notices of Determination (ROADMAP.md Phase T). `harvest` finds new DAs, `fetch --update` reads Council's figures into `tests/fixtures/tracker_cases.json`, `grade` scores the tools, `freeze` records a prediction for an undetermined DA — the only cases graded without hindsight. Inputs come from what the applicant knew at lodgement, never the consent. Notices carry names and emails, so downloads stay in `tracker-cache/`, which is gitignored and hook-blocked. Needs the `scraping` extra, and it is live — the tracker and the address services. |
 | `protect-private-paths.py` hook | Hard-blocks `git add`/`commit` touching `documents/output/`, `my-application/`, `_quarantined/` or `tracker-cache/`. `.gitignore` covers the accident; the hook covers `-f`, a rewritten ignore file, and anyone who never read this file. |
+| `.github/workflows/verify-against-council.yml` | Runs `verify_against_council.py` quarterly (3 Feb/May/Aug/Nov — August catches Council's July fees reissue) and on `workflow_dispatch`. Opens or comments on a `council-drift` issue on drift, and a **separate** `council-verify-blocked` issue when Council could not be reached or the script failed, because Council may refuse CI runners and a block must read as neither drift nor clean. Holds only the default token with `contents: read` / `issues: write`, checks out without credentials, and fails if `documents/` changed. Its first run already paid for itself in review: `normalise()` had lost its curly-apostrophe handling, so two parking rates would have opened a false drift issue. |
 
 `.claude/settings.local.json` stays out of git (per-machine permissions); everything else in
 `.claude/` is shared, because a guardrail only one person has is not a guardrail.
@@ -289,6 +290,58 @@ standing "confirm this figure" caveat sat on every answer. A caveat that is alwa
 no information; `schedule_status()` now adds a loud warning **only** when the scale is actually
 behind, and `TestScheduleCurrency` fails once it is two years behind. `calculate_da_fees` is the source of truth for a number — the tables
 in Part 2 and `QUICK_REFERENCE.md` are indicative only.
+
+### The July ritual — do this every year once Council publishes the new schedule
+
+The statutory DA fee scale and Council's own fees schedule both reset on 1 July, and Council
+publishes one PDF carrying both, at a **new URL** each year. `schedule_status()` starts warning in
+every fee answer from 1 July, and the August run of `verify-against-council.yml` is timed to
+follow the reissue, but neither refreshes anything. Steps, in order (`YYYY-YY` is the new year,
+e.g. `2027-28`):
+
+1. **Get the PDF.** It is linked from
+   https://www.lismore.nsw.gov.au/Households/Rates-and-water-information/Fees-and-charges. The site
+   403s plain HTTP, so use a browser or add the URL to `scripts/council_sources.py` and run
+   `scripts/fetch_council_documents.py`. Save it as `documents/fees/fees-and-charges-YYYY-YY.pdf`,
+   **open it** (a scraper saves error pages too), run `/check-documents`, and add it to
+   `documents/DOCUMENT_INDEX.md`.
+2. **Point everything at it.** Each of these names the file or its year, and
+   `tests/test_instruments.py::TestFeeSchedules` fails until the first three agree:
+   - `data/instruments.py` — `CURRENT_FEE_SCHEDULE` to the new file; last year's into
+     `SUPERSEDED_FEE_SCHEDULES`; `FEE_SCHEDULE_COLUMNS_NOTE`'s two years (a test reads them off
+     the PDF)
+   - `scripts/audit_approvals.py` `SCHEDULE`, and the `data/fees.py` docstring's filename and page
+   - `scripts/council_sources.py` `DOCUMENTS` (new URL and filename) and the matching key in
+     `scripts/verify_against_council.py` `FIGURE_CHECKS`
+3. **Re-transcribe the figures, from the right-hand column.** The schedule prints two years side
+   by side, last year's first. **That means every presence check here — `audit_approvals.py` and
+   the verifier's fee check — still passes on last year's figures after the PDF is swapped**,
+   because they are still printed in the left column. The audit going green proves nothing until
+   each figure below has been read off the right-hand column:
+   - `data/fees.py` — `DA_FEE_SCHEDULE_YEAR`; the seven `DA_FEE_BRACKETS` bases (row group
+     "Development Application (Lodgement Fee)", p30 in 2026-27 — pages move) after first copying
+     the outgoing bases into `PREVIOUS_SCHEDULES` and checking each new one moved by about one
+     year's indexation; the per-$1,000 increments are fixed and should not change;
+     `DA_FEE_NO_BUILDING_WORK`, `DA_FEE_DWELLING_UNDER_100K`, `NOTIFICATION_FEES`,
+     `PRESCRIBED_NOTICE_FEES`, `INTEGRATED_DEVELOPMENT_FEE`, `DESIGNATED_DEVELOPMENT_FEE`,
+     `DESIGN_REVIEW_PANEL_FEE`, and the dollar figures inside the `UNQUANTIFIED_CHARGES` prose
+   - `data/approvals.py` — every `fee` string, every `fee_source` page number, and the year-named
+     prose in the docstring and `gotcha`s
+4. **Run** `scripts/audit_approvals.py`, then the full test suite. Literals that name the year or a
+   figure will fail and should be updated from the new answer, not from memory:
+   `tests/test_business_path.py` (`fee_schedule_year`), `tests/test_fees.py`,
+   `tests/test_contributions.py`.
+5. **Prose that quotes a fee:** this file (the $370 café example above, the Part 2 fee table and
+   the Council fees URL), `README.md`'s worked example, `QUICK_REFERENCE.md`. Recompute each with
+   `calculate_da_fees`.
+6. **After merging**, run `verify-against-council.yml` by hand (`workflow_dispatch`) so the new
+   manifest URL is checked against what Council serves.
+
+**Not part of July:** the Section 7.11 rates (`data/contributions.py`) are indexed at the date of
+payment and amended by Council on its own cycle — `INDEXATION` already tells the caller to treat
+them as a floor; the Section 64 DSP charges are 2016 dollars and are named, never quantified;
+and the Regulation's assessment periods (`data/timing.py`) change only by amendment, which
+`audit_timing.py` detects.
 
 **The lodgement fee is not what a DA costs, and treating it as though it were was the single
 largest gap in this repo.** For an 80m² café fitout the fee is $370 and the Section 7.11
