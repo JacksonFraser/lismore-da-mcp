@@ -45,13 +45,6 @@ CHECKS = [
     ("calculate_da_fees", {"development_cost": "lots"},
      lambda t: "wrong type" in t,
      "a wrong-typed argument is refused"),
-    ("preview_see_form", {
-        "applicant_name": "A Person", "property_address": "12 Keen Street, Lismore NSW 2480",
-        "lot_dp": "Lot 12 DP 758651", "zone_code": "R2", "proposed_use": "dwelling house",
-        "development_type": "dwelling", "floor_area_sqm": 40,
-        "minor_development_type": "shed"},
-     lambda t: json.loads(t)["success"] is True,
-     "plain wording reaches the handler rather than being rejected by a schema enum"),
     # The only tools that return plain text rather than JSON, and the ones most
     # likely to be reached over the public HTTP transport by someone about to
     # lodge. generate_see_draft returns text too, but this one is short enough
@@ -61,6 +54,28 @@ CHECKS = [
      lambda t: "PRE-LODGEMENT BRIEF" in t and "Tuesdays and Thursdays" in t,
      "a text-returning tool survives the round trip intact"),
 ]
+
+SEE_FORM_ARGS = {
+    "applicant_name": "A Person", "property_address": "12 Keen Street, Lismore NSW 2480",
+    "lot_dp": "Lot 12 DP 758651", "zone_code": "R2", "proposed_use": "dwelling house",
+    "development_type": "dwelling", "floor_area_sqm": 40,
+    "minor_development_type": "shed"}
+
+# The SEE form tools take an applicant's name, so they run locally only and the
+# public transport refuses them (ROADMAP.md A4). Each transport checks its half.
+CHECKS_BY_TRANSPORT = {
+    "stdio": [
+        ("preview_see_form", SEE_FORM_ARGS,
+         lambda t: json.loads(t)["success"] is True,
+         "plain wording reaches the handler rather than being rejected by a schema enum"),
+    ],
+    "http ": [
+        ("preview_see_form", SEE_FORM_ARGS,
+         lambda t: json.loads(t)["error"] == "not_available_on_the_public_server",
+         "a tool taking an applicant's name is refused on the public transport"),
+    ],
+}
+PII_TOOLS = {"preview_see_form", "fill_see_pdf", "generate_see_draft"}
 
 
 def free_port() -> int:
@@ -92,7 +107,13 @@ async def run_checks(client, label: str) -> int:
     if not tools.tools:
         print(f"  {label}: FAIL — no tools listed")
         return 1
-    for name, args, predicate, description in CHECKS:
+    listed = {t.name for t in tools.tools}
+    hidden_ok = (listed.isdisjoint(PII_TOOLS) if label.strip() == "http"
+                 else PII_TOOLS <= listed)
+    print(f"  {label}: {'ok  ' if hidden_ok else 'FAIL'} the SEE form tools are "
+          f"{'hidden' if label.strip() == 'http' else 'listed'}")
+    failures += 0 if hidden_ok else 1
+    for name, args, predicate, description in CHECKS + CHECKS_BY_TRANSPORT.get(label, []):
         try:
             result = await client.call_tool(name, args)
             text = result.content[0].text
