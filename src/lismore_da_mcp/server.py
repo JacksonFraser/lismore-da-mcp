@@ -116,7 +116,7 @@ async def list_tools():
     return mcp_tools()
 
 
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+async def call_tool(name: str, arguments: dict) -> list[types.ContentBlock]:
     """Validate arguments, then hand off to the registered handler.
 
     `arguments` is never passed to the logger (see observability.py).
@@ -148,7 +148,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 
 async def _on_call_tool(_context, params: types.CallToolRequestParams) -> types.CallToolResult:
-    return types.CallToolResult(content=list(await call_tool(params.name, params.arguments or {})))
+    return types.CallToolResult(content=await call_tool(params.name, params.arguments or {}))
 
 
 async def _on_list_tools(_context, _params) -> types.ListToolsResult:

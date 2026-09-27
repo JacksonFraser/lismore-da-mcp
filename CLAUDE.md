@@ -119,13 +119,17 @@ contributions catchment and `flood_area`: an input that changes the number is ne
 
 **Two transports, one server object.** `MCP_TRANSPORT` unset/`stdio` → `stdio_server()`;
 `http` → a Starlette app (`build_http_app()`) with `StreamableHTTPSessionManager(stateless=True)`
-at `/mcp`, `/health`, and an in-process per-IP limiter (`_RateLimitMiddleware`, 30 req/60s).
+at `/mcp`, `/health`, and an in-process per-IP limiter (`_RateLimitMiddleware`, 30 req/60s,
+`/health` exempt). Behind a proxy the limiter keys on the X-Forwarded-For entry the proxy appended,
+counted from the right (`LISMORE_TRUSTED_PROXY_HOPS`, default 1); never the left-most entry, which
+the client controls. The first proxied request logs `event=proxy_chain` with the entry count.
 Deployed to https://lismore-da-mcp.onrender.com as an **open, unauthenticated** endpoint; CI
 deploys on push to main after tests pass (see `render.yaml` for why the dashboard, not the
 Blueprint, holds the build commands).
 
 **`PUBLIC_MODE` is a privacy switch.** True iff `MCP_TRANSPORT=http`. Then `fill_see_pdf` writes to
-a per-request temp dir, returns the PDF inline and deletes it — never into `documents/output/`,
+a temp dir that is removed however the call ends, and returns the PDF as an `EmbeddedResource`
+(not base64 in the JSON) — never into `documents/output/`,
 because a SEE carries a named applicant's address. Any new tool that writes files must do the same.
 Applicant data never reaches a log line: `record_tool_call()` has no parameter that could carry it.
 

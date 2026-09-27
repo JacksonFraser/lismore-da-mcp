@@ -2,12 +2,12 @@
 
 import base64
 import json
-import shutil
 import tempfile
 import textwrap
 from pathlib import Path
+from urllib.parse import quote
 
-from mcp.types import TextContent
+from mcp.types import BlobResourceContents, EmbeddedResource, TextContent
 
 from lismore_da_mcp.config import DOCS_DIR, PUBLIC_MODE, SEE_TEMPLATE_PATH
 from lismore_da_mcp.data.parking import PARKING_RATES
@@ -724,23 +724,26 @@ def _see_form(arguments: dict, name: str):
     if not output_filename.endswith(".pdf"):
         output_filename += ".pdf"
 
-    tmp_dir: Path | None = None
+    pdf_bytes: bytes | None = None
     if PUBLIC_MODE:
-        tmp_dir = Path(tempfile.mkdtemp(prefix="see_"))
-        output_path = tmp_dir / output_filename
+        # The filled form carries the applicant's details: it exists only inside
+        # this block, and the directory is removed however the fill ends.
+        with tempfile.TemporaryDirectory(prefix="see_") as tmp_dir:
+            output_path = Path(tmp_dir) / output_filename
+            fill_result = fill_see_pdf(form_data, output_path)
+            if fill_result["success"]:
+                pdf_bytes = output_path.read_bytes()
     else:
         output_dir = DOCS_DIR / "output"
         output_dir.mkdir(exist_ok=True)
         output_path = output_dir / output_filename
+        fill_result = fill_see_pdf(form_data, output_path)
 
-    fill_result = fill_see_pdf(form_data, output_path)
     if not fill_result["success"]:
-        if tmp_dir is not None:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
         return [TextContent(type="text", text=json.dumps({
             "success": False,
             "error": fill_result.get("error", "Failed to fill PDF."),
-            "template_path": str(SEE_TEMPLATE_PATH),
+            "template": SEE_TEMPLATE_PATH.name,
         }, indent=2))]
 
     notes = [
@@ -777,16 +780,28 @@ def _see_form(arguments: dict, name: str):
         "notes": notes,
     }
 
-    if tmp_dir is not None:
-        pdf_bytes = output_path.read_bytes()
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        response["pdf_base64"] = base64.b64encode(pdf_bytes).decode("ascii")
-        response["output_filename"] = output_filename
-        notes.insert(0, "PDF returned inline as base64 (pdf_base64) — decode and save it yourself; nothing is kept on the server.")
-    else:
+    if pdf_bytes is None:
         response["output_path"] = str(output_path)
+        return [TextContent(type="text", text=json.dumps(response, indent=2))]
 
-    return [TextContent(type="text", text=json.dumps(response, indent=2))]
+    # Sent as a separate binary resource rather than base64 inside the JSON, so
+    # the PDF does not land in the model's context as text.
+    response["output_filename"] = output_filename
+    notes.insert(0, (
+        "The filled PDF is attached to this result as a separate application/pdf "
+        "resource; nothing is kept on the server."
+    ))
+    return [
+        TextContent(type="text", text=json.dumps(response, indent=2)),
+        EmbeddedResource(
+            type="resource",
+            resource=BlobResourceContents(
+                uri=f"lismore-da://see/{quote(output_filename)}",
+                mime_type="application/pdf",
+                blob=base64.b64encode(pdf_bytes).decode("ascii"),
+            ),
+        ),
+    ]
 
 
 # --- the official form's arguments ------------------------------------------
@@ -846,7 +861,7 @@ _SEE_FORM_PROPERTIES = {
 
 # Only fill writes a file, so only fill takes a filename.
 _FILL_ONLY_PROPERTIES = {
-    'output_filename': {'type': 'string', 'description': "Output filename only — any path component is stripped. When running locally over stdio, saved to documents/output/; when served publicly over HTTP, returned inline as base64 and never written to disk. Default: 'SEE_filled.pdf'"},
+    'output_filename': {'type': 'string', 'description': "Output filename only — any path component is stripped. When running locally over stdio, saved to documents/output/; when served publicly over HTTP, attached to the result as an application/pdf resource and never kept on disk. Default: 'SEE_filled.pdf'"},
 }
 
 

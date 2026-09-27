@@ -107,6 +107,7 @@ def fill_see_pdf(form_data: dict, output_path: Path) -> dict:
     was too long for the printed box (those need a continuation attachment) and
     any field whose box couldn't be located in the template.
     """
+    doc = None
     try:
         doc = fitz.open(SEE_TEMPLATE_PATH)
         layout = see_layout(doc)
@@ -200,3 +201,6 @@ def fill_see_pdf(form_data: dict, output_path: Path) -> dict:
         # mapping should raise.
         record_document_error("fill_see_pdf", SEE_TEMPLATE_PATH.name, type(e).__name__, str(e))
         return {"success": False, "error": str(e)}
+    finally:
+        if doc is not None and not doc.is_closed:
+            doc.close()
