@@ -19,7 +19,8 @@ from lismore_da_mcp.vocabulary import unresolved_error
         "precinct policies of the conservation area, what Council may ask for, and the cl "
         "5.10(10) pathway for a use the zone prohibits. Heritage status is never guessed: "
         "pass `heritage_status` if you know it, or get every case side by side. "
-        "lookup_site_constraints can confirm a listing but cannot clear one."
+        "lookup_site_constraints can confirm a listing but cannot clear one; `address` checks "
+        "LEP Schedule 5 offline for a listing at or near it."
     ),
     properties={
         'heritage_status': {
@@ -54,6 +55,14 @@ from lismore_da_mcp.vocabulary import unresolved_error
             'description': (
                 "True if an existing building is changing use. cl 5.10(2) lists works rather "
                 "than uses, and cl 5.10(10) can allow a prohibited use in a heritage item."
+            ),
+        },
+        'address': {
+            'type': 'string',
+            'description': (
+                "Optional, e.g. '180 Molesworth Street, Lismore'. Searched offline against LEP "
+                "Schedule 5 for a listing at that address or on the same street. A match is "
+                "evidence; no match clears nothing, and the status is still yours to supply."
             ),
         },
     },
@@ -111,4 +120,6 @@ def get_heritage_requirements(arguments: dict):
         response["heritage_status_asked_for"] = status_arg
     if area_arg:
         response["conservation_area_asked_for"] = area_arg
+    if arguments.get("address"):
+        response["schedule_5_cross_check"] = heritage.schedule_5_cross_check(arguments["address"])
     return [TextContent(type="text", text=json.dumps(response, indent=2))]
