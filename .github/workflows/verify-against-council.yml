@@ -1,0 +1,160 @@
+name: verify against council
+
+# ROADMAP E2. The audit_*.py scripts check data/ against the PDFs in this repo;
+# scripts/verify_against_council.py checks those PDFs are still what Council
+# publishes. It existed and nobody ran it, which is how the fee schedule was two
+# years stale before anyone noticed. This runs it on a schedule and turns the
+# result into an issue, so the check no longer depends on someone remembering.
+#
+# What it may do: read the repo, and open or comment on issues. It never writes
+# to documents/ and cannot push — the checkout drops its credentials and the
+# token has contents: read. A human decides whether anything it finds belongs.
+#
+# Three outcomes, kept apart on purpose:
+#   drift       — a figure the server quotes is gone from Council's document.
+#                 Opens (or comments on) an issue labelled council-drift.
+#   unverified  — something could not be fetched and nothing else was wrong.
+#                 Council's site 403s plain HTTP and may block CI runners
+#                 outright, so this is expected sometimes. A separate issue,
+#                 council-verify-blocked, so a block never reads as drift and
+#                 never passes as clean.
+#   error       — the verifier itself failed. Same issue as a block: nothing is
+#                 known either way.
+# A clean run closes any open council-verify-blocked issue, since fetching
+# evidently works again. A drift issue stays for a human to close.
+
+on:
+  schedule:
+    # Quarterly, on the 3rd of Feb, May, Aug and Nov (UTC). August is the one
+    # that matters most: Council reissues its fees schedule every July at a new
+    # URL, and this repo has missed that refresh twice. Off the hour to avoid
+    # the top-of-hour scheduling queue.
+    - cron: "41 21 3 2,5,8,11 *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: verify-against-council
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # Three consecutive failed downloads stop the run (--give-up-after), so a
+    # blocked runner answers in minutes; a full clean run is ~20 downloads.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install the scraping extra and a browser
+        run: |
+          pip install -e ".[scraping]"
+          python -m playwright install --with-deps chromium
+
+      - name: Verify against what Council publishes
+        id: verify
+        # The script's exit code carries the same status as the report, but the
+        # report is what is read: an uncaught crash also exits non-zero, and a
+        # missing report must not be mistaken for any real outcome.
+        run: |
+          set +e
+          python scripts/verify_against_council.py \
+            --json "$RUNNER_TEMP/report.json" \
+            --issue-body "$RUNNER_TEMP/issue.md"
+          code=$?
+          set -e
+          if [ -f "$RUNNER_TEMP/report.json" ]; then
+            status=$(jq -r '.status' "$RUNNER_TEMP/report.json")
+          else
+            status=error
+            {
+              echo "**The verifier stopped without writing a report** (exit $code)."
+              echo
+              echo "See the run log."
+            } > "$RUNNER_TEMP/issue.md"
+          fi
+          echo "Verifier exited $code with status $status"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Check documents/ was not touched
+        # The script promises never to write there. Hold it to that.
+        run: |
+          if [ -n "$(git status --porcelain -- documents/)" ]; then
+            git status --porcelain -- documents/
+            echo "::error::verify_against_council.py modified documents/"
+            exit 1
+          fi
+
+      - name: Summarise
+        if: always() && steps.verify.outputs.status != ''
+        run: |
+          echo "## verify against council: ${{ steps.verify.outputs.status }}" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/issue.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open or update an issue
+        if: steps.verify.outputs.status != 'clean'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STATUS: ${{ steps.verify.outputs.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$STATUS" in
+            drift)
+              label=council-drift
+              title="Council publishes figures this server no longer matches"
+              colour=d73a4a
+              description="verify_against_council.py found a quoted figure missing from Council's document" ;;
+            unverified|error)
+              label=council-verify-blocked
+              title="Scheduled check against Council could not run"
+              colour=fbca04
+              description="verify_against_council.py could not fetch Council's documents — not drift, not clean" ;;
+            *)
+              echo "::error::unexpected status '$STATUS'"
+              exit 1 ;;
+          esac
+          body="$RUNNER_TEMP/issue.md"
+          printf '\n[Run log](%s) · status `%s`\n' "$RUN_URL" "$STATUS" >> "$body"
+
+          gh label create "$label" --color "$colour" --description "$description" 2>/dev/null || true
+          existing=$(gh issue list --label "$label" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$body"
+            echo "Commented on #$existing"
+          else
+            gh issue create --title "$title" --label "$label" --body-file "$body"
+          fi
+
+      - name: Close a stale block issue
+        if: steps.verify.outputs.status == 'clean' || steps.verify.outputs.status == 'drift'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          for n in $(gh issue list --label council-verify-blocked --state open --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "Fetching from Council worked again in $RUN_URL."
+          done
+
+      - name: Fail the run unless clean
+        # A red run is the second signal, for whoever watches Actions rather
+        # than issues. Scheduled-run failures notify the last editor of the cron.
+        if: steps.verify.outputs.status != 'clean'
+        run: |
+          echo "::error::status ${{ steps.verify.outputs.status }} (exit ${{ steps.verify.outputs.code }})"
+          exit 1

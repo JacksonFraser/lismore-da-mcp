@@ -13,6 +13,10 @@ The manifest is the only record of where a document came from, so an entry that
 names a file the repo does not have means the verifier silently skips it.
 """
 
+import asyncio
+import json
+import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -21,6 +25,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import verify_against_council as verify  # noqa: E402
 from council_sources import DOCUMENTS, KNOWN_NOT_CARRIED  # noqa: E402
 from verify_against_council import (  # noqa: E402
     FIGURE_CHECKS,
@@ -144,7 +149,168 @@ class TestFigureExtraction:
 
     def test_normalise_matches_the_typography_the_pdfs_use(self):
         assert normalise("15 per 100m² GFA") == normalise("15 PER  100m2   gfa")
+        # Chapter 7 prints curly apostrophes; data/parking.py stores straight ones.
+        assert normalise("manager’s/owner’s") == normalise("manager's/owner's")
 
     def test_similar_is_a_ratio(self):
         assert similar("chapter-9-signage.pdf", "chapter-9-signage.pdf") == 1.0
         assert similar("chapter-9-signage.pdf", "totally-different.pdf") < 0.65
+
+
+# --------------------------------------------------------------------------
+# ROADMAP E2. The scheduled workflow decides what issue to open from the
+# --json status (and the exit code carries the same thing), so that contract is
+# tested here without a browser: download_all is replaced by one that hands
+# back files from disk.
+# --------------------------------------------------------------------------
+
+WORKFLOW = ROOT / ".github" / "workflows" / "verify-against-council.yml"
+
+
+def run_with(monkeypatch, tmp_path, serve, *extra):
+    """Run main() with each manifest document 'downloaded' by serve()."""
+    async def fake_download_all(targets, into, give_up_after=verify.GIVE_UP_AFTER):
+        return {filename: serve(category, filename, into)
+                for _url, category, filename in targets}
+
+    monkeypatch.setattr(verify, "download_all", fake_download_all)
+    out = tmp_path / "report.json"
+    body = tmp_path / "issue.md"
+    code = asyncio.run(verify.main(["--no-crawl", "--json", str(out),
+                                    "--issue-body", str(body), *extra]))
+    return code, json.loads(out.read_text()), body.read_text()
+
+
+def committed_copy(category, filename, into):
+    target = into / filename
+    shutil.copy(DOCS / category / filename, target)
+    return target, None
+
+
+def blocked(category, filename, into):
+    return None, "download failed (TimeoutError)"
+
+
+class TestTheExitCodeContract:
+    def test_the_codes_are_distinct_and_leave_2_to_argparse(self):
+        codes = [verify.EXIT_CLEAN, verify.EXIT_DRIFT, verify.EXIT_UNVERIFIED, verify.EXIT_ERROR]
+        assert len(set(codes)) == 4
+        assert 2 not in codes
+
+    def test_the_committed_documents_verify_clean(self, monkeypatch, tmp_path):
+        """Serving the repo's own copies as 'live' is the no-change case, and it
+        runs every real figure check against every real PDF."""
+        code, report, body = run_with(monkeypatch, tmp_path, committed_copy)
+        assert (code, report["status"]) == (verify.EXIT_CLEAN, "clean")
+        assert report["identical"] == [f for _u, _c, f in DOCUMENTS]
+        assert set(report["figures"]) == set(FIGURE_CHECKS)
+        assert "Every recorded figure" in body
+
+    def test_a_block_is_unverified_not_drift_and_not_clean(self, monkeypatch, tmp_path):
+        code, report, body = run_with(monkeypatch, tmp_path, blocked)
+        assert (code, report["status"]) == (verify.EXIT_UNVERIFIED, "unverified")
+        assert report["drift"] == []
+        assert len(report["unreachable"]) == len(DOCUMENTS)
+        assert "not drift" in body and "not a clean result" in body
+
+    def test_a_partial_block_is_still_unverified(self, monkeypatch, tmp_path):
+        def serve(category, filename, into):
+            if category == "dcp":
+                return blocked(category, filename, into)
+            return committed_copy(category, filename, into)
+        code, report, _ = run_with(monkeypatch, tmp_path, serve)
+        assert code == verify.EXIT_UNVERIFIED
+        assert report["identical"]
+
+    def test_a_missing_figure_is_drift(self, monkeypatch, tmp_path):
+        """The fee schedule 'reissued' as last year's: this year's figures are gone."""
+        def serve(category, filename, into):
+            if filename == "fees-and-charges-2026-27.pdf":
+                target = into / filename
+                shutil.copy(DOCS / "fees" / "fees-and-charges-2025-26.pdf", target)
+                return target, None
+            return committed_copy(category, filename, into)
+        code, report, body = run_with(monkeypatch, tmp_path, serve)
+        assert (code, report["status"]) == (verify.EXIT_DRIFT, "drift")
+        assert report["figures"]["fees-and-charges-2026-27.pdf"]["missing"]
+        assert "### Findings" in body
+
+    def test_drift_outranks_a_block(self):
+        report = {"drift": ["x"], "unreachable": [{"file": "y", "reason": "z"}], "crawl": None}
+        assert verify.verdict(report) == ("drift", verify.EXIT_DRIFT)
+
+    def test_a_failed_crawl_is_not_clean(self):
+        report = {"drift": [], "unreachable": [], "crawl": {"failed_pages": ["https://x"]}}
+        assert verify.verdict(report) == ("unverified", verify.EXIT_UNVERIFIED)
+
+    def test_the_verifier_failing_is_its_own_status(self, monkeypatch, tmp_path):
+        """An uncaught exception exits 1 — the drift code. A missing browser
+        must not open a drift issue."""
+        async def broken(args):
+            raise ModuleNotFoundError("No module named 'playwright'")
+        monkeypatch.setattr(verify, "run", broken)
+        out = tmp_path / "r.json"
+        code = asyncio.run(verify.main(["--json", str(out)]))
+        assert code == verify.EXIT_ERROR
+        assert json.loads(out.read_text())["status"] == "error"
+
+    def test_an_unknown_category_is_a_usage_error(self):
+        with pytest.raises(SystemExit) as exit_:
+            asyncio.run(verify.main(["--only", "nope"]))
+        assert exit_.value.code == 2
+
+
+class TestABlockPageIsNotADocument:
+    """A challenge page saved under a PDF's name would differ from the committed
+    copy and contain none of its figures — a block reported as drift."""
+
+    def test_a_real_pdf_is_recognised(self):
+        assert verify.looks_like_pdf(DOCS / "fees" / "fees-and-charges-2026-27.pdf")
+
+    def test_a_challenge_page_saved_as_pdf_is_not(self, tmp_path):
+        fake = tmp_path / "fees-and-charges-2026-27.pdf"
+        fake.write_text("<!DOCTYPE html><title>Just a moment...</title>")
+        assert not verify.looks_like_pdf(fake)
+
+    def test_a_missing_file_is_not(self, tmp_path):
+        assert not verify.looks_like_pdf(tmp_path / "absent.pdf")
+
+
+class TestTheScheduledWorkflow:
+    """The workflow is YAML nothing executes in CI, so its load-bearing lines are
+    pinned: when it runs, what it may do, and that it cannot write documents/."""
+
+    @pytest.fixture
+    def workflow(self):
+        return WORKFLOW.read_text()
+
+    def test_it_runs_quarterly_and_on_demand(self, workflow):
+        cron = re.search(r"cron:\s*['\"]([^'\"]+)['\"]", workflow).group(1).split()
+        assert len(cron[3].split(",")) == 4, "not quarterly"
+        assert "workflow_dispatch" in workflow
+
+    def test_it_holds_only_the_default_token_with_issues_write(self, workflow):
+        assert "issues: write" in workflow
+        assert "contents: read" in workflow
+        assert "secrets." not in workflow
+        for broader in ("contents: write", "pull-requests: write", "write-all"):
+            assert broader not in workflow
+
+    def test_it_never_commits_or_pushes(self, workflow):
+        assert "git commit" not in workflow and "git push" not in workflow
+        assert "persist-credentials: false" in workflow
+
+    def test_it_checks_documents_was_not_touched(self, workflow):
+        assert "git status --porcelain -- documents/" in workflow
+
+    def test_it_installs_the_scraping_extra_and_a_browser(self, workflow):
+        assert '".[scraping]"' in workflow
+        assert "playwright install" in workflow and "chromium" in workflow
+
+    def test_it_decides_from_the_report(self, workflow):
+        assert "--json" in workflow and "--issue-body" in workflow
+        for status in ("clean", "drift", "unverified", "error"):
+            assert status in workflow
+
+    def test_drift_and_a_block_open_different_issues(self, workflow):
+        assert "council-drift" in workflow and "council-verify-blocked" in workflow
