@@ -8,7 +8,9 @@ from lismore_da_mcp.addresses import lookup_constraints
 from lismore_da_mcp.addresses import lookup_zone
 from lismore_da_mcp.data.definitions import DEFINITION_CATEGORIES, LAND_USE_DEFINITIONS
 from lismore_da_mcp.data.heritage import CONSERVATION_INCENTIVES
+from lismore_da_mcp.data.zones import RU4_RU6_NOTE
 from lismore_da_mcp.data.zones import ZONES
+from lismore_da_mcp.data.zones import ZONES_WITHOUT_A_TABLE
 from lismore_da_mcp.landuse import NOT_A_LAND_USE
 from lismore_da_mcp.landuse import canonical_use
 from lismore_da_mcp.landuse import classify_land_use
@@ -16,6 +18,43 @@ from lismore_da_mcp.registry import tool
 from lismore_da_mcp.vocabulary import DEFINITION_SYNONYMS
 from lismore_da_mcp.vocabulary import resolve
 from lismore_da_mcp.vocabulary import unresolved_error
+
+
+def _zone_not_held(zone_code: str) -> dict:
+    """The answer for a code with no land use table here.
+
+    Two different facts used to share the reply "Zone 'RU4' not found": a code
+    that is not a zone at all, and a Standard Instrument zone that Lismore LEP
+    2012 simply does not use. The second is an answer about the Plan, and
+    "not found" read as a gap in this server's data. SCENARIOS.md run 2.
+    """
+    # Current zones only. Offering the six retired B/IN entries here invited
+    # the caller to pick one — they exist to redirect a code someone already
+    # has, not to be chosen from a menu.
+    available = [k for k in ZONES if "redirect_to" not in ZONES[k]]
+    name = ZONES_WITHOUT_A_TABLE.get(zone_code)
+    if name is None:
+        return {"error": f"Zone '{zone_code}' not found", "available_zones": available}
+    answer = {
+        "zone_code": zone_code,
+        "error": f"Zone {zone_code} {name} is not used in Lismore",
+        "detail": (
+            f"{zone_code} {name} is a Standard Instrument zone, and Lismore LEP 2012 mentions "
+            "it in clauses written for every council — but the Plan has no land use table "
+            "for it, so there is nothing to check a use against. This is a fact about the "
+            "Plan, not a gap in this server's data. Confirm the zone with the Duty Planner "
+            "before relying on any answer for the site."
+        ),
+        "if_a_document_shows_this_zone": (
+            "Check where the code came from: another council's plan, an old or draft map, or "
+            "a mistyped code. lookup_zone_by_address reads the zone from the NSW Land Zoning "
+            "Map for a street address."
+        ),
+        "available_zones": available,
+    }
+    if zone_code in ("RU4", "RU6"):
+        answer["lep_cl_4_2_note_verbatim"] = RU4_RU6_NOTE
+    return answer
 
 
 @tool(
@@ -38,16 +77,7 @@ def get_zone_info(arguments: dict):
             }, indent=2)
         )]
     else:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": f"Zone '{zone_code}' not found",
-                # Current zones only. Offering the six retired B/IN entries here
-                # invited the caller to pick one — they exist to redirect a code
-                # someone already has, not to be chosen from a menu.
-                "available_zones": [k for k in ZONES if "redirect_to" not in ZONES[k]]
-            }, indent=2)
-        )]
+        return [TextContent(type="text", text=json.dumps(_zone_not_held(zone_code), indent=2))]
 
 
 @tool(
@@ -185,13 +215,7 @@ def check_permissibility(arguments: dict):
         zone_code = new_zone
 
     if zone_code not in ZONES:
-        return [TextContent(
-            type="text",
-            text=json.dumps({
-                "error": f"Zone \'{zone_code}\' not found",
-                "available_zones": [k for k in ZONES if "redirect_to" not in ZONES[k]]
-            }, indent=2)
-        )]
+        return [TextContent(type="text", text=json.dumps(_zone_not_held(zone_code), indent=2))]
 
     zone = ZONES[zone_code]
     classification = classify_land_use(land_use, zone, zone_code)

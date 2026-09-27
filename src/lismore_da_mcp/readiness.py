@@ -43,7 +43,9 @@ from lismore_da_mcp.data.readiness import STATUTORY_CONTENT
 from lismore_da_mcp.data.referrals import CHARACTERISTIC_TRIGGERS
 from lismore_da_mcp.data.referrals import REFERRAL_REQUIREMENTS
 from lismore_da_mcp.data.referrals import is_external
+from lismore_da_mcp.data.flood import LEP_FLOOD_CLAUSES
 from lismore_da_mcp.data.zones import ZONES
+from lismore_da_mcp.flood import is_sensitive_or_hazardous
 from lismore_da_mcp.landuse import NOT_A_LAND_USE
 from lismore_da_mcp.landuse import canonical_use
 from lismore_da_mcp.landuse import classify_land_use
@@ -514,6 +516,30 @@ def _site(p: Proposal) -> list[dict]:
                        "this LGA invites the first request for information.",
         })
 
+    # cl 5.22 reaches past the flood planning area, to the probable maximum
+    # flood, for the uses it calls sensitive and hazardous — a childcare centre,
+    # a school, a boarding house. get_flood_requirements raised it (S5) and this
+    # did not, so a childcare centre at a CBD address was told only that flood
+    # was "not established": and the Flood Planning Level that settles that
+    # cannot settle this. SCENARIOS.md run 2, carried over from run 1.
+    # Matched on the applicant's words, as flood.py does, because the checklist
+    # category cannot tell a childcare centre from a shop.
+    if is_sensitive_or_hazardous(f"{p.proposed_use} {p.development_type}"):
+        clause = LEP_FLOOD_CLAUSES["5.22"]
+        findings.append({
+            "severity": "confirm_before_lodging",
+            "finding": f"'{p.proposed_use or p.development_type}' looks like the kind of use LEP "
+                       "cl 5.22 calls sensitive and hazardous development, so the flood "
+                       "question reaches further than the flood planning area.",
+            "why": f"{clause['effect']} A Flood Planning Level answers cl 5.21 and DCP Chapter 8; "
+                   "it does not answer this, because the land this clause reaches lies above "
+                   "the flood planning area.",
+            "source": "LEP 2012 cl 5.22",
+            "do_this": "Ask Council whether the site lies between the flood planning area and "
+                       "the probable maximum flood, and how evacuation would work. "
+                       "get_flood_requirements with this use sets out the clause.",
+        })
+
     if p.heritage:
         findings.append({
             "severity": "confirm_before_lodging",
@@ -532,6 +558,26 @@ def _site(p: Proposal) -> list[dict]:
                        "proposal — for minor external work it is often satisfied by far less "
                        "than a consultant's report. Then get_signage_requirements with "
                        "is_heritage set, before designing a sign.",
+        })
+    elif p.heritage is False:
+        # A "no" from the state layer is a point reading: the address point is
+        # not inside a mapped item. It hardened into silence here, dropping the
+        # vicinity rule and the conservation area question that the same tool
+        # raises when no address is given — so supplying an address made the
+        # answer less careful. SCENARIOS.md run 2, carried over from run 1.
+        findings.append({
+            "severity": "address_in_the_see",
+            "finding": "The address point is not within a mapped heritage item or area. That "
+                       "is not the whole heritage question.",
+            "why": "The state heritage layer is read at the address point only, so a lot partly "
+                   "within a conservation area can be missed, and it is not a substitute for "
+                   "Schedule 5 of the LEP and Council's own mapping. cl 5.10(5)(c) also reaches "
+                   "land *in the vicinity of* a heritage item or conservation area, so a site "
+                   "that is not itself listed can still be assessed for heritage impact.",
+            "source": "LEP 2012 cl 5.10(5)(c), Schedule 5",
+            "do_this": "Ask the Duty Planner whether the site is in a conservation area or near "
+                       "a listed item. If it is neither, one sentence in the SEE saying so "
+                       "closes the question.",
         })
     elif p.heritage is None:
         findings.append({
@@ -649,7 +695,10 @@ def open_questions(p: Proposal, has_parking_shortfall: bool | None = None) -> li
         "existing_use_allowance": p.is_change_of_use,
         "integrated_development": triggered,
         "parking_contribution_in_lieu": has_parking_shortfall is not False and p.in_cbd is not False,
-        "heritage_status": p.heritage is None,
+        # Not only when unknown: the state layer's "no" is a point reading, and
+        # the question's own text says it does not stand in for Schedule 5 or
+        # Council's conservation area mapping.
+        "heritage_status": p.heritage is not True,
         "gfa_increase_within_tenancy": p.is_change_of_use,
     }
     return [q for q in DUTY_PLANNER_QUESTIONS if applies.get(q["key"])]
