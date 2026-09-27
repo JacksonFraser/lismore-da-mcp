@@ -10,7 +10,9 @@ about 6.5% low — a business budgeting from it would have been wrong on the one
 number it came here for. `schedule_status()` below now says so in the tool's own
 answer rather than relying on anybody noticing, and
 `tests/test_fees.py::TestScheduleCurrency` fails if it falls two years behind
-again.
+again. The refresh itself is a checklist in CLAUDE.md, "The July ritual" — read
+it first, because the schedule prints last year's figures beside this year's and
+every presence audit here still passes on the wrong column.
 
 Reading that page needs care, and the care is the point: it carries both a
 "Year 25/26" and a "Year 26/27" column, but only the first row has a value in

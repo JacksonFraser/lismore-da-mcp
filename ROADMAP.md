@@ -701,7 +701,19 @@ The script exists and does the right thing; only the cron does not. GitHub Actio
 opening an issue on drift. It needs the `scraping` extra and must never write to `documents/`.
 Converts a chore that has already been missed twice into an alert nobody has to remember.
 
-### E3 — The July ritual
+### E3 — The July ritual · **DONE 2026-09-27**
+
+> **Landed** as a section of `CLAUDE.md` Part 1, "The July ritual", beside the fee paragraph, with
+> a pointer from `data/fees.py`'s docstring. It is six steps rather than two, because grepping for
+> the schedule's filename and year found it named in eight places — `data/instruments.py`,
+> `council_sources.py`, the verifier's `FIGURE_CHECKS`, `audit_approvals.py`, `data/fees.py`,
+> `data/approvals.py`, tests and prose.
+>
+> **One trap the two-step version would have walked into:** the schedule prints last year's figure
+> beside this year's on 999 rows, so after the PDF is swapped `audit_approvals.py` and the
+> verifier's fee check both still pass with every figure a year stale — they are presence checks,
+> and the stale figure is present, in the left column. The ritual says so at the step where it
+> matters. Making the audit column-aware would close it properly and is not done here.
 
 The statutory fee scale and Council's fees schedule both reset in July. `schedule_status()` already
 shouts when the scale is behind **[verified]**, so this is not a silent failure — but shouting is

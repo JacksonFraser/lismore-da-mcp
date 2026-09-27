@@ -271,6 +271,58 @@ no information; `schedule_status()` now adds a loud warning **only** when the sc
 behind, and `TestScheduleCurrency` fails once it is two years behind. `calculate_da_fees` is the source of truth for a number — the tables
 in Part 2 and `QUICK_REFERENCE.md` are indicative only.
 
+### The July ritual — do this every year once Council publishes the new schedule
+
+The statutory DA fee scale and Council's own fees schedule both reset on 1 July, and Council
+publishes one PDF carrying both, at a **new URL** each year. `schedule_status()` starts warning in
+every fee answer from 1 July, and the August run of `verify-against-council.yml` is timed to
+follow the reissue, but neither refreshes anything. Steps, in order (`YYYY-YY` is the new year,
+e.g. `2027-28`):
+
+1. **Get the PDF.** It is linked from
+   https://www.lismore.nsw.gov.au/Households/Rates-and-water-information/Fees-and-charges. The site
+   403s plain HTTP, so use a browser or add the URL to `scripts/council_sources.py` and run
+   `scripts/fetch_council_documents.py`. Save it as `documents/fees/fees-and-charges-YYYY-YY.pdf`,
+   **open it** (a scraper saves error pages too), run `/check-documents`, and add it to
+   `documents/DOCUMENT_INDEX.md`.
+2. **Point everything at it.** Each of these names the file or its year, and
+   `tests/test_instruments.py::TestFeeSchedules` fails until the first three agree:
+   - `data/instruments.py` — `CURRENT_FEE_SCHEDULE` to the new file; last year's into
+     `SUPERSEDED_FEE_SCHEDULES`; `FEE_SCHEDULE_COLUMNS_NOTE`'s two years (a test reads them off
+     the PDF)
+   - `scripts/audit_approvals.py` `SCHEDULE`, and the `data/fees.py` docstring's filename and page
+   - `scripts/council_sources.py` `DOCUMENTS` (new URL and filename) and the matching key in
+     `scripts/verify_against_council.py` `FIGURE_CHECKS`
+3. **Re-transcribe the figures, from the right-hand column.** The schedule prints two years side
+   by side, last year's first. **That means every presence check here — `audit_approvals.py` and
+   the verifier's fee check — still passes on last year's figures after the PDF is swapped**,
+   because they are still printed in the left column. The audit going green proves nothing until
+   each figure below has been read off the right-hand column:
+   - `data/fees.py` — `DA_FEE_SCHEDULE_YEAR`; the seven `DA_FEE_BRACKETS` bases (row group
+     "Development Application (Lodgement Fee)", p30 in 2026-27 — pages move) after first copying
+     the outgoing bases into `PREVIOUS_SCHEDULES` and checking each new one moved by about one
+     year's indexation; the per-$1,000 increments are fixed and should not change;
+     `DA_FEE_NO_BUILDING_WORK`, `DA_FEE_DWELLING_UNDER_100K`, `NOTIFICATION_FEES`,
+     `PRESCRIBED_NOTICE_FEES`, `INTEGRATED_DEVELOPMENT_FEE`, `DESIGNATED_DEVELOPMENT_FEE`,
+     `DESIGN_REVIEW_PANEL_FEE`, and the dollar figures inside the `UNQUANTIFIED_CHARGES` prose
+   - `data/approvals.py` — every `fee` string, every `fee_source` page number, and the year-named
+     prose in the docstring and `gotcha`s
+4. **Run** `scripts/audit_approvals.py`, then the full test suite. Literals that name the year or a
+   figure will fail and should be updated from the new answer, not from memory:
+   `tests/test_business_path.py` (`fee_schedule_year`), `tests/test_fees.py`,
+   `tests/test_contributions.py`.
+5. **Prose that quotes a fee:** this file (the $370 café example above, the Part 2 fee table and
+   the Council fees URL), `README.md`'s worked example, `QUICK_REFERENCE.md`. Recompute each with
+   `calculate_da_fees`.
+6. **After merging**, run `verify-against-council.yml` by hand (`workflow_dispatch`) so the new
+   manifest URL is checked against what Council serves.
+
+**Not part of July:** the Section 7.11 rates (`data/contributions.py`) are indexed at the date of
+payment and amended by Council on its own cycle — `INDEXATION` already tells the caller to treat
+them as a floor; the Section 64 DSP charges are 2016 dollars and are named, never quantified;
+and the Regulation's assessment periods (`data/timing.py`) change only by amendment, which
+`audit_timing.py` detects.
+
 **The lodgement fee is not what a DA costs, and treating it as though it were was the single
 largest gap in this repo.** For an 80m² café fitout the fee is $370 and the Section 7.11
 contribution is $16,081. `data/contributions.py` carries the contribution rates and
