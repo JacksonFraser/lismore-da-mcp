@@ -1,0 +1,627 @@
+{
+  "_about": "Real business DAs from Lismore City Council's DA Tracker, graded by scripts/validate_against_tracker.py (ROADMAP.md Phase T). 'inputs' are what the applicant knew at lodgement - never read off the consent; any figure worked back from Council's decision is marked HINDSIGHT in input_notes. 'council' is read off the Notice of Determination by `fetch --update`. Public record only: DA numbers, property addresses and Council's figures. Never a name, email or phone number.",
+  "cases": {
+    "2024/153/1": {
+      "description": "DA24/153 - 53 Hunter St - Change of use to Medical Centre and Alts To undertake the change of use of a dwelling to a Medical Centre (2 practitioners) and associated building alterations and additions, carparking, driveway access and business identification signage",
+      "address": "53 Hunter Street, Lismore",
+      "inputs": {
+        "proposed_use": "medical centre",
+        "existing_use": "dwelling house",
+        "development_type": "change of use",
+        "development_cost": 177529
+      },
+      "input_notes": "Two practitioners, per the description.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2024-07-24",
+        "determined": "2025-03-18",
+        "days": 237,
+        "information_request": true,
+        "returned": false,
+        "notice": true,
+        "s711_total": 4142.15,
+        "s64_lines": [
+          {
+            "levy": "Lismore Water",
+            "ets": 0.2,
+            "per_et": 1775.42
+          },
+          {
+            "levy": "Rous County Council",
+            "ets": 0.2,
+            "per_et": 10350.0
+          },
+          {
+            "levy": "Lismore Sewer",
+            "ets": 0.89,
+            "per_et": 8245.04
+          }
+        ],
+        "s64_total": 9763.16,
+        "flood_evacuation_plan": true,
+        "hours_conditioned": true,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2024/158/1": {
+      "description": "DA24/158 - 35 Uralba St Lismore - Increase capacity from 28 to 43 To operate/use the existing childcare facility at/for no greater than 43 child placements.",
+      "address": "35 Uralba Street, Lismore",
+      "inputs": {
+        "proposed_use": "centre-based child care facility",
+        "existing_use": "centre-based child care facility",
+        "development_type": "increase capacity",
+        "development_cost": 20000
+      },
+      "input_notes": "Capacity 28 -> 43 children.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2024-08-08",
+        "determined": "2024-12-11",
+        "days": 125,
+        "information_request": false,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": false,
+        "hours_conditioned": true,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2024/198/1": {
+      "description": "DA24/198 - 68, 68A and 72 Bridge Street, North Lismore - Alts to Pub To undertake alterations to part of the Northern Rivers Hotel (pub and bottle shop) to convert an existing laundry to a new bar area",
+      "address": "68 Bridge Street, North Lismore",
+      "inputs": {
+        "proposed_use": "pub",
+        "existing_use": "pub",
+        "development_type": "alterations and additions",
+        "development_cost": 19734,
+        "floor_area_sqm": 14,
+        "existing_floor_area_sqm": 0
+      },
+      "input_notes": "HINDSIGHT: the 14m2 of new bar area is worked back from Council's Section 7.11 charge (retail rate), not read from the application. existing_floor_area_sqm 0 because the area is new to the bar use. Tracker address 72 Bridge St does not resolve; 68 does. Pins ROADMAP.md T1.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2024-09-09",
+        "determined": "2024-10-10",
+        "days": 31,
+        "information_request": false,
+        "returned": false,
+        "notice": true,
+        "s711_total": 2805.67,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": true,
+        "hours_conditioned": false,
+        "flood_planning_level_m_ahd": 13.84,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2024/246/1": {
+      "description": "DA24/246 - 133 Magellan Street, Lismore - Change of use Change of use of a shop to a tattoo studio",
+      "address": "133 Magellan Street, Lismore",
+      "inputs": {
+        "proposed_use": "tattoo studio",
+        "existing_use": "shop",
+        "development_type": "change of use",
+        "development_cost": 8800,
+        "zone_override": "E2"
+      },
+      "input_notes": "Zone E2 taken from 129 Magellan Street. An earlier lodgement (2024/243/1) was returned to the Portal. No notice published.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2024-10-08",
+        "determined": "2024-11-20",
+        "days": 43,
+        "information_request": false,
+        "returned": false,
+        "notice": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2024/272/1": {
+      "description": "DA24/272 - 80 Ballina Road, Lismore - Signage To construct an illuminated free standing business identification pylon sign (6m high)",
+      "address": "80 Ballina Road, Lismore",
+      "inputs": {
+        "sign_type": "pylon",
+        "height_m": 6,
+        "development_cost": 53570
+      },
+      "input_notes": "Illuminated 6m pylon. No notice published.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2024-10-24",
+        "determined": "2024-11-14",
+        "days": 21,
+        "information_request": false,
+        "returned": false,
+        "notice": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2024/291/1": {
+      "description": "DA24/291 - Shop 10, 104A Molesworth Street, Lismore - Change of use To change the use of shop 10 to a business premises (beauty salon)",
+      "address": "104 Molesworth Street, Lismore",
+      "inputs": {
+        "proposed_use": "beauty salon",
+        "existing_use": "shop",
+        "development_type": "change of use",
+        "development_cost": 0
+      },
+      "input_notes": "",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-01-10",
+        "determined": "2025-06-13",
+        "days": 154,
+        "information_request": true,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": true,
+        "hours_conditioned": true,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2024/313/1": {
+      "description": "DA24/313 - 44 Uralba Street, Lismore - Illuminated pylon sign Removal of existing sign and installation of a new 5m illuminated pylon sign",
+      "address": "44 Uralba Street, Lismore",
+      "inputs": {
+        "sign_type": "pylon",
+        "height_m": 5,
+        "development_cost": 35000
+      },
+      "input_notes": "Illuminated 5m pylon; the notice gives heritage conservation as a condition reason. Address does not resolve.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-01-20",
+        "determined": "2025-02-19",
+        "days": 30,
+        "information_request": false,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": false,
+        "hours_conditioned": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2024/337/1": {
+      "description": "DA24/337 - 180 Wilson Street, South Lismore - Adds to vehicle repair Proposed alterations and additions to an existing vehicle repair station by way of an extension of the mezzanine level for additional flood free storage and the extension of the awning over the car parking area to provide weather protection",
+      "address": "180 Wilson Street, South Lismore",
+      "inputs": {
+        "proposed_use": "vehicle repair station",
+        "existing_use": "vehicle repair station",
+        "development_type": "alterations and additions",
+        "development_cost": 208978,
+        "floor_area_sqm": 90,
+        "existing_floor_area_sqm": 0
+      },
+      "input_notes": "HINDSIGHT: the 90m2 mezzanine is worked back from Council's Section 7.11 charge (industry rate), not read from the application.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-01-20",
+        "determined": "2025-05-02",
+        "days": 102,
+        "information_request": true,
+        "returned": false,
+        "notice": true,
+        "s711_total": 1868.6,
+        "s64_lines": [
+          {
+            "levy": "Lismore Water",
+            "ets": 0.13,
+            "per_et": 1790.67
+          },
+          {
+            "levy": "Rous County Council",
+            "ets": 0.13,
+            "per_et": 10350.0
+          },
+          {
+            "levy": "Lismore Sewer",
+            "ets": 0.13,
+            "per_et": 8315.86
+          }
+        ],
+        "s64_total": 2659.35,
+        "flood_evacuation_plan": false,
+        "hours_conditioned": true,
+        "flood_planning_level_m_ahd": 13.32,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2025/157/1": {
+      "description": "DA25/157 - 53 Terania Street, North Lismore - Recreation facility (ind New Recreation Facility (Indoor) consisting of the construction of a two-storey building containing a gymnasium, including removal of existing building with associated stormwater works, parking, driveway, fencing and landscaping",
+      "address": "53 Terania Street, North Lismore",
+      "inputs": {
+        "proposed_use": "recreation facility (indoor)",
+        "development_type": "new building",
+        "development_cost": 883000
+      },
+      "input_notes": "New two-storey gym. Council's Section 7.11 table is an image.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-08-07",
+        "determined": "2025-10-08",
+        "days": 62,
+        "information_request": true,
+        "returned": false,
+        "notice": true,
+        "s711_total": null,
+        "s711_note": "condition present, table not readable (likely an image)",
+        "s64_lines": [
+          {
+            "levy": "Lismore Water",
+            "ets": 1.21,
+            "per_et": 1802.11
+          },
+          {
+            "levy": "Rous County Council",
+            "ets": 1.21,
+            "per_et": 10958.0
+          },
+          {
+            "levy": "Lismore Sewer",
+            "ets": 1.21,
+            "per_et": 14291.22
+          }
+        ],
+        "s64_total": 32732.1,
+        "flood_evacuation_plan": true,
+        "hours_conditioned": true,
+        "flood_planning_level_m_ahd": 13.88,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2025/178/1": {
+      "description": "DA25/178 - 70 & 70A Woodlark Street, Lismore - Food and drink premises Change of use to a food and drink premises with associated fit-out and signage",
+      "address": "70 Woodlark Street, Lismore",
+      "inputs": {
+        "proposed_use": "food and drink premises",
+        "development_type": "change of use",
+        "development_cost": 0
+      },
+      "input_notes": "Previous use not stated on the tracker.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-08-21",
+        "determined": "2025-10-03",
+        "days": 43,
+        "information_request": false,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": true,
+        "hours_conditioned": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2025/182/1": {
+      "description": "DA25/182 - 19 Bridge Street, North Lismore - Creative Industry Change of use to permit a 'Creative Industry'",
+      "address": "19 Bridge Street, North Lismore",
+      "inputs": {
+        "proposed_use": "creative industry",
+        "development_type": "change of use",
+        "development_cost": 0
+      },
+      "input_notes": "",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-08-21",
+        "determined": "2025-09-19",
+        "days": 29,
+        "information_request": false,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": true,
+        "hours_conditioned": true,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2025/192/1": {
+      "description": "DA25/192 - 113A Union Street, South Lismore - Fence storage facility Change of use to a storage premises including the erection of a manufactured site office, car parking and landscaping.",
+      "address": "113A Union Street, South Lismore",
+      "inputs": {
+        "proposed_use": "storage premises",
+        "development_type": "change of use",
+        "development_cost": 56650
+      },
+      "input_notes": "",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-09-01",
+        "determined": "2025-11-28",
+        "days": 88,
+        "information_request": true,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": true,
+        "hours_conditioned": true,
+        "flood_planning_level_m_ahd": 13.51,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2025/227/1": {
+      "description": "DA25/227 - 86 Woodlark Street, Lismore - Strata & Change of use Change of use to a food and drink premises including internal and external building alterations, and strata subdivision",
+      "address": "86 Woodlark Street, Lismore",
+      "inputs": {
+        "proposed_use": "take away food and drink premises",
+        "development_type": "change of use",
+        "development_cost": 194000,
+        "floor_area_sqm": 95
+      },
+      "input_notes": "Floor area 95m2 from the lodged plans; tenancy described as vacant. No notice published yet.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-10-01",
+        "determined": "2025-12-04",
+        "days": 64,
+        "information_request": false,
+        "returned": false,
+        "notice": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2025/29/1": {
+      "description": "DA25/29 - 2/75 Conway Street, Lismore - Change of use to hair salon Change of use to a hair salon with associated alterations and additions",
+      "address": "75 Conway Street, Lismore",
+      "inputs": {
+        "proposed_use": "hair salon",
+        "development_type": "change of use",
+        "development_cost": 20000
+      },
+      "input_notes": "Previous use not stated. Section 64 levied then reduced to $0 under Council Policy 11.3.3.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-03-12",
+        "determined": "2025-04-29",
+        "days": 48,
+        "information_request": false,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_lines": [
+          {
+            "levy": "Lismore Water",
+            "ets": 0.0,
+            "per_et": 1775.42
+          },
+          {
+            "levy": "Rous County Council",
+            "ets": 0.0,
+            "per_et": 10350.0
+          },
+          {
+            "levy": "Lismore Sewer",
+            "ets": 0.11,
+            "per_et": 8245.04
+          }
+        ],
+        "s64_total": 906.95,
+        "s64_payable": 0.0,
+        "s64_note": "Policy 11.3.3 in effect (amount payable may be reduced)",
+        "flood_evacuation_plan": false,
+        "hours_conditioned": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2025/30/1": {
+      "description": "DA25/30 - 91 Magellan Street, Lismore - Change of use of part of a ret To change the use of part of an existing retail premise to a restaurant or café",
+      "address": "91 Magellan Street, Lismore",
+      "inputs": {
+        "proposed_use": "restaurant or cafe",
+        "existing_use": "shop",
+        "development_type": "change of use",
+        "development_cost": 10000
+      },
+      "input_notes": "Part of a retail premises. Floor area not published.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-03-19",
+        "determined": "2025-05-02",
+        "days": 44,
+        "information_request": true,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": false,
+        "hours_conditioned": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2025/38/1": {
+      "description": "DA25/38 - 133 135 Keen Street Lismore - Cafe To change the use of part of the retail premises to a food and drink premises (café) and associated internal alterations by adding a small kitchen and associated seating",
+      "address": "135 Keen Street, Lismore",
+      "inputs": {
+        "proposed_use": "cafe",
+        "existing_use": "shop",
+        "development_type": "change of use",
+        "development_cost": 3000
+      },
+      "input_notes": "Part of a retail premises at 133-135 Keen St; 133 does not resolve, 135 does. Floor area not published.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-04-03",
+        "determined": "2025-06-12",
+        "days": 70,
+        "information_request": true,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": true,
+        "hours_conditioned": true,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2025/42/1": {
+      "description": "DA25/42 - 73 Keen Street, Lismore - Change of use of part of a buildin Change of use of part of a building from a pub to a food and drink premises and associated internal alterations and signage",
+      "address": "73 Keen Street, Lismore",
+      "inputs": {
+        "proposed_use": "food and drink premises",
+        "existing_use": "pub",
+        "development_type": "change of use",
+        "development_cost": 19030,
+        "zone_override": "E2"
+      },
+      "input_notes": "Tracker address 91 Woodlark St; described as 73 Keen St. Neither resolves; zone E2 from the CBD block.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2025-03-26",
+        "determined": "2025-05-29",
+        "days": 64,
+        "information_request": false,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": false,
+        "hours_conditioned": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2026/15/1": {
+      "description": "To change the use of a shop to a business premises (barbershop)",
+      "address": "133 Magellan Street, Lismore",
+      "inputs": {
+        "proposed_use": "barbershop",
+        "existing_use": "shop",
+        "development_type": "change of use",
+        "development_cost": 0,
+        "zone_override": "E2"
+      },
+      "input_notes": "Address does not resolve (geocoder offers 129 Magellan); zone E2 taken from 129 Magellan Street.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2026-02-13",
+        "determined": "2026-06-25",
+        "days": 132,
+        "information_request": true,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": true,
+        "hours_conditioned": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2026/200/1": {
+      "description": "Construction of 157 additional self-storage sheds and associated infrastructure",
+      "address": "4 Holland Street, Goonellabah",
+      "inputs": {
+        "proposed_use": "storage premises",
+        "existing_use": "storage premises",
+        "development_type": "new building",
+        "development_cost": 2978103
+      },
+      "input_notes": "From the lodged pre-DA form and SEE: 'Storage premises' is the development type the applicant selected; the 157 sheds extend an existing shed complex. The form gives the zone as E4 and RE1 (split site) and a gross floor area of 0, so no floor area is supplied. SEE says bushfire prone (Category 3), not flood affected; a koala habitat assessment is lodged. Undetermined when frozen.",
+      "council": {
+        "determination": null,
+        "lodged": "2026-07-23",
+        "determined": null,
+        "days": null,
+        "information_request": false,
+        "returned": false,
+        "notice": false,
+        "fetched": "2026-09-27"
+      },
+      "prediction": {
+        "frozen": "2026-09-27",
+        "tool": {
+          "zone": "E4",
+          "zone_resolved_by_address": true,
+          "permissibility": "likely_permitted_with_consent",
+          "s711": null,
+          "s64_sized": false,
+          "mentions_flood_evacuation_plan": false
+        }
+      }
+    },
+    "2026/213/1": {
+      "description": "Change of use to a Tattoo Studio and Barber",
+      "address": "98 Woodlark Street, Lismore",
+      "inputs": {
+        "proposed_use": "tattoo studio and barber",
+        "development_type": "change of use",
+        "development_cost": 0
+      },
+      "input_notes": "Previous use not stated on the tracker.",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2026-08-05",
+        "determined": "2026-09-16",
+        "days": 42,
+        "information_request": false,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": false,
+        "hours_conditioned": true,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2026/24/1": {
+      "description": "Change of use to a small bar (25 Eggins Lane, Lismore)",
+      "address": "135 Keen Street, Lismore",
+      "inputs": {
+        "proposed_use": "small bar",
+        "existing_use": "restaurant",
+        "development_type": "change of use",
+        "development_cost": 0,
+        "floor_area_sqm": 225,
+        "num_employees": 4,
+        "spaces_provided": 2,
+        "documents_prepared": [
+          "statement of environmental effects",
+          "acoustic report",
+          "floor plan",
+          "fire safety statement"
+        ]
+      },
+      "input_notes": "Refused; no notice published. Tracker records 133 Keen St; the lodged pre-DA form gives 135 Keen St, which resolves. Floor area, staff and parking are from the lodged pre-DA form. See ROADMAP.md T9.",
+      "council": {
+        "determination": "Refused",
+        "lodged": "2026-02-16",
+        "determined": "2026-06-18",
+        "days": 122,
+        "information_request": true,
+        "returned": false,
+        "notice": false,
+        "fetched": "2026-09-27"
+      }
+    },
+    "2026/68/1": {
+      "description": "Construction of a freestanding digital identification sign",
+      "address": "344 Keen Street, East Lismore",
+      "inputs": {
+        "sign_type": "freestanding digital sign",
+        "development_cost": 36097
+      },
+      "input_notes": "Crown development (school).",
+      "council": {
+        "determination": "Conditional Consent - Council Staff",
+        "lodged": "2026-04-21",
+        "determined": "2026-06-09",
+        "days": 49,
+        "information_request": false,
+        "returned": false,
+        "notice": true,
+        "s711_total": 0.0,
+        "s64_total": 0.0,
+        "flood_evacuation_plan": false,
+        "hours_conditioned": false,
+        "fetched": "2026-09-27"
+      }
+    }
+  }
+}

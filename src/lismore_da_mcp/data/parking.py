@@ -654,3 +654,37 @@ DISABILITY_PARKING = {
                 "spaces provided by a development.",
     "source": f"{CHAPTER} §7.7.1, p8",
 }
+
+
+# Schedule 1 entries this server does not carry a rate for, as at 2026-08-20.
+#
+# Read by `parking.resolve_parking_use` as well as the audit: a use Schedule 1
+# rates separately must not inherit its parent's rate by walking the LEP
+# hierarchy. "Business premises (other than funeral homes)" is the case — a
+# funeral home is a type of business premises, and has its own row.
+#
+# A baseline, not a tolerance — `tests/test_parking_rates.py` asserts it exactly,
+# so adding a rate means removing its name here in the same commit, and a use
+# appearing in a reissued Schedule 1 shows up as an unexplained gap rather than
+# silence. Most of these are uses no Lismore business asks this server about
+# (mines, correctional centres, livestock processing); the point is not that they
+# should all be carried, it is that the number is visible.
+UNCARRIED_SCHEDULE_1_USES = {
+    "Amusement centre", "Animal boarding or training establishment",
+    "Bed and breakfast accommodation", "Community facility",
+    "Correctional centre", "Eco-tourist facility", "Educational establishment",
+    "Electricity generating works", "Entertainment facility", "Environmental facility",
+    "Exhibition home", "Extractive industry", "Farm stay accommodation",
+    "Freight transport facility", "Funeral home", "Home industry", "Hospital", "Hostel",
+    "Information and education facility", "Intensive livestock agriculture",
+    "Landscaping material supplies", "Liquid fuel depot", "Livestock processing industry",
+    "Marina", "Market", "Mine", "Mortuary", "Passenger transport facility",
+    "Pub", "Public administration building", "Recreation area", "Recreation facility (indoor)",
+    "Recreation facility (major)", "Recreation facility (outdoor)", "Registered club",
+    "Respite day care centre", "Restricted premises", "Rural industry",
+    "Rural worker's dwelling", "Sawmill or log processing works", "Self-storage units",
+    "Sex services premises", "Shop (liquor outlet)", "Stock and sale yard",
+    "Telecommunications facility", "Temporary use of land", "Transport depot",
+    "Vehicle body repair workshop", "Vehicle sales or hire premises",
+    "Veterinary hospital", "Waste or resource transfer station",
+}

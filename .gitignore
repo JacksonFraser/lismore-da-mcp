@@ -22,3 +22,7 @@ my-application/
 # Built at deploy time from documents/; rebuilt automatically if absent.
 .search-index.sqlite3
 *.sqlite3.building
+
+# DA Tracker downloads for scripts/validate_against_tracker.py. Notices of
+# Determination carry the applicant's name, address and email — never commit.
+tracker-cache/

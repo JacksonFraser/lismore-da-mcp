@@ -431,3 +431,87 @@ def shortfall_options(gap: int, in_cbd: bool, dev_type: str = "") -> dict:
                             "with Council about, and it is far cheaper to settle the approach "
                             "before the DA is assessed than after it is conditioned.",
     }
+
+
+# The land use each Chapter 7 rate is for, keyed the way the LEP names it.
+#
+# `dcp_use` is the Schedule 1 row, sometimes with a qualifier the LEP does not
+# carry ("Shop (individual)", "Industry (heavy, general and light)",
+# "Recreation facility (indoor) — Gymnasium/fitness centre"), so both the row as
+# written and the row without its qualifier are tried. The first rate listed for
+# a row wins; rows shared by two keys (cafe/restaurant, shop/retail) carry the
+# same rate.
+def _rates_by_lep_term() -> dict[str, str]:
+    from lismore_da_mcp.data.parking import PARKING_RATES
+    from lismore_da_mcp.landuse import canonical_use
+
+    by_term: dict[str, str] = {}
+    for key, entry in PARKING_RATES.items():
+        row = (entry.get("dcp_use") or "").split(" — ")[0]
+        for name in (row, row.split(" (")[0]):
+            if name:
+                by_term.setdefault(canonical_use(name), key)
+    return by_term
+
+
+def resolve_parking_use(term: str):
+    """Which Chapter 7 rate a proposed use takes, and how that was decided.
+
+    Returns (resolution, derivation, refusal). `resolution` is the ordinary
+    vocabulary match where there is one. Where there is not, the word is read as
+    an LEP term (`landuse.lep_term_for`) and walked up the LEP Dictionary's own
+    hierarchy to the nearest term Chapter 7 rates — "hairdresser" reaches
+    business premises, which the DCP carries. ROADMAP.md A2: `check_permissibility`
+    answered for hairdresser while this refused it, from data that was all here.
+
+    Two limits, both of which refuse rather than guess:
+
+    * **Only a chain the LEP states.** No fuzzy match, and no category this server
+      infers — the fallback follows the Dictionary's notes or it does nothing.
+    * **A use Schedule 1 rates on its own row stops the walk.** "Business premises
+      (other than funeral homes)" is the case: a funeral home is a type of business
+      premises in the LEP, and Schedule 1 gives it a separate rate this server does
+      not carry. Walking up would charge it the wrong one. `refusal` says so.
+    """
+    from lismore_da_mcp.data.parking import PARKING_RATES, UNCARRIED_SCHEDULE_1_USES
+    from lismore_da_mcp.landuse import (
+        KNOWN_LAND_USES,
+        ancestors,
+        canonical_use,
+        interpretation,
+        lep_term_for,
+    )
+    from lismore_da_mcp.vocabulary import PARKING_SYNONYMS, Resolution, resolve
+
+    match = resolve(term, PARKING_RATES, PARKING_SYNONYMS)
+    if match and match.how != "fuzzy":
+        return match, None, None
+
+    mapped = lep_term_for(term)
+    if mapped:
+        start = mapped["term"]
+    elif canonical_use(term) in KNOWN_LAND_USES:
+        start, mapped = term, None
+    else:
+        return match, None, None
+
+    uncarried = {canonical_use(use): use for use in UNCARRIED_SCHEDULE_1_USES}
+    by_term = _rates_by_lep_term()
+    path = []
+    for link in [start, *ancestors(start)]:
+        path.append(link)
+        key = canonical_use(link)
+        if key in uncarried:
+            return match, None, (
+                f"Schedule 1 of Chapter 7 sets its own rate for '{uncarried[key]}', and this tool "
+                "does not carry it — so no broader rate is substituted. Read it in DCP Chapter 7 "
+                "Schedule 1, or ask Council."
+            )
+        if key in by_term:
+            reading = interpretation(mapped) + " " if mapped else ""
+            row = PARKING_RATES[by_term[key]]["dcp_use"]
+            how = (f"Chapter 7's rate for '{row}' is the one for {start}." if len(path) == 1 else
+                   f"Chapter 7 sets no rate for {start} under that name. The LEP Dictionary places "
+                   f"it under {' -> '.join(path)}, and Chapter 7's rate for '{row}' is applied.")
+            return Resolution(key=by_term[key], how="lep"), reading + how, None
+    return match, None, None

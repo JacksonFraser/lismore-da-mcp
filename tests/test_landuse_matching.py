@@ -404,3 +404,85 @@ class TestUsesTheLEPPlacesUnderAParent:
         monkeypatch.setattr(landuse, "ancestors", lambda term: [])
         found = hierarchy_audit(["E4"])
         assert any(f["class"] == "wrong_yes" for f in found)
+
+
+class TestWordsResolveThroughTheLEP:
+    """ROADMAP.md A2. check_permissibility and get_parking_rates both refused
+    "hairdresser" while get_definition answered it — the same word, adjacent
+    questions, opposite outcomes. The LEP Dictionary names hairdressers inside
+    business premises, and Chapter 7 carries a business premises rate. They now
+    share one path, and say whose reading it is."""
+
+    @staticmethod
+    def ask(tool, arguments):
+        import json
+
+        from lismore_da_mcp.registry import registered
+
+        return json.loads(registered()[tool].handler(arguments)[0].text)
+
+    @pytest.mark.parametrize("word,zone,expected", [
+        ("hairdresser", "E2", "permitted_with_consent"),
+        ("hairdresser", "E4", "prohibited"),   # E4 prohibits Commercial premises
+        ("bank", "E1", "permitted_with_consent"),
+        ("barber", "E2", "permitted_with_consent"),
+    ])
+    def test_permissibility_answers_through_the_lep_term(self, word, zone, expected):
+        answer = self.ask("check_permissibility", {"land_use": word, "zone_code": zone})
+        assert answer["permissibility"] == expected
+        assert "business premises" in answer["interpreted_as"]
+
+    def test_it_says_whether_the_lep_names_the_word(self):
+        named = self.ask("check_permissibility", {"land_use": "hairdresser", "zone_code": "E2"})
+        assert "names it" in named["interpreted_as"]
+        unnamed = self.ask("check_permissibility", {"land_use": "barber", "zone_code": "E2"})
+        assert "this server's reading, not the LEP's words" in unnamed["interpreted_as"]
+
+    @pytest.mark.parametrize("word", ["hairdresser", "barber", "dry cleaner", "bank"])
+    def test_parking_reaches_the_business_premises_rate(self, word):
+        answer = self.ask("get_parking_rates", {"development_type": word, "floor_area_sqm": 60,
+                                                "location": "outside_cbd"})
+        assert answer["development_type"] == "business_premises"
+        assert "business premises" in answer["interpreted_as"]
+
+    @pytest.mark.parametrize("word,row", [("funeral home", "Funeral home"), ("pub", "Pub")])
+    def test_a_use_schedule_1_rates_separately_does_not_inherit(self, word, row):
+        """'Business premises (other than funeral homes)': walking up from a
+        funeral home would charge it the wrong rate. And a pub was charged the
+        hotel or motel *accommodation* rate through a synonym, until A2."""
+        answer = self.ask("get_parking_rates", {"development_type": word})
+        assert "error" in answer
+        assert f"'{row}'" in answer["schedule_1_has_its_own_rate"]
+
+    def test_no_uncarried_schedule_1_use_is_walked_up(self):
+        from lismore_da_mcp.data.parking import UNCARRIED_SCHEDULE_1_USES
+        from lismore_da_mcp.parking import resolve_parking_use
+
+        for use in UNCARRIED_SCHEDULE_1_USES:
+            match, _, _ = resolve_parking_use(use)
+            assert not (match and match.how == "lep"), use
+
+    def test_a_word_nothing_places_still_refuses(self):
+        assert self.ask("check_permissibility",
+                        {"land_use": "tattoo studio", "zone_code": "E2"})["permissibility"] == "not_found"
+        assert "error" in self.ask("get_parking_rates", {"development_type": "tattoo studio"})
+
+    def test_a_fuzzy_spelling_is_never_read_as_a_land_use(self):
+        from lismore_da_mcp.landuse import lep_term_for
+
+        assert lep_term_for("hairdreser") is None
+
+    def test_the_composed_tools_agree(self):
+        """The point of one shared path: the readiness check and the SEE draft
+        now reach the same parking rate the parking tool does."""
+        from lismore_da_mcp.readiness import Proposal
+        from lismore_da_mcp.tools.readiness import _parking
+
+        parking = _parking(Proposal(proposed_use="hairdresser", floor_area_sqm=90,
+                                    in_cbd=False), None)
+        assert parking and parking["rate_matched"] == "business_premises"
+
+    def test_no_synonym_contradicts_the_lep(self):
+        from audit_definitions import check_synonyms_follow_the_lep
+
+        assert check_synonyms_follow_the_lep() == []

@@ -238,6 +238,8 @@ def check_permissibility(arguments: dict):
     }
     if redirect_note:
         result["redirect_note"] = redirect_note
+    if classification.get("interpreted_as"):
+        result["interpreted_as"] = classification["interpreted_as"]
     if classification["match_type"] == "unrecognised":
         result["what_to_do_next"] = (
             "Call get_definition on the proposal to find the Standard Instrument term it falls "
